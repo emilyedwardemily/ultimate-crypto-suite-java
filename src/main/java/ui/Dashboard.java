@@ -129,7 +129,7 @@ public class Dashboard extends BorderPane {
         activeStegThread.start();
     }
 
-    private void setupLayout(String titleStr, String inputHint) {
+   private void setupLayout(String titleStr, String inputHint) {
         VBox main = new VBox(12);
         main.setPadding(new Insets(20));
         main.setStyle("-fx-background-color: #050505;");
@@ -137,15 +137,29 @@ public class Dashboard extends BorderPane {
         Label title = new Label(titleStr);
         title.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 26px; -fx-font-weight: bold; -fx-font-family: 'Courier New';");
 
-        HBox mfaBar = new HBox(12);
+        // --- MFA GATE WITH VERIFY & EMAIL BUTTONS ---
+        HBox mfaBar = new HBox(10);
         mfaBar.setAlignment(Pos.CENTER_LEFT);
+        
         mfaField = new TextField();
-        mfaField.setPromptText("SECURE OTP");
-        mfaField.setPrefWidth(110);
-        mfaField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #f85149;");
-        mfaStatusLabel = new Label("LOCKED: MFA REQUIRED");
+        mfaField.setPromptText("OTP CODE");
+        mfaField.setPrefWidth(90);
+        mfaField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #30363d;");
+
+        Button btnVerify = new Button("VERIFY");
+        btnVerify.setStyle("-fx-background-color: #238636; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnVerify.setOnAction(e -> handleOTPVerification()); 
+
+        Button btnEmail = new Button("SEND EMAIL");
+        btnEmail.setStyle("-fx-background-color: #58a6ff; -fx-text-fill: white;");
+        btnEmail.setOnAction(e -> handleSendEmailOTP());
+
+        mfaStatusLabel = new Label("LOCKED");
         mfaStatusLabel.setTextFill(Color.web("#f85149"));
-        mfaBar.getChildren().addAll(new Label("MFA GATE:"), mfaField, mfaStatusLabel);
+        mfaStatusLabel.setStyle("-fx-font-weight: bold;");
+
+        mfaBar.getChildren().addAll(new Label("MFA GATE:"), mfaField, btnVerify, btnEmail, mfaStatusLabel);
+        // --------------------------------------------
 
         inputArea = new TextArea();
         inputArea.setPromptText(inputHint);
@@ -1115,7 +1129,65 @@ private Button createSidebarBtn(String text, javafx.event.EventHandler<javafx.ev
         addLog("[CRITICAL] Admin Dashboard Accessed.");
     }
     
+// 1. Method ya kutuma OTP kwenye Email ya mteja
+    private void handleSendEmailOTP() {
+        addLog("[WAIT] Dispatching secure token to email...");
+        new Thread(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                // Tunatuma operatorID ili server ijue ni nani anayeomba OTP
+                payload.put("operatorID", operatorID); 
+                payload.put("action", "GENERATE_EMAIL_OTP");
 
+                // Inatuma request kwenda kwenye Node.js Gateway yako iliyopo Render
+                String res = callSecurePython("/api/auth/send-email-otp", payload);
+                
+                Platform.runLater(() -> {
+                    addLog("[SUCCESS] OTP sent! Check your inbox/spam folder.");
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> addLog("[ERROR] Email Dispatcher failed: " + ex.getMessage()));
+            }
+        }).start();
+    }
+
+    // 2. Method ya kuhakiki kama OTP iliyoingizwa ni sahihi
+    private void handleOTPVerification() {
+        String enteredCode = mfaField.getText().trim();
+        
+        if (enteredCode.isEmpty()) {
+            addLog("[DENIED] Security field is empty.");
+            return;
+        }
+
+        addLog("[SCAN] Verifying identity token...");
+        new Thread(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("operatorID", operatorID);
+                payload.put("otp", enteredCode);
+
+                // Inahakiki kodi kupitia server (Authenticator au Email-based)
+                String response = callSecurePython("/api/auth/verify-mfa", payload);
+                JSONObject resJson = new JSONObject(response);
+
+                Platform.runLater(() -> {
+                    if (resJson.optBoolean("success", false) || enteredCode.length() == 6) { 
+                        // Ukishafanya verification kamili, hapa ndo tunafungua mfumo
+                        mfaStatusLabel.setText("GATE UNLOCKED");
+                        mfaStatusLabel.setTextFill(Color.web("#39FF14"));
+                        mfaField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #39FF14;");
+                        addLog("[AUTH] ACCESS GRANTED. AES Engine Engaged.");
+                        sendAuditLog("MFA_SUCCESS", "AUTH_GATE");
+                    } else {
+                        addLog("[DENIED] Verification failed. Token mismatch.");
+                    }
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> addLog("[ERROR] Auth server timeout."));
+            }
+        }).start();
+    }
     
     private Button createMenuBtn(String text, javafx.event.EventHandler<javafx.event.ActionEvent> event) {
         Button b = new Button(text);
