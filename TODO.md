@@ -1,0 +1,1 @@
+# Fix Dashboard.java exportToPDF Warning - Integrate PDF Export ✓\n\n## Approved Plan Steps:\n\n### 1. ✅ Create TODO.md \n### 2. ✅ Add iTextPDF imports\n### 3. ✅ Update btnExport: Dual TXT/PDF ChoiceDialog → Calls exportToPDF\n### 4. ⏳ mvn clean compile → Verify warning fixed\n### 5. Test app\n### 6. Complete\n\n**Status**: 3/6 ✓ | Next: Compile test
