@@ -1,14 +1,17 @@
 package app;
 
-import javafx.fxml.FXML;
-import javafx.scene.control.*;
-import javafx.application.Platform;
-import javafx.scene.paint.Color;
-import ui.LoginScreen; // Hakikisha umei-import hii kwa ajili ya USER_ROLE
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Base64;
+
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.paint.Color;
 
 /**
  * ULTIMATE CRYPTO SUITE - LOGIN CONTROLLER [V15.0 ACCOUNT-BASED]

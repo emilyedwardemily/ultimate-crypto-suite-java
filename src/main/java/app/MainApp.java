@@ -1,14 +1,16 @@
 package app;
 
-import ui.Dashboard;
-import ui.LoginScreen;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Base64;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import java.io.*;
-import java.nio.file.*;
-import java.util.Base64;
+import ui.Dashboard;
+import ui.LoginScreen;
 
 /**
  * ULTIMATE CRYPTO SUITE - V15.0 [PRODUCTION ACCOUNT EDITION]

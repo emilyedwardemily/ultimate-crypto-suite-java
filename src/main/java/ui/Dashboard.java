@@ -1,32 +1,6 @@
 package ui;
 
-import crypto.*;
-import storage.MongoManager;
-import steganography.StegTool;
-import app.DatabaseManager;
-import app.LicenseManager;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.application.Platform;
-import javafx.stage.FileChooser;
-import javafx.concurrent.Task;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.Separator;
-
-// --- JSON & COLLECTIONS IMPORTS ---
-import org.json.JSONObject;
-import org.json.JSONArray;
-import javafx.collections.transformation.FilteredList;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.beans.property.SimpleStringProperty;
-// ----------------------------------
-
+import java.awt.Desktop;
 import java.io.File;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -35,9 +9,52 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.time.Duration;
-import java.time.Instant;
+
+import org.json.JSONArray;
+// --- JSON & COLLECTIONS IMPORTS ---
+import org.json.JSONObject;
+
+import app.DatabaseManager;
+import app.LicenseManager;
+import crypto.XORUtil;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Accordion;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.Slider;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TitledPane;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
+import steganography.StegTool;
 
 public class Dashboard extends BorderPane {
+/** Cross-platform file explorer reveal */
+    private void revealFileInExplorer(File file) {
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                Desktop.getDesktop().open(file.getParentFile());
+            }
+        } catch (Exception ex) {
+            // Silent fail - user can manually navigate
+            System.err.println("File reveal failed: " + ex.getMessage());
+        }
+    }
     private TextArea inputArea, outputArea;
     private PasswordField keyField;
     private TextField mfaField; 
@@ -113,9 +130,7 @@ public class Dashboard extends BorderPane {
             addLog("[SUCCESS] Intelligence hidden in: " + outputPath);
             addLog("[SYSTEM] Carrier updated to stego_output.png");
             sendAuditLog("STEG_HIDE", "STEGANOGRAPHY");
-            try {
-                Runtime.getRuntime().exec("explorer.exe /select," + selectedImageFile.getAbsolutePath());
-            } catch (Exception ex) { addLog("[ERROR] Explorer link failed."); }
+            revealFileInExplorer(selectedImageFile);
         });
 
         stegTask.setOnFailed(event -> {
@@ -463,7 +478,7 @@ public class Dashboard extends BorderPane {
             if(f != null) {
                 try {
                     JSONObject p = new JSONObject(); p.put("file_path", f.getAbsolutePath());
-                    String res = callSecurePython("/secure-wipe", p);
+                    callSecurePython("/secure-wipe", p);
                     addLog("[VAPORIZED] " + f.getName() + " removed securely.");
                     sendAuditLog("SECURE_WIPE", "FORENSICS");
                 } catch (Exception ex) { addLog("[ERROR] Wipe engine failed."); }
@@ -474,116 +489,9 @@ public class Dashboard extends BorderPane {
         main.getChildren().add(9, hb);
     }
 
-   private void showHistoryModule() {
-        VBox main = new VBox(12);
-        main.setPadding(new Insets(20));
-        main.setStyle("-fx-background-color: #050505;");
 
-        Label title = new Label("SYSTEM FORENSIC HISTORY");
-        title.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 24px; -fx-font-weight: bold;");
 
-        // --- SEARCH BOX (NEW) ---
-        TextField searchField = new TextField();
-        searchField.setPromptText("🔍 Search by Action or Module (e.g. CAESAR, SYSTEM_BOOT)...");
-        searchField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: white; -fx-border-color: #39FF14; -fx-border-width: 0.5;");
 
-        TableView<JSONObject> table = new TableView<>();
-        table.setStyle("-fx-background-color: #0d1117; -fx-control-inner-background: #0d1117;");
-        
-        // --- COLUMNS (REORDERABLE FALSE) ---
-        TableColumn<JSONObject, String> colTime = new TableColumn<>("TIMESTAMP");
-        colTime.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().optString("timestamp")));
-        colTime.setReorderable(false);
-        colTime.setPrefWidth(200);
-
-        TableColumn<JSONObject, String> colAction = new TableColumn<>("ACTION");
-        colAction.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().optString("action", "SYSTEM_EVENT")));
-        colAction.setReorderable(false);
-        colAction.setPrefWidth(180);
-
-        TableColumn<JSONObject, String> colModule = new TableColumn<>("MODULE");
-        colModule.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().optString("module", "CORE_KERNEL")));
-        colModule.setReorderable(false);
-        colModule.setPrefWidth(150);
-
-        table.getColumns().addAll(colTime, colAction, colModule);
-
-        // --- SEARCH LOGIC ---
-        ObservableList<JSONObject> masterData = FXCollections.observableArrayList();
-        FilteredList<JSONObject> filteredData = new FilteredList<>(masterData, p -> true);
-
-        searchField.textProperty().addListener((obs, old, newVal) -> {
-            filteredData.setPredicate(log -> {
-                if (newVal == null || newVal.isEmpty()) return true;
-                String lowerCaseFilter = newVal.toLowerCase();
-                if (log.optString("action").toLowerCase().contains(lowerCaseFilter)) return true;
-                if (log.optString("module").toLowerCase().contains(lowerCaseFilter)) return true;
-                return false;
-            });
-        });
-
-        // --- BUTTONS ---
-        HBox btnBox = new HBox(10);
-        Button refreshBtn = new Button("REFRESH FROM ATLAS");
-        Button pdfBtn = new Button("GENERATE REPORT (PDF)");
-        
-        refreshBtn.setStyle("-fx-background-color: #238636; -fx-text-fill: white; -fx-font-weight: bold;");
-        pdfBtn.setStyle("-fx-background-color: #8957e5; -fx-text-fill: white; -fx-font-weight: bold;");
-
-        refreshBtn.setOnAction(e -> {
-            new Thread(() -> {
-                try {
-                    String res = callSecurePython("/get-audit-logs", new JSONObject());
-                    JSONArray logs = new JSONArray(res);
-                    masterData.clear();
-                    for (int i = 0; i < logs.length(); i++) masterData.add(logs.getJSONObject(i));
-                    Platform.runLater(() -> table.setItems(filteredData));
-                } catch (Exception ex) { addLog("[ERROR] Audit sync failed."); }
-            }).start();
-        });
-
-        pdfBtn.setOnAction(e -> exportToPDF(masterData));
-
-        btnBox.getChildren().addAll(refreshBtn, pdfBtn);
-        main.getChildren().addAll(title, searchField, table, btnBox);
-        setCenter(main);
-    }
-
-private void initiateMpesaPayment() {
-    TextInputDialog dialog = new TextInputDialog("255");
-    dialog.setTitle("PREMIUM ACTIVATION");
-    dialog.setHeaderText("Unlock Military Grade Protection");
-    dialog.setContentText("Enter M-Pesa Number:");
-
-    dialog.showAndWait().ifPresent(phone -> {
-        addLog("[WAIT] Contacting M-Pesa Gateway...");
-        new Thread(() -> {
-            try {
-                JSONObject payLoad = new JSONObject();
-                payLoad.put("phoneNumber", phone);
-                payLoad.put("amount", "5000"); // Bei ya Premium
-
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("https://ultimate-crypto-node-gateway.onrender.com/api/payments/stkpush"))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payLoad.toString()))
-                        .build();
-
-                HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
-                
-                Platform.runLater(() -> {
-                    if(res.statusCode() == 200) {
-                        addLog("[PAYMENT] STK Push Sent! Check your phone.");
-                        // Hapa mteja akilipa, ndo tunampa 'PRO' status kwenye Atlas
-                    } else {
-                        addLog("[ERROR] Payment Gateway Timeout.");
-                    }
-                });
-            } catch (Exception e) { addLog("[CRITICAL] Payment System Error."); }
-        }).start();
-    });
-}
 
     private void showLearningModule() {
         VBox main = new VBox(20);
@@ -629,7 +537,9 @@ private void initiateMpesaPayment() {
         colModule.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().optString("module", "GENERAL")));
         colModule.setPrefWidth(150);
 
-        auditTable.getColumns().addAll(colTime, colAction, colModule);
+        auditTable.getColumns().add(colTime);
+        auditTable.getColumns().add(colAction);
+        auditTable.getColumns().add(colModule);
         auditTable.setPrefHeight(450);
 
         HBox controls = new HBox(15);
@@ -646,71 +556,6 @@ private void initiateMpesaPayment() {
         setCenter(main);
         
         refreshAuditLogs();
-    }
-
-    private void exportToPDF(ObservableList<JSONObject> data) {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("🛡️ GENERATE SECURE PDF REPORT");
-        
-        fileChooser.getExtensionFilters().clear();
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files (*.pdf)", "*.pdf"));
-        
-        String cleanTimestamp = java.time.LocalDateTime.now().toString().replace(":", "-").replace(".", "-");
-        fileChooser.setInitialFileName("Forensic_Report_" + cleanTimestamp + ".pdf");
-        
-        File selectedFile = fileChooser.showSaveDialog(null);
-
-        if (selectedFile != null) {
-            new Thread(() -> {
-                String absolutePath = selectedFile.getAbsolutePath();
-                
-                if (absolutePath.toLowerCase().endsWith(".txt")) {
-                    absolutePath = absolutePath.substring(0, absolutePath.length() - 4) + ".pdf";
-                } else if (!absolutePath.toLowerCase().endsWith(".pdf")) {
-                    absolutePath = absolutePath + ".pdf";
-                }
-                
-                File finalFile = new File(absolutePath);
-
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(finalFile)) {
-                    com.itextpdf.text.Document document = new com.itextpdf.text.Document();
-                    com.itextpdf.text.pdf.PdfWriter writer = com.itextpdf.text.pdf.PdfWriter.getInstance(document, fos);
-                    
-                    writer.setCloseStream(true);
-                    document.open();
-                    
-                    com.itextpdf.text.Font headFont = new com.itextpdf.text.Font(com.itextpdf.text.Font.FontFamily.COURIER, 14, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.GREEN);
-                    document.add(new com.itextpdf.text.Paragraph("ULTIMATE CRYPTO SUITE - FORENSIC AUDIT", headFont));
-                    document.add(new com.itextpdf.text.Paragraph("OPERATOR: " + operatorID));
-                    document.add(new com.itextpdf.text.Paragraph("DATE: " + java.time.LocalDateTime.now()));
-                    document.add(new com.itextpdf.text.Paragraph("--------------------------------------------------\n\n"));
-
-                    com.itextpdf.text.pdf.PdfPTable pdfTable = new com.itextpdf.text.pdf.PdfPTable(3);
-                    pdfTable.setWidthPercentage(100);
-                    
-                    pdfTable.addCell("TIMESTAMP");
-                    pdfTable.addCell("ACTION");
-                    pdfTable.addCell("MODULE");
-
-                    for (JSONObject log : data) {
-                        pdfTable.addCell(log.optString("timestamp", "N/A"));
-                        pdfTable.addCell(log.optString("action", "EVENT"));
-                        pdfTable.addCell(log.optString("module", "CORE"));
-                    }
-
-                    document.add(pdfTable);
-                    document.close();
-                    
-                    Platform.runLater(() -> {
-                        addLog("[SUCCESS] Forensic PDF Created: " + finalFile.getName());
-                        try { Runtime.getRuntime().exec("xdg-open " + finalFile.getParent()); } catch (Exception e) {}
-                    });
-
-                } catch (Exception ex) {
-                    Platform.runLater(() -> addLog("[ERROR] PDF Engine Fail: " + ex.getMessage()));
-                }
-            }).start();
-        }
     }
 
     private void generateForensicReport() {
@@ -738,9 +583,7 @@ private void initiateMpesaPayment() {
                 sb.append("\n[END OF REPORT - INTEGRITY SEALED]");
                 java.nio.file.Files.writeString(file.toPath(), sb.toString());
                 addLog("[EXPORTED] Report saved successfully.");
-                if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                    Runtime.getRuntime().exec("notepad.exe " + file.getAbsolutePath());
-                }
+                revealFileInExplorer(file);
             } catch (Exception e) { addLog("[ERROR] Export failed."); }
         }
     }
@@ -753,8 +596,12 @@ private void initiateMpesaPayment() {
                 JSONObject json = new JSONObject(response);
                 if (json.has("logs")) {
                     Platform.runLater(() -> {
+String logsJson = json.get("logs").toString();
+                    JSONArray logsArray = new JSONArray(logsJson);
                         auditTable.getItems().clear();
-                        json.getJSONArray("logs").forEach(item -> auditTable.getItems().add((JSONObject) item));
+                        for (int i = 0; i < logsArray.length(); i++) {
+                            auditTable.getItems().add(logsArray.getJSONObject(i));
+                        }
                         addLog("[SUCCESS] Forensic history synced.");
                     });
                 }
@@ -767,34 +614,6 @@ private void initiateMpesaPayment() {
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(PYTHON_URL + ep))
                 .header("X-API-KEY", API_SECRET_KEY).GET().build();
         return client.send(req, HttpResponse.BodyHandlers.ofString()).body();
-    }
-
-    private void syncWithCloud(String encryptedData, String serviceType) {
-        try {
-            JSONObject payload = new JSONObject();
-            payload.put("userId", operatorID); 
-            payload.put("service", serviceType);
-            payload.put("encryptedData", encryptedData);
-            payload.put("type", "Vault");
-
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                   .uri(URI.create("https://ultimate-crypto-node-gateway.onrender.com/api/vault/sync"))
-.header("Content-Type", "application/json")
-.header("X-API-KEY", API_SECRET_KEY)
-.POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
-.build();
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenAccept(response -> {
-                    if (response.statusCode() == 201) {
-                        System.out.println("✅ Data Imehifadhiwa Cloud!");
-                    } else {
-                        System.out.println("❌ Cloud Sync Failed: " + response.body());
-                    }
-                });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private void handleSecureDispatch(String title) {
@@ -1053,15 +872,6 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
     }
 
     return sidebar;
-}        
-//Helper method kwa ajili ya kutengeneza button za pembeni kirahisi
-private Button createSidebarBtn(String text, javafx.event.EventHandler<javafx.event.ActionEvent> event) {
-    Button b = new Button(text);
-    b.setMaxWidth(Double.MAX_VALUE);
-    b.setAlignment(Pos.CENTER_LEFT);
-    b.setStyle("-fx-background-color: transparent; -fx-text-fill: #c9d1d9; -fx-cursor: hand;");
-    b.setOnAction(event);
-    return b;
 }
 
     private void sendMpesaRequest(String phone, String amount) {
@@ -1140,7 +950,7 @@ private Button createSidebarBtn(String text, javafx.event.EventHandler<javafx.ev
                 payload.put("action", "GENERATE_EMAIL_OTP");
 
                 // Inatuma request kwenda kwenye Node.js Gateway yako iliyopo Render
-                String res = callSecurePython("/api/auth/send-email-otp", payload);
+                callSecurePython("/api/auth/send-email-otp", payload);
                 
                 Platform.runLater(() -> {
                     addLog("[SUCCESS] OTP sent! Check your inbox/spam folder.");
