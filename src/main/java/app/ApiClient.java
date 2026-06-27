@@ -6,6 +6,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 /**
  * ULTIMATE CRYPTO SUITE - PYTHON BRIDGE (V14.0)
@@ -56,5 +57,57 @@ public class ApiClient {
         } else {
             throw new Exception("Server Error: " + responseBody.optString("detail", "Unknown Error"));
         }
+    }
+
+    public static JSONObject splitSecret(String secret, int n, int k) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("secret", secret);
+        payload.put("n", n);
+        payload.put("k", k);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/split"))
+            .header("Content-Type", "application/json")
+            .header("x-api-key", API_SECRET)
+            .timeout(Duration.ofSeconds(20))
+            .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 401) {
+            throw new Exception("Security Breach: Invalid API Token!");
+        }
+
+        JSONObject resJson = new JSONObject(response.body());
+        if (!resJson.optString("status").equals("success")) {
+            throw new Exception("Split failed: " + resJson.optString("detail", "Unknown Error"));
+        }
+        return resJson;
+    }
+
+    public static String reconstructSecret(JSONArray shares) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("shares", shares);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(BASE_URL + "/reconstruct"))
+            .header("Content-Type", "application/json")
+            .header("x-api-key", API_SECRET)
+            .timeout(Duration.ofSeconds(20))
+            .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 401) {
+            throw new Exception("Security Breach: Invalid API Token!");
+        }
+
+        JSONObject resJson = new JSONObject(response.body());
+        if (!resJson.optString("status").equals("success")) {
+            throw new Exception("Reconstruction failed: " + resJson.optString("detail", "Unknown Error"));
+        }
+        return resJson.getString("secret");
     }
 }

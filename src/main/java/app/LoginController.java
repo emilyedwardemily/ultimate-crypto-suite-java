@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Base64;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -18,6 +21,8 @@ import javafx.scene.paint.Color;
  * STRATEGY: Authentic Identity via Render Node Gateway
  */
 public class LoginController {
+
+    private static final Logger log = LoggerFactory.getLogger(LoginController.class);
 
     @FXML private TextField emailField;
     @FXML private PasswordField passwordField; // Imebadilishwa kutoka licenseField
@@ -52,7 +57,7 @@ public class LoginController {
                         
                         // UX Delay kidogo ili mtumiaji aone mafanikio
                         new Thread(() -> {
-                            try { Thread.sleep(800); } catch (InterruptedException ignored) {}
+                            try { Thread.sleep(800); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                             Platform.runLater(this::navigateToDashboard);
                         }).start();
                         
@@ -80,9 +85,9 @@ public class LoginController {
             String rawData = email + "::" + pass;
             String encoded = Base64.getEncoder().encodeToString(rawData.getBytes());
             writer.println(encoded);
-            System.out.println("💾 [SECURITY] Identity cached securely.");
+            log.info("Identity cached securely.");
         } catch (IOException e) {
-            System.err.println("⚠️ Warning: Persistence failed.");
+            log.warn("Persistence failed: {}", e.getMessage());
         }
     }
 
@@ -90,10 +95,10 @@ public class LoginController {
         try {
             // Tunaita MainApp kubadilisha root kwenda Dashboard
             MainApp.openDashboard(); 
-            System.out.println("🚀 System Dashboard Loaded.");
+            log.info("System Dashboard Loaded.");
         } catch (Exception e) {
+            log.error("Failed to initialize Dashboard", e);
             updateStatus("❌ UI Error: Failed to initialize Dashboard.", Color.RED);
-            e.printStackTrace();
         }
     }
 
