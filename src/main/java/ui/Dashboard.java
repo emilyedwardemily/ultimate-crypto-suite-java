@@ -106,7 +106,8 @@ public class Dashboard extends BorderPane {
     }
     
     private static final String API_SECRET_KEY = "Emily_Crypto_Secure_2026_KIU";
-    private static final String PYTHON_URL = "https://ultimate-crypto-node-gateway.onrender.com";
+    private static final String PYTHON_URL = "https://ultimate-crypto-python.onrender.com";
+    private static final String NODE_URL = "https://ultimate-crypto-node-gateway.onrender.com";
 
     public Dashboard() {
         String hwid = LicenseManager.getHardwareID();
@@ -1693,6 +1694,24 @@ public class Dashboard extends BorderPane {
         }
     }
 
+    private String callNodeSecure(String ep, JSONObject p) throws ApiException {
+        try {
+            HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(7)).build();
+            HttpRequest req = HttpRequest.newBuilder().uri(URI.create(NODE_URL + ep))
+                    .header("Content-Type", "application/json").header("X-API-KEY", API_SECRET_KEY)
+                    .POST(HttpRequest.BodyPublishers.ofString(p.toString())).build();
+            HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 401) {
+                throw new ApiException("Invalid API Key", 401);
+            }
+            return response.body();
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException("Node request failed: " + ep, e);
+        }
+    }
+
     private void handleSecureDispatch(String title) {
         TextInputDialog dialog = new TextInputDialog("recipient@example.com");
         dialog.setTitle(title);
@@ -1844,13 +1863,17 @@ public class Dashboard extends BorderPane {
             try {
                 JSONObject p = new JSONObject(); p.put("data", outputArea.getText());
                 String sig = new JSONObject(callSecurePython("/sign", p)).getString("signature");
+                String preview = sig.length() > 30 ? sig.substring(0, 30).toUpperCase() + "..." : sig.toUpperCase();
                 Platform.runLater(() -> {
-                    signatureLabel.setText("RSA SEAL: " + sig.substring(0, 30).toUpperCase() + "...");
+                    signatureLabel.setText("RSA SEAL: " + preview);
                     signatureLabel.setStyle("-fx-text-fill: #39FF14; -fx-border-color: #39FF14; -fx-padding: 10;");
                     addLog("[SIGNED] Integrity seal attached.");
                 });
                 sendAuditLog("RSA_SIGN", "INTEGRITY");
-            } catch (Exception e) { Platform.runLater(() -> addLog("[ERROR] Signing Fail.")); }
+            } catch (Exception e) {
+                String msg = e.getMessage() != null ? e.getMessage() : "Unknown error";
+                Platform.runLater(() -> addLog("[ERROR] Signing Fail: " + msg));
+            }
         }).start();
     }
 
@@ -1877,7 +1900,8 @@ public class Dashboard extends BorderPane {
                 auditEntry.put(JSON_MODULE, module);
                 callSecurePython("/audit-log", auditEntry);
             } catch (Exception e) {
-                log.warn("Audit link failed.");
+                String msg = e.getMessage() != null ? e.getMessage() : "Unknown";
+                log.warn("Audit link failed: {}", msg);
             }
         }).start();
     }
@@ -2045,12 +2069,9 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         new Thread(() -> {
             try {
                 JSONObject payload = new JSONObject();
-                // Tunatuma operatorID ili server ijue ni nani anayeomba OTP
-                payload.put("operatorID", operatorID); 
-                payload.put(JSON_ACTION, "GENERATE_EMAIL_OTP");
+                payload.put("email", LoginScreen.USERNAME.isEmpty() ? operatorID : LoginScreen.USERNAME);
 
-                // Inatuma request kwenda kwenye Node.js Gateway yako iliyopo Render
-                callSecurePython("/api/auth/send-email-otp", payload);
+                callNodeSecure("/api/auth/send-otp", payload);
                 
                 Platform.runLater(() -> addLog("[SUCCESS] OTP sent! Check your inbox/spam folder."));
             } catch (Exception ex) {
@@ -2072,16 +2093,14 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         new Thread(() -> {
             try {
                 JSONObject payload = new JSONObject();
-                payload.put("operatorID", operatorID);
+                payload.put("email", LoginScreen.USERNAME.isEmpty() ? operatorID : LoginScreen.USERNAME);
                 payload.put("otp", enteredCode);
 
-                // Inahakiki kodi kupitia server (Authenticator au Email-based)
-                String response = callSecurePython("/api/auth/verify-mfa", payload);
-                JSONObject resJson = new JSONObject(response);
+                String responseStr = callNodeSecure("/api/auth/verify-otp", payload);
+                JSONObject resJson = new JSONObject(responseStr);
 
                 Platform.runLater(() -> {
-                    if (resJson.optBoolean("success", false) || enteredCode.length() == 6) { 
-                        // Ukishafanya verification kamili, hapa ndo tunafungua mfumo
+                    if (resJson.optBoolean("success", false)) {
                         mfaStatusLabel.setText("GATE UNLOCKED");
                         mfaStatusLabel.setTextFill(Color.web("#39FF14"));
                         mfaField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #39FF14;");
@@ -2092,7 +2111,7 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
                     }
                 });
             } catch (Exception ex) {
-                Platform.runLater(() -> addLog("[ERROR] Auth server timeout."));
+                Platform.runLater(() -> addLog("[ERROR] Auth server timeout: " + ex.getMessage()));
             }
         }).start();
     }
