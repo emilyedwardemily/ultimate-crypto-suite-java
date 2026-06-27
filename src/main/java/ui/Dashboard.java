@@ -808,10 +808,9 @@ public class Dashboard extends BorderPane {
     private static class ChallengeData {
         String id, title, descr, hint, flag;
         int stars, xp;
-        boolean done;
         ChallengeData(String id, String title, int stars, int xp, String descr, String hint, String flag) {
             this.id = id; this.title = title; this.stars = stars; this.xp = xp;
-            this.descr = descr; this.hint = hint; this.flag = flag; this.done = false;
+            this.descr = descr; this.hint = hint; this.flag = flag;
         }
     }
 
@@ -877,14 +876,6 @@ public class Dashboard extends BorderPane {
                 "Combine two techniques: string reversal + Atbash cipher.",
                 "UC{IVEVRIH_VN}")
         };
-    }
-
-    private static String getRank(int level) {
-        if (level >= 13) return "FORTRESS LORD";
-        if (level >= 10) return "CRYPTOGRAPHER";
-        if (level >= 7)  return "OPERATOR";
-        if (level >= 4)  return "ANALYST";
-        return "CADET";
     }
 
     private static String getLeaderboardText() {
@@ -1125,7 +1116,7 @@ public class Dashboard extends BorderPane {
 
         int xpForRank = totalXP;
         int level = totalXP / 200 + 1;
-        double pct = CHALLENGE_COUNT > 0 ? (double) completedChallenges / CHALLENGE_COUNT : 0;
+        double pct = (double) completedChallenges / CHALLENGE_COUNT;
         ProgressBar xpBar = new ProgressBar(pct);
         xpBar.setPrefWidth(Double.MAX_VALUE);
         xpBar.setStyle("-fx-accent: #39FF14;");
