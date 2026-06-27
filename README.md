@@ -16,7 +16,7 @@ Ultimate Crypto Suite is a sophisticated Cybersecurity Tool designed to provide 
 * **Database**: MongoDB Atlas (Scalable Cloud Storage)
 
 ## 📦 Installation & Setup
-1. Ensure you have **Java JDK 17+** installed on your machine.
+1. Ensure you have **Java JDK 25+** installed on your machine.
 2. Download the latest `.jar` executable from the `target` directory or the `.deb` package for Linux systems.
 3. Launch the application via terminal:
    ```bash

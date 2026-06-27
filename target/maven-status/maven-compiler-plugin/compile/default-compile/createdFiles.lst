@@ -1,4 +1,5 @@
 app/Launcher.class
+ui/Dashboard$ChallengeData.class
 ui/LoginScreen.class
 ui/Dashboard.class
 ui/Dashboard$1.class
@@ -12,4 +13,5 @@ app/LoginController.class
 steganography/StegTool.class
 app/LicenseManager.class
 storage/MongoManager.class
+app/ApiException.class
 app/MainApp.class
