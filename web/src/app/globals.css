@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-crypto-text-muted transition-colors hover:bg-crypto-surface2 hover:text-crypto-text;
+  }
+
+  .sidebar-link-active {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium bg-crypto-accent/10 text-crypto-accent;
+  }
+
+  .stat-card {
+    @apply rounded-xl border border-crypto-border bg-crypto-surface p-6;
+  }
+
+  .btn-primary {
+    @apply rounded-lg bg-crypto-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-crypto-accent-hover disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply rounded-lg bg-crypto-red px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-crypto-red-hover;
+  }
+
+  .input-field {
+    @apply w-full rounded-lg border border-crypto-border bg-crypto-surface2 px-3 py-2 text-sm text-crypto-text placeholder-crypto-text-muted focus:outline-none focus:ring-2 focus:ring-crypto-accent/50;
+  }
+
+  .card {
+    @apply rounded-xl border border-crypto-border bg-crypto-surface p-6;
+  }
+}
