@@ -9,6 +9,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.List;
 
 import org.json.JSONArray;
 // --- JSON & COLLECTIONS IMPORTS ---
@@ -18,6 +19,7 @@ import academy.AcademyService;
 import academy.AcademyService.GlobalPosition;
 import academy.AcademyService.Standing;
 import academy.AcademyUi;
+import academy.CertificateGenerator;
 import academy.Challenge;
 import app.ApiClient;
 import app.ApiException;
@@ -86,7 +88,7 @@ public class Dashboard extends BorderPane {
 
     private static int totalXP = 0;
     private static int completedChallenges = 0;
-    private static final int CHALLENGE_COUNT = 284;
+    private static final int CHALLENGE_COUNT = 310;
     private static final java.util.Map<String, Integer> leaderboard = new java.util.HashMap<>();
     private static final java.util.Set<String> achievedBadges = new java.util.LinkedHashSet<>();
     private static String diffFilter = "ALL";
@@ -97,6 +99,7 @@ public class Dashboard extends BorderPane {
     private int practiceTick = 0;
     private AnimationTimer academyTimer;
     private AnimationTimer missionClock;
+    private AnimationTimer challengeClock;
     private String leaderTab = "global";
     private boolean suppressBadgeAnimations = true;
     private final java.util.ArrayDeque<String> badgeAnimQueue = new java.util.ArrayDeque<>();
@@ -1469,6 +1472,58 @@ public class Dashboard extends BorderPane {
                 "Affine: OVSNFA_FDUTPG", "Affine: a=15, b=5.", "UC{LINEAR_AMBUSH}"),
             new ChallengeData("hard_284", "Affine Fortress", 4, 360, "HARD", "affinehard",
                 "Affine: FJUY_EMPDNW", "Affine: a=17, b=9.", "UC{MATH_PRISON}"),
+            new ChallengeData("expert_1", "Polybius Lattice", 5, 480, "EXPERT", "expert",
+                "Polybius coordinates: 35 31 44 33 34 44 | 12 43 42 45 44 15", "5x5 grid, rows/cols 1-5. I/J share a cell.", "UC{POLYBIUS}"),
+            new ChallengeData("expert_2", "Playfair Digraph", 5, 480, "EXPERT", "expert",
+                "Playfair pair KC EQ reveals the plaintext digraph CO.", "Build a 5x5 key square and decrypt pair by pair.", "UC{PLAYFAIR}"),
+            new ChallengeData("expert_3", "Bifid Shuffle", 5, 480, "EXPERT", "expert",
+                "Bifid coords: 31 24 13 55 22 14 41 35 12 44 51 23", "Write row/col coords, read down the columns, then map back.", "UC{BIFID}"),
+            new ChallengeData("expert_4", "Columnar Transposition", 5, 480, "EXPERT", "expert",
+                "Key=ELITE. Cipher: LIOEEDTKSROVA", "Write the message in columns under the key, read columns in key order.", "UC{TRANSPOSE}"),
+            new ChallengeData("expert_5", "Running Key", 5, 480, "EXPERT", "expert",
+                "Running key text: FORTRESSDEFENSE. Cipher: RODERQN", "Key stream comes from the key text, not a repeating word.", "UC{RUNNING}"),
+            new ChallengeData("expert_6", "Porta Cipher", 5, 480, "EXPERT", "expert",
+                "Porta key=CAPTAIN. Cipher: EMMKTRW", "Key maps plaintext into mirrored reciprocal alphabets.", "UC{PORTA}"),
+            new ChallengeData("expert_7", "Nihilist Square", 5, 480, "EXPERT", "expert",
+                "Nihilist sums: 141 158 186 144 173 152", "Add plaintext coordinates to key coordinates.", "UC{NIHILIST}"),
+            new ChallengeData("expert_8", "Baconian Grid", 5, 480, "EXPERT", "expert",
+                "Bacon sequence: abbba bbaab ababb aabbb baaab babba", "5 a/b symbols per letter (a=0, b=1) in binary order.", "UC{BACONIAN}"),
+            new ChallengeData("expert_9", "Rail Six Deep", 5, 480, "EXPERT", "expert",
+                "Rail fence (6 rails): CIFEPERALHIKS", "Zig-zag down and up across six rails.", "UC{RAILSIX}"),
+            new ChallengeData("expert_10", "Myszkowski Shift", 5, 480, "EXPERT", "expert",
+                "Myszkowski key=SECURE. Cipher: EAORLSPTK", "Columnar variant where duplicate key letters share a column.", "UC{MYSZKOWSKI}"),
+            new ChallengeData("expert_11", "Autokey Vault", 5, 480, "EXPERT", "expert",
+                "Autokey key=KEY, cipher: RHENOTUX", "After the keyword, the plaintext itself extends the key.", "UC{AUTOKEY}"),
+            new ChallengeData("expert_12", "Four-Square", 5, 480, "EXPERT", "expert",
+                "Four-square digraph pair: HL MR RG OP", "Four 5x5 squares encrypt digraphs with two keys.", "UC{FOURSQUARE}"),
+            new ChallengeData("nightmare_1", "Triple DES Vault", 6, 650, "NIGHTMARE", "nightmare",
+                "Vault: base64 of XOR(rot13(reverse(msg)), KEY=DARK)", "Peel the stack: base64, then XOR, then ROT13, then reverse.", "UC{TRIPLEDES}"),
+            new ChallengeData("nightmare_2", "Vernam Stream", 6, 650, "NIGHTMARE", "nightmare",
+                "Vernam pad: msg XOR pad, pad=GHOSTLY. Cipher: VTMPDYR", "One-time pad with a printed pad. XOR each byte with the pad.", "UC{VERNAM}"),
+            new ChallengeData("nightmare_3", "Double Transposition", 6, 650, "NIGHTMARE", "nightmare",
+                "Twice columnar: key1=GRID, key2=SNAKE. Cipher: OTEPRSCSA", "Transpose, then transpose again with a second key.", "UC{DOUBLE}"),
+            new ChallengeData("nightmare_4", "ChaCha Core", 6, 650, "NIGHTMARE", "nightmare",
+                "Core round: the quarter-round diffuses the state matrix", "Follow the ARX rounds: add, rotate, XOR.", "UC{CHACHA}"),
+            new ChallengeData("nightmare_5", "RSA Trapdoor", 6, 650, "NIGHTMARE", "nightmare",
+                "RSA n=77, e=7. Cipher: 46 25 49", "Factor n into p and q, derive the private key, decrypt each block.", "UC{RSATRAP}"),
+            new ChallengeData("nightmare_6", "Feistel Forge", 6, 650, "NIGHTMARE", "nightmare",
+                "Feistel round: split L/R, XOR with f(R,key), swap", "Eight rounds with alternating subkeys.", "UC{FEISTEL}"),
+            new ChallengeData("nightmare_7", "AES S-Box Labyrinth", 6, 650, "NIGHTMARE", "nightmare",
+                "S-box byte 0x53 maps through the GF(2^8) inverse", "Inverse the multiplicative group, then apply the affine transform.", "UC{SBOX}"),
+            new ChallengeData("nightmare_8", "Salted Rotor Stack", 6, 650, "NIGHTMARE", "nightmare",
+                "Enigma-style rotors I-IV with salt TANZ", "Rotors step and reflect; set ring positions from the salt.", "UC{ROTOR}"),
+            new ChallengeData("impossible_1", "One-Time Pad Matrix", 7, 900, "IMPOSSIBLE", "impossible",
+                "OTP matrix pad: 89 47 12 63 31 | msg bytes XOR pad bytes", "Perfect secrecy needs a truly random pad used once.", "UC{OTPMATRIX}"),
+            new ChallengeData("impossible_2", "Quantum Key Distribution", 7, 900, "IMPOSSIBLE", "impossible",
+                "BB84: 11010 10110 01100 | basis: Z X Z X X Z X Z X X", "Compare measurement bases publicly, keep matching bits.", "UC{QUANTUM}"),
+            new ChallengeData("impossible_3", "Chaos Entropy Core", 7, 900, "IMPOSSIBLE", "impossible",
+                "Logistic map x(n+1)=r*x(n)*(1-x(n)), r=3.9, seed=0.4000", "Iterate the chaotic map to derive the key stream.", "UC{CHAOS}"),
+            new ChallengeData("impossible_4", "Infinite Key Labyrinth", 7, 900, "IMPOSSIBLE", "impossible",
+                "Key stream generated by a non-repeating cellular automaton", "Rule 30 on a ring, each generation extends the pad.", "UC{LABYRINTH}"),
+            new ChallengeData("impossible_5", "Homomorphic Vault", 7, 900, "IMPOSSIBLE", "impossible",
+                "Encrypted values: [enc(7), enc(3), enc(5)] sum to enc(15)", "Compute on ciphertext without ever decrypting.", "UC{HOMOMORPHIC}"),
+            new ChallengeData("impossible_6", "AI Adversarial Enigma", 7, 900, "IMPOSSIBLE", "impossible",
+                "The model keeps rewriting its own rotors mid-encryption", "Track the evolving key schedule — no single static key exists.", "UC{ADVERSARIAL}"),
         };
     }
 
@@ -1870,9 +1925,13 @@ public class Dashboard extends BorderPane {
 
     private static String diffColor(String diff) {
         return switch (diff) {
-            case "EASY" -> AcademyUi.GREEN;
-            case "MEDIUM" -> AcademyUi.GOLD;
-            default -> AcademyUi.RED;
+            case "EASY"      -> AcademyUi.GREEN;
+            case "MEDIUM"    -> AcademyUi.GOLD;
+            case "HARD"      -> AcademyUi.RED;
+            case "EXPERT"    -> "#a371f7";
+            case "NIGHTMARE" -> "#00d4ff";
+            case "IMPOSSIBLE" -> "#ff4fd8";
+            default          -> AcademyUi.LIGHT;
         };
     }
 
@@ -1889,6 +1948,7 @@ public class Dashboard extends BorderPane {
     private void showAcademyDashboard() {
         academyActive = true;
         stopMissionClock();
+        stopChallengeClock();
         VBox main = new VBox(16);
         main.setPadding(new Insets(24));
         main.setStyle(BG_DARK);
@@ -2058,16 +2118,22 @@ public class Dashboard extends BorderPane {
         Button easyBtn = AcademyUi.button("\uD83D\uDFE2 EASY", "#238636", "#ffffff");
         Button medBtn = AcademyUi.button("\uD83D\uDFE1 MEDIUM", "#9e6a03", "#ffffff");
         Button hardBtn = AcademyUi.button("\uD83D\uDD34 HARD", "#b62324", "#ffffff");
+        Button expBtn = AcademyUi.button("\uD83D\uDFE3 EXPERT", "#6e40c9", "#ffffff");
+        Button ngtBtn = AcademyUi.button("\uD83D\uDD35 NIGHTMARE", "#0b7285", "#ffffff");
+        Button impBtn = AcademyUi.button("\uD83D\uDC93 IMPOSSIBLE", "#a61e4d", "#ffffff");
         easyBtn.setOnAction(e -> generateAndRefresh("EASY"));
         medBtn.setOnAction(e -> generateAndRefresh("MEDIUM"));
         hardBtn.setOnAction(e -> generateAndRefresh("HARD"));
-        controls.getChildren().addAll(how, sp, easyBtn, medBtn, hardBtn);
+        expBtn.setOnAction(e -> generateAndRefresh("EXPERT"));
+        ngtBtn.setOnAction(e -> generateAndRefresh("NIGHTMARE"));
+        impBtn.setOnAction(e -> generateAndRefresh("IMPOSSIBLE"));
+        controls.getChildren().addAll(how, sp, easyBtn, medBtn, hardBtn, expBtn, ngtBtn, impBtn);
         box.getChildren().add(controls);
 
         java.util.List<Challenge> gens = academy.getGenerated();
         if (gens.isEmpty()) {
             box.getChildren().add(AcademyUi.caption(
-                "No generated challenges yet. Hit EASY / MEDIUM / HARD above to summon one.", 12));
+                "No generated challenges yet. Hit EASY / MEDIUM / HARD / EXPERT / NIGHTMARE / IMPOSSIBLE above to summon one.", 12));
             return box;
         }
         int from = Math.max(0, gens.size() - 6);
@@ -2119,7 +2185,7 @@ public class Dashboard extends BorderPane {
                     totalXP += cxp;
                     completedChallenges++;
                     academy.onSolve(cid, cxp);
-                    academy.recordSolveTime(System.currentTimeMillis() - t0);
+                    academy.recordSolveTime(cid, System.currentTimeMillis() - t0);
                     computeBadges();
                     sendAuditLog("GEN_" + cid.toUpperCase(), "ACADEMY");
                     addLog("[ACADEMY] +" + cxp + "XP \u2014 generated cipher cracked!");
@@ -2132,7 +2198,7 @@ public class Dashboard extends BorderPane {
             });
         }
 
-        Button aiBtn = AcademyUi.button("\uD83E\uDD16 AI HINT", "#8957e5", "#ffffff");
+        Button aiBtn = AcademyUi.button("\uD83E\uDD16 AI MENTOR", "#8957e5", "#ffffff");
         Label hintLab = AcademyUi.caption("", 11);
         int[] hintLevel = {0};
         aiBtn.setOnAction(e -> {
@@ -2145,6 +2211,16 @@ public class Dashboard extends BorderPane {
                 + "; -fx-font-size: 11px; -fx-font-style: italic;");
         });
 
+        Label hintOut = AcademyUi.caption("", 11);
+        HBox hintBar = buildHintBar(ch.flag, ch.family, ch.hint, answer, hintOut);
+
+        long gfast = academy.getFastestMs(ch.id);
+        long gavg = academy.getAvgMs(ch.id);
+        Label gTime = AcademyUi.caption(String.format(
+            "\u23F1 FASTEST %s   |   \uD83D\uDCCA AVG %s",
+            gfast > 0 ? formatElapsed(gfast) : "\u2014",
+            gavg > 0 ? formatElapsed(gavg) : "\u2014"), 11);
+
         Button simBtn = AcademyUi.button("\uD83E\uDDEA SIMULATE", "#30363d", AcademyUi.LIGHT);
         String simFam = ch.family;
         simBtn.setOnAction(e -> showAlgorithmPlayground(simFam));
@@ -2153,7 +2229,7 @@ public class Dashboard extends BorderPane {
         delBtn.setOnAction(e -> { academy.removeGenerated(ch.id); showAcademyDashboard(); });
 
         row.getChildren().addAll(answer, submit, aiBtn, simBtn, delBtn);
-        card.getChildren().addAll(top, descr, row, hintLab);
+        card.getChildren().addAll(top, descr, gTime, row, hintBar, hintOut, hintLab);
         return card;
     }
 
@@ -2218,6 +2294,28 @@ public class Dashboard extends BorderPane {
         }
         main.getChildren().add(grid);
 
+        Label courseLab = AcademyUi.neon("\uD83C\uDFE6 COURSE CERTIFICATES \u2014 one per track, granted at 80%+", AcademyUi.GOLD, 15);
+        main.getChildren().add(courseLab);
+        VBox courseBox = new VBox(10);
+        courseBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 8;");
+        for (AcademyService.Category c : academy.getCategories()) {
+            String status = academy.certificateStatus(c);
+            HBox courseRow = new HBox(12);
+            courseRow.setAlignment(Pos.CENTER_LEFT);
+            Label cName = AcademyUi.text(c.name, 13);
+            Label cScore = AcademyUi.caption(String.format("Score %.0f%%", c.completionPercent), 11);
+            Label cStatus = AcademyUi.pill(status, status.equals("GRANTED") ? "#3fb950" : "#30363d");
+            Button cBtn = AcademyUi.button(
+                status.equals("GRANTED") ? "\uD83D\uDCC4 VIEW / DOWNLOAD" : "\uD83D\uDD12 LOCKED",
+                status.equals("GRANTED") ? "#8957e5" : "#30363d", "#ffffff");
+            cBtn.setDisable(!status.equals("GRANTED"));
+            cBtn.setOnAction(e -> showCertificateDialog(c));
+            Region sp = AcademyUi.spacer();
+            courseRow.getChildren().addAll(cName, cScore, sp, cStatus, cBtn);
+            courseBox.getChildren().add(courseRow);
+        }
+        main.getChildren().add(courseBox);
+
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
@@ -2245,57 +2343,166 @@ public class Dashboard extends BorderPane {
     }
 
     private void exportCertificatePdf(String certName, String certTitle) {
+        exportCourseCertificatePdf(null, certName, certTitle);
+    }
+
+    /** Downloads a professional PDF certificate (verification id, QR, metadata). */
+    private void exportCourseCertificatePdf(AcademyService.Category cat, String certName, String courseTitle) {
+        int score = cat != null ? (int) Math.round(cat.completionPercent) : Math.min(100, completedChallenges);
+        String course = courseTitle != null ? courseTitle : (cat != null ? cat.name : certName);
+        String courseId = cat != null ? cat.id : ("course_" + course.replace(" ", "_").toLowerCase());
+        String vid = academy.verificationId(courseId);
+        String instructor = academy.instructorFor(courseId);
+        String issueDate = java.time.LocalDate.now().toString();
+        String status = cat != null ? academy.certificateStatus(cat) : "GRANTED";
+
         FileChooser fc = new FileChooser();
-        fc.setInitialFileName("UC_Fortress_" + certName.replace(" ", "_") + "_Certificate.pdf");
+        fc.setInitialFileName("UC_Fortress_" + course.replace(" ", "_") + "_Certificate.pdf");
         File file = fc.showSaveDialog(null);
         if (file == null) return;
         try {
-            com.itextpdf.text.Document doc = new com.itextpdf.text.Document(
-                com.itextpdf.text.PageSize.A4.rotate(), 50, 50, 50, 50);
-            com.itextpdf.text.pdf.PdfWriter.getInstance(doc, new java.io.FileOutputStream(file));
-            doc.open();
-
-            com.itextpdf.text.Font titleFont = com.itextpdf.text.FontFactory.getFont(
-                com.itextpdf.text.FontFactory.HELVETICA_BOLD, 42, com.itextpdf.text.BaseColor.GREEN);
-            com.itextpdf.text.Font bodyFont = com.itextpdf.text.FontFactory.getFont(
-                com.itextpdf.text.FontFactory.HELVETICA, 16, com.itextpdf.text.BaseColor.DARK_GRAY);
-            com.itextpdf.text.Font nameFont = com.itextpdf.text.FontFactory.getFont(
-                com.itextpdf.text.FontFactory.HELVETICA_BOLD, 26, com.itextpdf.text.BaseColor.BLACK);
-            com.itextpdf.text.Font smallFont = com.itextpdf.text.FontFactory.getFont(
-                com.itextpdf.text.FontFactory.HELVETICA, 12, com.itextpdf.text.BaseColor.DARK_GRAY);
-
-            com.itextpdf.text.Paragraph p1 = new com.itextpdf.text.Paragraph("UC-FORTRESS ACADEMY", titleFont);
-            p1.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p1);
-
-            com.itextpdf.text.Paragraph p2 = new com.itextpdf.text.Paragraph("\nCERTIFICATE OF ACHIEVEMENT", bodyFont);
-            p2.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p2);
-
-            com.itextpdf.text.Paragraph p3 = new com.itextpdf.text.Paragraph("\n\nThis certifies that", bodyFont);
-            p3.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p3);
-
-            com.itextpdf.text.Paragraph p4 = new com.itextpdf.text.Paragraph(operatorID, nameFont);
-            p4.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p4);
-
-            com.itextpdf.text.Paragraph p5 = new com.itextpdf.text.Paragraph(
-                "\nhas earned the " + certTitle + " certificate\nfor outstanding cryptographic achievement "
-                + "in the Fortress Academy training program.", bodyFont);
-            p5.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p5);
-
-            com.itextpdf.text.Paragraph p6 = new com.itextpdf.text.Paragraph(
-                "\n\nIssued: " + java.time.LocalDate.now().toString(), smallFont);
-            p6.setAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
-            doc.add(p6);
-
-            doc.close();
+            CertificateGenerator.generate(course, operatorID, vid, score, instructor,
+                issueDate, status, file);
             addLog("[ACADEMY] Certificate exported: " + file.getAbsolutePath());
         } catch (Exception ex) {
             addLog("[ERROR] Certificate export failed: " + ex.getMessage());
         }
+    }
+
+    // === CATEGORY PAGE (ITEM 8 + 9) — modern cards with live progress ===
+
+    private void showCategoryPage() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDCC2 COURSE CATEGORIES", AcademyUi.GREEN, 22);
+        Label sub = AcademyUi.caption(
+            "Every track with live completion, difficulty, XP and estimated time. Pass 80% to unlock the certificate.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(14);
+        grid.setVgap(14);
+        int col = 0, row = 0;
+        for (AcademyService.Category c : academy.getCategories()) {
+            grid.add(buildCategoryCard(c), col, row);
+            col++;
+            if (col >= 3) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node buildCategoryCard(AcademyService.Category c) {
+        VBox card = c.completionPercent >= 80 ? AcademyUi.cardAccent(AcademyUi.GOLD) : AcademyUi.card();
+        card.setPrefWidth(360);
+        card.setPrefHeight(250);
+
+        String icon = switch (c.id) {
+            case "aes" -> "\uD83D\uDD12"; case "rsa" -> "\uD83D\uDD10"; case "ecc" -> "\uD83D\uDD0D";
+            case "hashing" -> "\uD83D\uDD22"; case "encoding" -> "\uD83D\uDD1F"; case "steganography" -> "\uD83D\uDD0E";
+            case "digital-signatures" -> "\u270D\uFE0F"; case "pgp" -> "\uD83D\uDCE7"; case "smime" -> "\uD83D\uDCE9";
+            case "network-security" -> "\uD83D\uDD25"; case "web-security" -> "\uD83D\uDEA9"; case "reverse-engineering" -> "\uD83D\uDD2C";
+            case "binary-exploitation" -> "\uD83D\uDCBE"; case "forensics" -> "\uD83D\uDDD1\uFE0F"; case "osint" -> "\uD83D\uDD0D";
+            case "password-cracking" -> "\uD83D\uDD11"; case "malware-analysis" -> "\uD83E\uDEB5";
+            default -> "\uD83D\uDD10";
+        };
+
+        HBox head = new HBox(10);
+        head.setAlignment(Pos.CENTER_LEFT);
+        Label iconLab = new Label(icon);
+        iconLab.setStyle("-fx-font-size: 26px;");
+        Label nameLab = AcademyUi.neon(c.name, c.completionPercent >= 80 ? AcademyUi.GOLD : AcademyUi.GREEN, 15);
+        Region sp = AcademyUi.spacer();
+        Label diffPill = AcademyUi.pill(c.difficulty.toUpperCase(), diffColor(c.difficulty));
+        head.getChildren().addAll(iconLab, nameLab, sp, diffPill);
+
+        Label descr = AcademyUi.caption(c.descr, 11);
+        descr.setWrapText(true);
+
+        ProgressBar bar = new ProgressBar(c.completionPercent / 100.0);
+        bar.setPrefWidth(300);
+        bar.setStyle("-fx-accent: " + (c.completionPercent >= 80 ? AcademyUi.GOLD : AcademyUi.GREEN) + ";");
+        Label pct = AcademyUi.caption(String.format("\uD83C\uDFAF COMPLETION: %.1f%%", c.completionPercent), 12);
+        pct.setStyle("-fx-text-fill: " + (c.completionPercent >= 80 ? AcademyUi.GOLD : "#39FF14")
+            + "; -fx-font-size: 12px; -fx-font-weight: bold;");
+
+        Label lessons = AcademyUi.caption(String.format(
+            "\uD83D\uDD13 Unlocked %d   \u2713 Completed %d   \u23F3 Remaining %d",
+            c.unlockedLessons, c.completedLessons, c.remainingLessons), 11);
+
+        HBox meta = new HBox(8);
+        meta.getChildren().addAll(
+            AcademyUi.pill("\u26A1 " + c.xp + " XP", AcademyUi.BLUE),
+            AcademyUi.pill("\u23F1 " + c.estMinutes + " min", AcademyUi.PURPLE));
+
+        Button certBtn = AcademyUi.button(
+            c.completionPercent >= 80 ? "\uD83C\uDFC5 CERTIFICATE" : "\uD83D\uDD12 LOCKED", 
+            c.completionPercent >= 80 ? "#8957e5" : "#30363d", "#ffffff");
+        certBtn.setDisable(c.completionPercent < 80);
+        certBtn.setOnAction(e -> showCertificateDialog(c));
+
+        card.getChildren().addAll(head, descr, bar, pct, lessons, meta, certBtn);
+        return card;
+    }
+
+    private void showCertificateDialog(AcademyService.Category c) {
+        javafx.stage.Stage dialog = new javafx.stage.Stage();
+        dialog.initOwner(getScene() != null ? getScene().getWindow() : null);
+        dialog.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        dialog.setTitle("Certificate \u2014 " + c.name);
+
+        String status = academy.certificateStatus(c);
+        int score = (int) Math.round(c.completionPercent);
+        String vid = academy.verificationId(c.id);
+        String instructor = academy.instructorFor(c.id);
+        String issueDate = java.time.LocalDate.now().toString();
+
+        VBox box = new VBox(12);
+        box.setPadding(new Insets(22));
+        box.setStyle("-fx-background-color: #0d1117; -fx-border-color: #FFD700; -fx-border-radius: 10;");
+        box.setPrefWidth(480);
+        box.setAlignment(Pos.CENTER);
+
+        box.getChildren().addAll(
+            AcademyUi.neon("\uD83C\uDFC6 CERTIFICATE OF ACHIEVEMENT", AcademyUi.GOLD, 18),
+            AcademyUi.caption("UC-FORTRESS ACADEMY \u2014 " + c.name, 12),
+            AcademyUi.text("Student: " + operatorID, 13),
+            AcademyUi.text("Course: " + c.name, 13),
+            AcademyUi.text("Score: " + score + "%", 13),
+            AcademyUi.text("Instructor: " + instructor, 13),
+            AcademyUi.text("Issue Date: " + issueDate, 13),
+            AcademyUi.text("Verification ID: " + vid, 12),
+            AcademyUi.pill("STATUS: " + status, status.equals("GRANTED") ? "#3fb950" : "#f85149"),
+            AcademyUi.caption("Every certificate is verified via its unique ID and embedded QR matrix.", 11));
+
+        Button dlBtn = AcademyUi.button("\uD83D\uDCC4 DOWNLOAD PDF", "#8957e5", "#ffffff");
+        dlBtn.setDisable(!status.equals("GRANTED"));
+        dlBtn.setOnAction(e -> { exportCourseCertificatePdf(c, c.name, c.name); dialog.close(); });
+        Button closeBtn = AcademyUi.button("\u2715 CLOSE", "#30363d", AcademyUi.LIGHT);
+        closeBtn.setOnAction(e -> dialog.close());
+
+        HBox btns = new HBox(10);
+        btns.setAlignment(Pos.CENTER);
+        btns.getChildren().addAll(dlBtn, closeBtn);
+        box.getChildren().add(btns);
+
+        Scene scene = new Scene(box);
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        dialog.setScene(scene);
+        dialog.showAndWait();
     }
 
     private void showGlobalLeaderboard() {
@@ -2492,6 +2699,99 @@ public class Dashboard extends BorderPane {
         }
     }
 
+    private void stopChallengeClock() {
+        if (challengeClock != null) {
+            challengeClock.stop();
+            challengeClock = null;
+        }
+    }
+
+    private static String formatElapsed(long ms) {
+        long s = ms / 1000;
+        return String.format("%02d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60);
+    }
+
+    /**
+     * HINT SYSTEM (item 7): every hint costs XP. L1/L2/L3 reveal progressive
+     * hints, REVEAL fills the answer in, EXPLAIN walks through the solution.
+     */
+    private HBox buildHintBar(String flag, String family, String hintText,
+                              TextField answerField, Label out) {
+        String[] labels = {
+            "\uD83D\uDCA1 L1 (50 XP)", "\uD83D\uDCA1 L2 (100 XP)", "\uD83D\uDCA1 L3 (150 XP)",
+            "\uD83D\uDC41 REVEAL (400 XP)", "\uD83D\uDCD6 EXPLAIN (200 XP)"
+        };
+        int[] costs = {50, 100, 150, 400, 200};
+        HBox box = new HBox(6);
+        box.setAlignment(Pos.CENTER_LEFT);
+        for (int i = 0; i < labels.length; i++) {
+            final int idx = i;
+            Button b = new Button(labels[i]);
+            b.setStyle("-fx-background-color: #8957e5; -fx-text-fill: white; -fx-font-size: 10px;"
+                + " -fx-font-weight: bold; -fx-cursor: hand;");
+            b.setOnAction(e -> {
+                int cost = costs[idx];
+                int spent = academy.spendXp(cost);
+                if (spent < cost) {
+                    out.setText("\u26A0\uFE0F NOT ENOUGH XP \u2014 need " + cost + ", you have " + academy.getTotalXp() + ".");
+                    out.setStyle("-fx-text-fill: #f85149; -fx-font-size: 11px; -fx-font-style: italic;");
+                    totalXP = academy.getTotalXp();
+                    return;
+                }
+                totalXP = academy.getTotalXp();
+                academy.recordHintUse();
+                addLog("[ACADEMY] Hint used \u2014 " + cost + " XP spent.");
+                String text;
+                String color = "#a79fe6";
+                switch (idx) {
+                    case 0 -> text = "\uD83D\uDCA1 " + genericFamilyTip(family);
+                    case 1 -> text = "\uD83D\uDCA1 " + hintText;
+                    case 2 -> text = "\uD83D\uDCA1 Flags live inside UC{...}. Peel the "
+                        + family + " layer one step at a time \u2014 then reverse it.";
+                    case 3 -> {
+                        text = "\uD83D\uDC41 ANSWER REVEALED: " + flag;
+                        color = "#ff4fd8";
+                        answerField.setText(flag);
+                    }
+                    default -> text = "\uD83D\uDCD6 Explain: " + hintText
+                        + " Apply the inverse operation, then wrap the result in UC{...}. Answer: " + flag + ".";
+                }
+                out.setText(text);
+                out.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 11px; -fx-font-style: italic;");
+                computeBadges();
+            });
+            box.getChildren().add(b);
+        }
+        return box;
+    }
+
+    private static String genericFamilyTip(String family) {
+        return switch (family) {
+            case "caesar", "caesarhard" -> "Shift each letter by a fixed offset around the alphabet.";
+            case "rot13" -> "ROT13 is a Caesar shift of exactly 13.";
+            case "reverse" -> "Reverse the string order.";
+            case "atbash" -> "Mirror the alphabet: A<->Z, B<->Y, C<->X.";
+            case "hex" -> "Every two hex characters decode to one byte.";
+            case "ascii" -> "Map each number to its ASCII character.";
+            case "binary" -> "Every eight bits decode to one byte.";
+            case "octal" -> "Each three-digit octal value is one byte.";
+            case "base64" -> "Base64 encodes three bytes into four characters.";
+            case "base32" -> "Base32 uses A-Z and 2-7.";
+            case "leet" -> "leet replaces letters with digits: 4=A, 3=E, 0=O.";
+            case "morse", "morsehard" -> "Dots and dashes; spaces separate letters.";
+            case "bacon" -> "Baconian maps each letter to five a/b symbols.";
+            case "affine", "affinehard" -> "c = (a*p + b) mod 26; invert to decrypt.";
+            case "railfence", "railhard" -> "Write in a zig-zag across the rails, then read rows.";
+            case "vigenere", "vigenerehard" -> "Shift each letter by the key's letter index.";
+            case "xor", "xorhard" -> "XOR each byte with the key; XOR twice restores the text.";
+            case "tripleagent" -> "Three layers stacked: ROT13, reverse, then a keyed cipher.";
+            case "expert" -> "Multi-step cipher: combine substitution, transposition and grids.";
+            case "nightmare" -> "Stacked algorithms with keys and salts \u2014 peel every layer.";
+            case "impossible" -> "Chaotic or one-time key streams; recover the seed or pad first.";
+            default -> "Analyze the cipher text, identify the transform, then invert it.";
+        };
+    }
+
     private static String formatCountdown(long secs) {
         long h = secs / 3600;
         long m = (secs % 3600) / 60;
@@ -2539,15 +2839,9 @@ public class Dashboard extends BorderPane {
             answer.setPromptText("Enter flag or answer...");
             answer.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #39FF14; -fx-border-color: #30363d; -fx-pref-width: 320; -fx-background-radius: 6;");
             Button submit = AcademyUi.button("\u26A1 SUBMIT", "#1f6feb", "#ffffff");
-            Button aiBtn = AcademyUi.button("\uD83E\uDD16 AI HINT", "#8957e5", "#ffffff");
             Label hintLab = AcademyUi.caption("", 11);
-            int[] hintLevel = {0};
-            aiBtn.setOnAction(e -> {
-                hintLevel[0]++;
-                if (hintLevel[0] > 3) hintLevel[0] = 1;
-                academy.recordHintUse();
-                hintLab.setText(academy.aiHint(m.challenge, hintLevel[0]));
-            });
+            HBox hintBar = buildHintBar(m.challenge.flag, m.challenge.family,
+                m.challenge.hint, answer, hintLab);
 
             long t0 = System.currentTimeMillis();
             String key = m.key;
@@ -2562,7 +2856,7 @@ public class Dashboard extends BorderPane {
                     totalXP += cxp + cbonus;
                     completedChallenges++;
                     academy.solveMission(m);
-                    academy.recordSolveTime(System.currentTimeMillis() - t0);
+                    academy.recordSolveTime(m.challenge.id, System.currentTimeMillis() - t0);
                     computeBadges();
                     sendAuditLog("MISSION_" + mtype, "ACADEMY");
                     addLog("[ACADEMY] " + mtype + " mission complete! +" + (cxp + cbonus)
@@ -2575,7 +2869,7 @@ public class Dashboard extends BorderPane {
                 }
             });
 
-            row.getChildren().addAll(answer, submit, aiBtn, hintLab);
+            row.getChildren().addAll(answer, submit, hintBar, hintLab);
             card.getChildren().add(row);
         }
         return card;
@@ -2597,6 +2891,8 @@ public class Dashboard extends BorderPane {
 
     private void showLearningModule() {
         academyActive = true;
+        stopChallengeClock();
+        List<Label> clockTicks = new java.util.ArrayList<>();
         VBox main = new VBox(15);
         main.setPadding(new Insets(25));
         main.setStyle(BG_DARK);
@@ -2624,6 +2920,13 @@ public class Dashboard extends BorderPane {
         Label leaderLab = new Label(getLeaderboardText());
         leaderLab.setStyle("-fx-text-fill: #58a6ff; -fx-font-size: 11px;");
 
+        long pb = academy.getPersonalBestMs();
+        long wr = academy.getWorldRecordMs();
+        Label clockStats = new Label(String.format(
+            "\u23F1 CHALLENGE TIMER \u2014 PERSONAL BEST: %s  |  \uD83C\uDF0D WORLD RECORD: %s",
+            pb > 0 ? formatElapsed(pb) : "\u2014", formatElapsed(wr)));
+        clockStats.setStyle("-fx-text-fill: #00d4ff; -fx-font-size: 12px; -fx-font-weight: bold;");
+
         HBox filterRow = new HBox(8);
         Label filterLabel = new Label("\uD83D\uDD0D FILTER:");
         filterLabel.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 12px; -fx-font-weight: bold;");
@@ -2632,7 +2935,10 @@ public class Dashboard extends BorderPane {
             {"ALL", "\uD83C\uDF10 ALL", "#30363d", "#c9d1d9"},
             {"EASY", "\uD83D\uDFE2 EASY", "#1a3a2a", "#39FF14"},
             {"MEDIUM", "\uD83D\uDFE1 MEDIUM", "#3a2a1a", "#FFD700"},
-            {"HARD", "\uD83D\uDD34 HARD", "#3a1a1a", "#f85149"}
+            {"HARD", "\uD83D\uDD34 HARD", "#3a1a1a", "#f85149"},
+            {"EXPERT", "\uD83D\uDFE3 EXPERT", "#2a1a3a", "#a371f7"},
+            {"NIGHTMARE", "\uD83D\uDD35 NIGHTMARE", "#0a2a3a", "#00d4ff"},
+            {"IMPOSSIBLE", "\uD83D\uDC93 IMPOSSIBLE", "#3a0a2a", "#ff4fd8"}
         };
         for (String[] f : filters) {
             Button fb = new Button(f[1]);
@@ -2664,13 +2970,9 @@ public class Dashboard extends BorderPane {
             Label xpLab = new Label("+" + ch.xp + " XP");
             xpLab.setStyle("-fx-text-fill: #58a6ff; -fx-font-size: 12px; -fx-font-weight: bold;");
             Label diffLab = new Label(ch.diff);
-            String diffColor = switch (ch.diff) {
-                case "EASY" -> "#39FF14";
-                case "MEDIUM" -> "#FFD700";
-                default -> "#f85149";
-            };
-            diffLab.setStyle("-fx-text-fill: " + diffColor + "; -fx-font-size: 11px; -fx-font-weight: bold; "
-                + "-fx-background-color: #0d1117; -fx-padding: 2 8 2 8; -fx-border-color: " + diffColor + "; -fx-border-radius: 4;");
+            String dColor = diffColor(ch.diff);
+            diffLab.setStyle("-fx-text-fill: " + dColor + "; -fx-font-size: 11px; -fx-font-weight: bold; "
+                + "-fx-background-color: #0d1117; -fx-padding: 2 8 2 8; -fx-border-color: " + dColor + "; -fx-border-radius: 4;");
             Label statusLab = new Label();
             statusLab.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
 
@@ -2716,7 +3018,7 @@ public class Dashboard extends BorderPane {
                         totalXP += fxp;
                         completedChallenges++;
                         academy.onSolve(fid, fxp);
-                        academy.recordSolveTime(System.currentTimeMillis() - t0);
+                        academy.recordSolveTime(fid, System.currentTimeMillis() - t0);
                         computeBadges();
                         sendAuditLog("CTF_" + fid.toUpperCase(), "ACADEMY");
                         addLog("[CTF] +" + fxp + "XP \u2014 " + ch.title + " cracked!");
@@ -2731,14 +3033,48 @@ public class Dashboard extends BorderPane {
 
             answerRow.getChildren().addAll(answerField, submitBtn);
 
+            Label timerLab = new Label("\u23F1 00:00:00");
+            timerLab.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 12px; -fx-font-weight: bold;");
+            long tStart = System.currentTimeMillis();
+            timerLab.setUserData(tStart);
+            clockTicks.add(timerLab);
+            long fast = academy.getFastestMs(ch.id);
+            long avg = academy.getAvgMs(ch.id);
+            Label tStats = AcademyUi.caption(String.format(
+                "\u23F1 FASTEST %s   |   \uD83D\uDCCA AVG %s",
+                fast > 0 ? formatElapsed(fast) : "\u2014",
+                avg > 0 ? formatElapsed(avg) : "\u2014"), 11);
+            HBox timerRow = new HBox(14);
+            timerRow.setAlignment(Pos.CENTER_LEFT);
+            timerRow.getChildren().addAll(timerLab, tStats);
+
+            Label hintOut = AcademyUi.caption("", 11);
+            HBox hintRow = buildHintBar(ch.flag, ch.family, ch.hint, answerField, hintOut);
+
             Button simBtn = new Button("\uD83E\uDDEA SIMULATE");
             simBtn.setStyle("-fx-background-color: #8957e5; -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold;");
             String sid = ch.family;
             simBtn.setOnAction(ev -> showAlgorithmPlayground(sid));
 
-            card.getChildren().addAll(header, descr, answerRow, hint, simBtn);
+            card.getChildren().addAll(header, descr, timerRow, answerRow, hintRow, hintOut, hint, simBtn);
             challengesBox.getChildren().add(card);
         }
+
+        challengeClock = new AnimationTimer() {
+            private long last = -1;
+            @Override
+            public void handle(long now) {
+                if (last < 0 || now - last > 1_000_000_000L) {
+                    last = now;
+                    long cur = System.currentTimeMillis();
+                    for (Label l : clockTicks) {
+                        long start = (Long) l.getUserData();
+                        l.setText("\u23F1 " + formatElapsed(cur - start));
+                    }
+                }
+            }
+        };
+        challengeClock.start();
 
         // Reset progress button
         Button resetBtn = new Button("\uD83D\uDD04 RESET PROGRESS");
@@ -2761,7 +3097,7 @@ public class Dashboard extends BorderPane {
         Label shownLab = new Label("Showing " + shown + " of " + CHALLENGE_COUNT + " challenges \u2014 keep training, operator!");
         shownLab.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 11px; -fx-font-style: italic;");
 
-        main.getChildren().addAll(titleRow, stats, xpBar, filterRow, leaderLab, scroll, shownLab, resetBtn);
+        main.getChildren().addAll(titleRow, stats, xpBar, clockStats, filterRow, leaderLab, scroll, shownLab, resetBtn);
         setCenter(main);
     }
 
@@ -3833,7 +4169,9 @@ public class Dashboard extends BorderPane {
             createMenuBtn("🔍 FORENSIC AUDIT", e -> showIntegrityModule()),
             createMenuBtn("📊 VIEW HISTORY", e -> showAuditHistory()),
             new Separator(),
-            createMenuBtn("🎓 ACADEMY", e -> showAcademyDashboard())
+            createMenuBtn("🎓 ACADEMY", e -> showAcademyDashboard()),
+            createMenuBtn("\uD83D\uDCC2 CATEGORIES", e -> showCategoryPage()),
+            createMenuBtn("\uD83C\uDFC5 CERTIFICATES", e -> showCertificates())
         );
 
         sidebar.getChildren().add(new Separator());

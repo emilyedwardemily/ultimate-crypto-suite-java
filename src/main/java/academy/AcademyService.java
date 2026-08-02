@@ -58,6 +58,12 @@ public class AcademyService {
         {"vigenere", "xor", "morse", "affine", "railfence", "bacon"};
     public static final String[] HARD_FAMILIES =
         {"tripleagent", "xor", "vigenere", "affine"};
+    public static final String[] EXPERT_FAMILIES =
+        {"affine", "vigenere", "xor"};
+    public static final String[] NIGHTMARE_FAMILIES =
+        {"tripleagent", "xor"};
+    public static final String[] IMPOSSIBLE_FAMILIES =
+        {"tripleagent", "xor"};
 
     private static final String[] WORDS = {
         "CIPHER", "SECRET", "HACKER", "MOUSE", "CODE", "BYTE", "BITS", "KEY", "LOCK", "HASH",
@@ -162,6 +168,10 @@ public class AcademyService {
     private int hintUses;
     private int fastSolves;
 
+    private final Map<String, Long> fastestMs = new LinkedHashMap<>();
+    private final Map<String, Long> totalMs = new LinkedHashMap<>();
+    private final Map<String, Integer> solveTimesCount = new LinkedHashMap<>();
+
     private List<Bot> botsCache;
 
     public AcademyService(String operatorId) {
@@ -238,8 +248,59 @@ public class AcademyService {
     public int getFastSolves() { return fastSolves; }
 
     public void recordSolveTime(long millis) {
-        if (millis >= 0 && millis <= 30_000) fastSolves++;
+        recordSolveTime(null, millis);
+    }
+
+    /**
+     * Stores solve-time telemetry for a challenge: fastest, total (for the average)
+     * and solve count. Fast solves (<= 30s) also feed the speed-run achievement.
+     */
+    public void recordSolveTime(String id, long millis) {
+        if (millis < 0) millis = 0;
+        if (millis <= 30_000) fastSolves++;
+        if (id != null) {
+            fastestMs.merge(id, millis, Math::min);
+            totalMs.merge(id, millis, Long::sum);
+            solveTimesCount.merge(id, 1, Integer::sum);
+        }
         save();
+    }
+
+    /** Fastest recorded solve time (ms) for a challenge, 0 when never solved. */
+    public long getFastestMs(String id) { return fastestMs.getOrDefault(id, 0L); }
+
+    /** Average solve time (ms) for a challenge, 0 when never solved. */
+    public long getAvgMs(String id) {
+        int n = solveTimesCount.getOrDefault(id, 0);
+        if (n == 0) return 0;
+        return totalMs.getOrDefault(id, 0L) / n;
+    }
+
+    /** Best personal time (ms) across every solved challenge, 0 when none yet. */
+    public long getPersonalBestMs() {
+        long best = Long.MAX_VALUE;
+        for (long v : fastestMs.values()) if (v < best) best = v;
+        return best == Long.MAX_VALUE ? 0 : best;
+    }
+
+    /**
+     * Deterministic simulated network best time (ms). Seeded per operator so the
+     * record stays stable across sessions while always slightly beating the bots.
+     */
+    public long getWorldRecordMs() {
+        return 120_000 + Math.abs(new Random(("worldrecord|" + operatorId).hashCode()).nextInt() % 180_000);
+    }
+
+    /**
+     * Spends XP on hints/reveals. Never drops below zero; returns the amount
+     * actually spent (0 means the operator could not afford the cost).
+     */
+    public int spendXp(int amount) {
+        if (amount <= 0) return 0;
+        int spent = Math.min(amount, totalXp);
+        totalXp -= spent;
+        save();
+        return spent;
     }
 
     /** Stable key of the currently active mission for the given type. */
@@ -343,9 +404,12 @@ public class AcademyService {
     public Challenge generateChallenge(String difficulty) {
         String fam;
         switch (difficulty == null ? "EASY" : difficulty) {
-            case "MEDIUM" -> fam = MEDIUM_FAMILIES[rnd().nextInt(MEDIUM_FAMILIES.length)];
-            case "HARD"   -> fam = HARD_FAMILIES[rnd().nextInt(HARD_FAMILIES.length)];
-            default       -> fam = EASY_FAMILIES[rnd().nextInt(EASY_FAMILIES.length)];
+            case "MEDIUM"    -> fam = MEDIUM_FAMILIES[rnd().nextInt(MEDIUM_FAMILIES.length)];
+            case "HARD"      -> fam = HARD_FAMILIES[rnd().nextInt(HARD_FAMILIES.length)];
+            case "EXPERT"    -> fam = EXPERT_FAMILIES[rnd().nextInt(EXPERT_FAMILIES.length)];
+            case "NIGHTMARE" -> fam = NIGHTMARE_FAMILIES[rnd().nextInt(NIGHTMARE_FAMILIES.length)];
+            case "IMPOSSIBLE" -> fam = IMPOSSIBLE_FAMILIES[rnd().nextInt(IMPOSSIBLE_FAMILIES.length)];
+            default          -> fam = EASY_FAMILIES[rnd().nextInt(EASY_FAMILIES.length)];
         }
         Challenge ch = buildChallenge(fam, difficulty);
         generated.put(ch.id, ch);
@@ -357,6 +421,82 @@ public class AcademyService {
         generated.remove(id);
         save();
     }
+
+    // ----------------------------------------------------------------
+    // CATEGORY PAGE (ITEM 8/9) + CERTIFICATE METADATA (ITEM 10)
+    // ----------------------------------------------------------------
+
+    /** All learning categories with live progress, rendered as modern cards. */
+    public List<Category> getCategories() {
+        List<Category> list = new ArrayList<>();
+        double timeBoost = Math.min(15, getPracticeHours() * 2);
+        for (String[] def : CATEGORY_DEFS) {
+            String id = def[0];
+            String name = def[1];
+            String descr = def[2];
+            String difficulty = def[3];
+            double perSolve = Double.parseDouble(def[5]);
+            double cap = Double.parseDouble(def[6]);
+
+            Random r = new Random(("cat|" + operatorId + "|" + id).hashCode());
+            double seededBase = 2 + r.nextInt(12);
+            double real = cap > 0 ? Math.min(cap, perSolve * completed) : 0;
+            double pct = Math.min(100, seededBase + real + timeBoost);
+
+            int totalLessons = 10 + r.nextInt(15);
+            int completedLessons = (int) Math.round(pct / 100.0 * totalLessons);
+            int remainingLessons = Math.max(0, totalLessons - completedLessons);
+            int unlockedLessons = Math.min(totalLessons, completedLessons + Math.max(1, totalLessons / 5));
+            int perLessonXp = 90 + r.nextInt(160);
+            int perLessonMin = 4 + r.nextInt(12);
+            int xp = totalLessons * perLessonXp;
+            int estMinutes = totalLessons * perLessonMin;
+
+            list.add(new Category(id, name, descr, difficulty,
+                totalLessons, unlockedLessons, completedLessons, remainingLessons,
+                xp, estMinutes, pct));
+        }
+        return list;
+    }
+
+    /** Deterministic, human-friendly verification id for a course certificate. */
+    public String verificationId(String courseId) {
+        String seed = operatorId + "|" + courseId + "|" + today();
+        int h = seed.hashCode();
+        return "UCF-" + Integer.toHexString(h & 0xFFFFFFF).toUpperCase() + "-" + today().replace("-", "");
+    }
+
+    /** Deterministic instructor drawn from the cryptographer hall of fame. */
+    public String instructorFor(String courseId) {
+        return CRYPTOGRAPHERS[Math.abs((operatorId + "|" + courseId).hashCode()) % CRYPTOGRAPHERS.length];
+    }
+
+    /** Certificate status: GRANTED once a course passes 80% completion. */
+    public String certificateStatus(Category c) {
+        return c.completionPercent >= 80 ? "GRANTED" : "PENDING";
+    }
+
+    /** id, name, description, difficulty, module ("" = none), real-progress per solve, cap. */
+    private static final String[][] CATEGORY_DEFS = {
+        {"cryptography", "Cryptography", "Classical & modern cipher fundamentals.", "Intermediate", "", "2.0", "45"},
+        {"aes", "AES", "Advanced Encryption Standard round structure.", "Advanced", "AES", "6.0", "45"},
+        {"rsa", "RSA", "Rivest-Shamir-Adleman public-key mathematics.", "Advanced", "RSA", "6.0", "45"},
+        {"ecc", "ECC", "Elliptic-curve cryptography over finite fields.", "Elite", "", "0.0", "0"},
+        {"hashing", "Hashing", "Hash functions, digests and data integrity.", "Beginner", "HASH", "8.0", "45"},
+        {"encoding", "Encoding", "Base64, hex, binary and friends.", "Beginner", "", "2.0", "45"},
+        {"steganography", "Steganography", "Hiding data in plain sight.", "Intermediate", "STEGO", "9.0", "45"},
+        {"digital-signatures", "Digital Signatures", "Signing and verifying authenticity.", "Advanced", "", "0.0", "0"},
+        {"pgp", "PGP", "Pretty Good Privacy email encryption.", "Intermediate", "", "0.0", "0"},
+        {"smime", "S/MIME", "Secure/Multipurpose Internet Mail Extensions.", "Advanced", "", "0.0", "0"},
+        {"network-security", "Network Security", "Protocols, firewalls and TLS.", "Intermediate", "", "0.0", "0"},
+        {"web-security", "Web Security", "OWASP Top 10, XSS and injection.", "Intermediate", "", "0.0", "0"},
+        {"reverse-engineering", "Reverse Engineering", "Decompiling and disassembly.", "Expert", "", "1.2", "35"},
+        {"binary-exploitation", "Binary Exploitation", "Buffer overflows, ROP and shellcoding.", "Nightmare", "", "1.0", "30"},
+        {"forensics", "Forensics", "Evidence recovery and memory analysis.", "Intermediate", "", "0.8", "25"},
+        {"osint", "OSINT", "Open-source intelligence gathering.", "Beginner", "", "0.0", "0"},
+        {"password-cracking", "Password Cracking", "Hash attacks and cracking discipline.", "Intermediate", "", "0.0", "0"},
+        {"malware-analysis", "Malware Analysis", "Reverse malware and sandboxing.", "Elite", "", "0.0", "0"}
+    };
 
     /** Deterministic simulated global + country position among a network of operators. */
     public GlobalPosition getGlobalPosition() {
@@ -453,6 +593,9 @@ public class AcademyService {
         moduleUses.clear();
         hintUses = 0;
         fastSolves = 0;
+        fastestMs.clear();
+        totalMs.clear();
+        solveTimesCount.clear();
         save();
     }
 
@@ -490,6 +633,9 @@ public class AcademyService {
             readBucket(j, "moduleUses", moduleUses);
             hintUses = j.optInt("hintUses");
             fastSolves = j.optInt("fastSolves");
+            readBucketLong(j, "fastestMs", fastestMs);
+            readBucketLong(j, "totalMs", totalMs);
+            readBucket(j, "solveTimesCount", solveTimesCount);
             readBucket(j, "dailyXp", dailyXp);
             readBucket(j, "weeklyXp", weeklyXp);
             readBucket(j, "monthlyXp", monthlyXp);
@@ -540,6 +686,9 @@ public class AcademyService {
             writeBucket(j, "moduleUses", moduleUses);
             j.put("hintUses", hintUses);
             j.put("fastSolves", fastSolves);
+            writeBucketLong(j, "fastestMs", fastestMs);
+            writeBucketLong(j, "totalMs", totalMs);
+            writeBucket(j, "solveTimesCount", solveTimesCount);
             writeBucket(j, "dailyXp", dailyXp);
             writeBucket(j, "weeklyXp", weeklyXp);
             writeBucket(j, "monthlyXp", monthlyXp);
@@ -570,6 +719,18 @@ public class AcademyService {
     private static void writeBucket(JSONObject j, String key, Map<String, Integer> in) {
         JSONObject o = new JSONObject();
         for (Map.Entry<String, Integer> e : in.entrySet()) o.put(e.getKey(), e.getValue());
+        j.put(key, o);
+    }
+
+    private static void readBucketLong(JSONObject j, String key, Map<String, Long> out) {
+        JSONObject o = j.optJSONObject(key);
+        if (o == null) return;
+        for (String k : o.keySet()) out.put(k, o.optLong(k));
+    }
+
+    private static void writeBucketLong(JSONObject j, String key, Map<String, Long> in) {
+        JSONObject o = new JSONObject();
+        for (Map.Entry<String, Long> e : in.entrySet()) o.put(e.getKey(), e.getValue());
         j.put(key, o);
     }
 
@@ -721,6 +882,13 @@ public class AcademyService {
                 descr = fam + ": " + word;
                 hint = "Analyze the cipher and reverse it.";
             }
+        }
+
+        switch (diff) {
+            case "EXPERT" -> { stars += 2; xp *= 2; }
+            case "NIGHTMARE" -> { stars += 3; xp *= 3; }
+            case "IMPOSSIBLE" -> { stars += 4; xp *= 4; }
+            default -> { }
         }
 
         return new Challenge(id, title, stars, xp, diff, fam, descr, hint, flag);
@@ -1035,6 +1203,22 @@ public class AcademyService {
         return d.getYear() + "-W" + String.format("%02d", w);
     }
     private static String thisMonth() { return LocalDate.now().toString().substring(0, 7); }
+
+    /** A learning category with its live progress tracker stats. */
+    public static final class Category {
+        public final String id, name, descr, difficulty;
+        public final int totalLessons, unlockedLessons, completedLessons, remainingLessons;
+        public final int xp, estMinutes;
+        public final double completionPercent;
+        public Category(String id, String name, String descr, String difficulty,
+                        int totalLessons, int unlockedLessons, int completedLessons, int remainingLessons,
+                        int xp, int estMinutes, double completionPercent) {
+            this.id = id; this.name = name; this.descr = descr; this.difficulty = difficulty;
+            this.totalLessons = totalLessons; this.unlockedLessons = unlockedLessons;
+            this.completedLessons = completedLessons; this.remainingLessons = remainingLessons;
+            this.xp = xp; this.estMinutes = estMinutes; this.completionPercent = completionPercent;
+        }
+    }
 
     /** An auto-generated, time-boxed mission with its full reward bundle. */
     public static final class Mission {

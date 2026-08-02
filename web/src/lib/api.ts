@@ -62,10 +62,6 @@ export const splitSecret = (secret: string, n: number, k: number) =>
 export const reconstructSecret = (shares: { x: number; y: number }[]) =>
   pythonApi.post("/reconstruct", { shares });
 
-// ── PAYMENTS ────────────────────────────────────────
-export const stkPush = (phoneNumber: string, amount: string, email?: string) =>
-  pythonApi.post("/api/v1/payments/stk-push", { phoneNumber, amount, email });
-
 // ── AUDIT ───────────────────────────────────────────
 export const auditLog = (data: { operator_id: string; action: string; module: string }) =>
   pythonApi.post("/audit-log", data);

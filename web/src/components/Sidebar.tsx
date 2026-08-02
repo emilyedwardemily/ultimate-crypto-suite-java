@@ -9,7 +9,6 @@ import {
   User,
   Gamepad2,
   Key,
-  CreditCard,
   X,
 } from "lucide-react";
 
@@ -20,7 +19,6 @@ const navItems = [
   { href: "/profile", label: "Profile", icon: User },
   { href: "/playground", label: "Playground", icon: Gamepad2 },
   { href: "/api-keys", label: "API Keys", icon: Key },
-  { href: "/payments", label: "Payments", icon: CreditCard },
 ];
 
 export default function Sidebar({
