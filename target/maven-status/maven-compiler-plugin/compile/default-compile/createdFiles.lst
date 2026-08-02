@@ -1,4 +1,6 @@
 academy/AcademyService.class
+ui/Dashboard$AnimatedDrawer.class
+ui/Dashboard$6.class
 academy/CertificateGenerator.class
 ui/Dashboard$1.class
 crypto/XORUtil.class
@@ -15,8 +17,10 @@ academy/AcademyService$Mission.class
 app/MainApp.class
 app/Launcher.class
 ui/Dashboard$ChallengeData.class
+ui/Dashboard$5.class
 ui/LoginScreen.class
 ui/Dashboard.class
+ui/Dashboard$7.class
 crypto/RSAUtil.class
 ui/Dashboard$2.class
 academy/AcademyUi.class

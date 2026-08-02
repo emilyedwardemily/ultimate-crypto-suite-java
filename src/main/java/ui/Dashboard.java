@@ -2,10 +2,12 @@ package ui;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -105,6 +107,33 @@ public class Dashboard extends BorderPane {
     private final java.util.ArrayDeque<String> badgeAnimQueue = new java.util.ArrayDeque<>();
     private boolean badgeAnimActive = false;
 
+    // --- MULTIPLAYER (item 17) ---
+    private int pvpRounds = 3;
+    private int pvpRound;
+    private int playerScore;
+    private int oppScore;
+    private Challenge pvpChallenge;
+    private String pvpOpponent = "HexHacker";
+    private String pvpRoom = "QUICK MATCH";
+    private AnimationTimer pvpTimer;
+    private int pvpSecondsLeft;
+    private Label pvpClockLab;
+    private Label pvpScoreLab;
+    private TextField pvpAnswer;
+    private VBox pvpStepsBox;
+    private boolean pvpAnswered;
+    private boolean pvpActive;
+
+    // --- TOURNAMENTS (item 18) ---
+    private String cupType;
+    private int cupRounds;
+    private int cupRound;
+    private int cupScore;
+    private Challenge cupChallenge;
+    private AnimationTimer cupTimer;
+    private int cupSecondsLeft;
+    private boolean cupActive;
+
     private static final String[][] RANKS = {
         {"0",     "Script Kiddie"},
         {"200",   "Cipher Punk"},
@@ -146,6 +175,9 @@ public class Dashboard extends BorderPane {
         ALL_BADGES.put("perfect_score",   new String[]{"\uD83C\uDF3F", "Perfect Score"});
         ALL_BADGES.put("speed_runner",    new String[]{"\uD83D\uDC80", "Speed Runner"});
         ALL_BADGES.put("no_hint_champion", new String[]{"\uD83E\uDDE7", "No Hint Champion"});
+        ALL_BADGES.put("cup_winner",      new String[]{"\uD83C\uDFC6", "Cup Winner"});
+        ALL_BADGES.put("season_champion", new String[]{"\uD83D\uDC51", "Season Champion"});
+        ALL_BADGES.put("pvp_veteran",     new String[]{"\uD83C\uDF96\uFE0F", "PvP Veteran"});
     }
     
     private static final String API_SECRET_KEY = "Emily_Crypto_Secure_2026_KIU";
@@ -1612,6 +1644,9 @@ public class Dashboard extends BorderPane {
         if (academy.getFastSolves() >= 1)       achievedBadges.add("speed_runner");
         if (academy.getHintUses() == 0 && completedChallenges >= 10)
                                                 achievedBadges.add("no_hint_champion");
+        if (academy.getTournamentWins() >= 1)   achievedBadges.add("cup_winner");
+        if (academy.getTournamentWins() >= 3)   achievedBadges.add("season_champion");
+        if (academy.getPvpWins() >= 3)          achievedBadges.add("pvp_veteran");
 
         if (!suppressBadgeAnimations) {
             for (String b : achievedBadges) {
@@ -1619,7 +1654,6 @@ public class Dashboard extends BorderPane {
             }
         }
     }
-
     private boolean hasDoneAllFamily(String... families) {
         for (ChallengeData ch : getChallenges()) {
             for (String f : families) {
@@ -1737,83 +1771,204 @@ public class Dashboard extends BorderPane {
 
     private void showProfile() {
         academyActive = true;
-        VBox main = new VBox(15);
-        main.setPadding(new Insets(25));
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
         main.setStyle(BG_DARK);
 
-        Button backBtn = new Button("\u2B05 BACK TO ACADEMY");
-        backBtn.setStyle("-fx-background-color: #30363d; -fx-text-fill: white; -fx-font-weight: bold;");
-        backBtn.setOnAction(e -> showLearningModule());
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
 
-        // Header
+        Label title = AcademyUi.neon("\uD83D\uDC64 OPERATOR PROFILE", AcademyUi.GREEN, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GREEN, 0.3));
+        main.getChildren().addAll(backBtn, title);
+
+        // ----- Identity header -----
         HBox header = new HBox(20);
-        Label avatar = new Label("\uD83C\uDFF4\u200D\u2620\uFE0F");
-        avatar.setStyle("-fx-font-size: 48px;");
-        VBox idBox = new VBox(4);
-        Label opLabel = new Label(operatorID);
-        opLabel.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 18px; -fx-font-weight: bold;");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(18));
+        header.setStyle("-fx-background-color: #161b22; -fx-background-radius: 14; -fx-border-color: #39FF14; -fx-border-radius: 14;");
+
+        Label avatar = new Label(academy.getAvatar());
+        avatar.setStyle("-fx-font-size: 56px;");
+        Button changeAv = AcademyUi.button("\uD83D\uDD04", "#30363d", AcademyUi.LIGHT);
+        changeAv.setOnAction(e -> {
+            String[] av = AcademyService.avatars();
+            int idx = java.util.Arrays.asList(av).indexOf(academy.getAvatar());
+            academy.setAvatar(av[(idx + 1) % av.length]);
+            showProfile();
+        });
+        VBox avBox = new VBox(6, avatar, changeAv);
+        avBox.setAlignment(Pos.CENTER);
+
+        VBox idBox = new VBox(6);
+        idBox.setAlignment(Pos.CENTER_LEFT);
+        Label op = AcademyUi.neon(operatorID, AcademyUi.GREEN, 20);
         int lvl = totalXP / 200 + 1;
-        String rank = getRankForXP(totalXP);
-        Label rl = new Label("Level " + lvl + " \u2014 " + rank);
-        rl.setStyle("-fx-text-fill: #58a6ff; -fx-font-size: 14px;");
-        idBox.getChildren().addAll(opLabel, rl);
-        header.getChildren().addAll(avatar, idBox);
+        int careerIdx = academy.earnedCareerRank();
+        String[] career = AcademyService.CAREER_RANKS[careerIdx];
+        Label rankLine = AcademyUi.text("Level " + lvl + "  \u2022  " + getRankForXP(totalXP) + "  \u2022  "
+            + career[2] + " " + career[1], 13);
+        Label locLine = AcademyUi.caption(countryFlag(academy.getCountry()) + " " + academy.getCountry()
+            + (academy.getUniversity().isEmpty() ? "" : "  \u2022  \uD83C\uDF93 " + academy.getUniversity()), 12);
+        idBox.getChildren().addAll(op, rankLine, locLine);
 
-        // Rank Progress Card
-        VBox rankCard = new VBox(8);
-        rankCard.setStyle("-fx-background-color: #161b22; -fx-padding: 18; -fx-border-color: #30363d; -fx-border-radius: 8;");
-        Label rTitle = new Label("\uD83C\uDFC6 RANK PROGRESS");
-        rTitle.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-weight: bold;");
+        Region sp1 = AcademyUi.spacer();
+        HBox quickStats = new HBox(14);
+        quickStats.getChildren().add(AcademyUi.statTile("\u26A1", totalXP + "", "TOTAL XP", AcademyUi.GOLD));
+        quickStats.getChildren().add(AcademyUi.statTile("\uD83E\uDE99", academy.getCoins() + "", "COINS", AcademyUi.GREEN));
+        quickStats.getChildren().add(AcademyUi.statTile("\uD83C\uDFC6", completedChallenges + "", "SOLVED", AcademyUi.BLUE));
+        quickStats.getChildren().add(AcademyUi.statTile("\uD83C\uDF96\uFE0F", academy.getCertPoints() + "", "CERT PTS", AcademyUi.PURPLE));
+        header.getChildren().addAll(avBox, idBox, sp1, quickStats);
+        main.getChildren().add(header);
 
-        String nextRank = getNextRank(totalXP);
-        double progress = getRankProgress(totalXP);
-        int needed = getRankXPNeeded(totalXP);
+        // ----- Editable bio / country / university -----
+        VBox editCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        editCard.getChildren().add(AcademyUi.section("\u270F\uFE0F PROFILE DETAILS", AcademyUi.BLUE));
+        HBox bioRow = new HBox(8);
+        bioRow.setAlignment(Pos.CENTER_LEFT);
+        TextField bioField = new TextField(academy.getBio());
+        bioField.setPrefWidth(460);
+        bioField.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: white; -fx-border-color: #30363d;");
+        Button bioSave = AcademyUi.button("SAVE BIO", "#238636", "#ffffff");
+        bioSave.setOnAction(e -> {
+            academy.setBio(bioField.getText().trim().isEmpty() ? "Cryptographic operator in training." : bioField.getText().trim());
+            addLog("[PROFILE] Bio updated.");
+        });
+        bioRow.getChildren().addAll(new Label("Bio: "), bioField, bioSave);
 
-        ProgressBar rBar = new ProgressBar(Math.min(progress, 1.0));
-        rBar.setPrefWidth(Double.MAX_VALUE);
-        rBar.setStyle("-fx-accent: #FFD700;");
+        ComboBox<String> countryBox = new ComboBox<>();
+        countryBox.getItems().addAll(java.util.Arrays.asList(AcademyService.countries()));
+        countryBox.setValue(academy.getCountry());
+        countryBox.setOnAction(e -> {
+            if (countryBox.getValue() != null) { academy.setCountry(countryBox.getValue()); addLog("[PROFILE] Country set to " + countryBox.getValue() + "."); }
+        });
+        ComboBox<String> uniBox = new ComboBox<>();
+        uniBox.getItems().addAll(java.util.Arrays.asList(AcademyService.universities()));
+        uniBox.getItems().add(0, "None");
+        uniBox.setValue(academy.getUniversity().isEmpty() ? "None" : academy.getUniversity());
+        uniBox.setOnAction(e -> {
+            if (uniBox.getValue() != null) {
+                academy.setUniversity(uniBox.getValue().equals("None") ? "" : uniBox.getValue());
+                addLog("[PROFILE] University set to " + uniBox.getValue() + ".");
+            }
+        });
+        HBox pickRow = new HBox(14, new Label("\uD83C\uDF0D Country: "), countryBox, new Label("\uD83C\uDF93 University: "), uniBox);
+        pickRow.setAlignment(Pos.CENTER_LEFT);
+        editCard.getChildren().addAll(bioRow, pickRow);
+        main.getChildren().add(editCard);
 
-        Label rStat = new Label(String.format("%s  |  +%d XP to %s  |  %.0f%%",
-            rank, needed, nextRank, progress * 100));
-        rStat.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 12px;");
+        // ----- Career progress mini-card -----
+        VBox careerCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        careerCard.getChildren().add(AcademyUi.section("\uD83C\uDFC6 CAREER", AcademyUi.GOLD));
+        int nextIdx = careerIdx + 1;
+        if (nextIdx < AcademyService.CAREER_RANKS.length) {
+            int curXp = Integer.parseInt(career[0]);
+            int nextXp = Integer.parseInt(AcademyService.CAREER_RANKS[nextIdx][0]);
+            ProgressBar cBar = new ProgressBar(Math.min(1.0, (double) (totalXP - curXp) / Math.max(1, nextXp - curXp)));
+            cBar.setPrefWidth(Double.MAX_VALUE);
+            cBar.setStyle("-fx-accent: #FFD700;");
+            careerCard.getChildren().addAll(cBar,
+                AcademyUi.caption("Next rank: " + AcademyService.CAREER_RANKS[nextIdx][1]
+                    + "  \u2022  +" + Math.max(0, nextXp - totalXP) + " XP", 12));
+        } else {
+            careerCard.getChildren().add(AcademyUi.text("MAX RANK \u2014 Cyber Legend.", 12));
+        }
+        Button careerBtn = AcademyUi.button("\uD83C\uDFC6 OPEN CAREER MODE", "#1f6feb", "#ffffff");
+        careerBtn.setOnAction(e -> showCareerMode());
+        careerCard.getChildren().add(careerBtn);
+        main.getChildren().add(careerCard);
 
-        rankCard.getChildren().addAll(rTitle, rBar, rStat);
-
-        // Stats Card
-        VBox statsCard = new VBox(8);
-        statsCard.setStyle("-fx-background-color: #161b22; -fx-padding: 18; -fx-border-color: #30363d; -fx-border-radius: 8;");
-        Label sTitle = new Label("\uD83D\uDCCA STATISTICS");
-        sTitle.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-weight: bold;");
-
+        // ----- Statistics -----
+        VBox statsCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        statsCard.getChildren().add(AcademyUi.section("\uD83D\uDCCA STATISTICS", AcademyUi.PURPLE));
         int rankPos = 1;
         java.util.List<java.util.Map.Entry<String, Integer>> rankings = getGlobalRankings();
         for (java.util.Map.Entry<String, Integer> e : rankings) {
             if (e.getKey().equals(operatorID)) break;
             rankPos++;
         }
-
-        String[] sLines = {
-            "\uD83C\uDFC6 Challenges: " + completedChallenges + "/" + CHALLENGE_COUNT,
-            "\u26A1 Total XP: " + totalXP,
-            "\uD83D\uDD30 Level: " + lvl,
-            "\uD83C\uDFC6 Leaderboard: #" + rankPos + "/" + rankings.size()
+        String[][] sLines = {
+            {"\uD83C\uDFC6", String.valueOf(completedChallenges) + "/" + CHALLENGE_COUNT, "CHALLENGES SOLVED"},
+            {"\uD83C\uDFAF", String.format("%.0f%%", academy.getSuccessRate()), "SUCCESS RATE"},
+            {"\uD83D\uDD25", String.valueOf(academy.getStreak()), "CURRENT STREAK"},
+            {"\uD83C\uDFC6", "#" + rankPos + "/" + rankings.size(), "LEADERBOARD"},
+            {"\u23F1\uFE0F", String.format("%.1f h", academy.getPracticeHours()), "PRACTICE TIME"},
+            {"\uD83C\uDFC6", String.valueOf(academy.getPvpWins()), "PVP WINS"},
+            {"\uD83C\uDFC1", String.valueOf(academy.getTournamentWins()), "CUPS WON"}
         };
-        for (String sl : sLines) {
-            Label l = new Label(sl);
-            l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 12px;");
-            statsCard.getChildren().add(l);
+        GridPane statGrid = new GridPane();
+        statGrid.setHgap(12);
+        statGrid.setVgap(12);
+        int sc = 0, sr = 0;
+        for (String[] s : sLines) {
+            VBox tile = AcademyUi.statTile(s[0], s[1], s[2], AcademyUi.PURPLE);
+            tile.setPrefWidth(150);
+            statGrid.add(tile, sc, sr);
+            sc++;
+            if (sc >= 4) { sc = 0; sr++; }
         }
+        statsCard.getChildren().add(statGrid);
+        main.getChildren().add(statsCard);
 
-        // Badges Card
-        VBox badgeCard = new VBox(8);
-        badgeCard.setStyle("-fx-background-color: #161b22; -fx-padding: 18; -fx-border-color: #30363d; -fx-border-radius: 8;");
-        Label bTitle = new Label("\uD83C\uDFC6 BADGES (" + achievedBadges.size() + "/" + ALL_BADGES.size() + ")");
-        bTitle.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-weight: bold;");
+        // ----- XP history + activity chart -----
+        HBox chartsRow = new HBox(16);
+        VBox xpCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        xpCard.getChildren().add(AcademyUi.section("\uD83D\uDCC8 XP HISTORY (7 DAYS)", AcademyUi.GOLD));
+        javafx.scene.canvas.Canvas xpChart = new javafx.scene.canvas.Canvas(360, 130);
+        drawXpChart(xpChart);
+        xpCard.getChildren().add(xpChart);
+        chartsRow.getChildren().add(xpCard);
 
+        VBox actCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        actCard.getChildren().add(AcademyUi.section("\uD83D\uDD59 RECENT ACTIVITY", AcademyUi.BLUE));
+        java.util.List<String> acts = academy.getActivity();
+        if (acts.isEmpty()) {
+            actCard.getChildren().add(AcademyUi.caption("No activity yet \u2014 crack a cipher to light up the feed.", 12));
+        } else {
+            int shown = 0;
+            for (String a : acts) {
+                if (shown++ >= 8) break;
+                Label l = new Label("\u25B8 " + a);
+                l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+                actCard.getChildren().add(l);
+            }
+        }
+        chartsRow.getChildren().add(actCard);
+        main.getChildren().add(chartsRow);
+
+        // ----- Skills -----
+        VBox skills = AcademyUi.cardAccent(AcademyUi.GREEN);
+        skills.getChildren().add(AcademyUi.section("\uD83D\uDCA0 SKILLS", AcademyUi.GREEN));
+        String[] fams = {"caesar", "aes", "rsa", "xor", "hash", "stego", "vigenere", "playfair", "hill", "transposition"};
+        GridPane skillGrid = new GridPane();
+        skillGrid.setHgap(14);
+        skillGrid.setVgap(8);
+        for (int i = 0; i < fams.length; i++) {
+            int prof = academy.proficiency(fams[i]);
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label fn = new Label(fams[i].toUpperCase());
+            fn.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 10px; -fx-font-family: 'Courier New'; -fx-pref-width: 110;");
+            ProgressBar pb = new ProgressBar(prof / 100.0);
+            pb.setPrefWidth(120);
+            pb.setStyle("-fx-accent: " + (prof >= 70 ? "#39FF14" : prof >= 40 ? "#FFD700" : "#f85149") + ";");
+            Label pv = new Label(prof + "%");
+            pv.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 10px;");
+            row.getChildren().addAll(fn, pb, pv);
+            skillGrid.add(row, i % 2, i / 2);
+        }
+        skills.getChildren().add(skillGrid);
+        main.getChildren().add(skills);
+
+        // ----- Badges -----
+        VBox badgeCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        badgeCard.getChildren().add(AcademyUi.section("\uD83C\uDFC6 BADGES (" + achievedBadges.size() + "/" + ALL_BADGES.size() + ")", AcademyUi.PURPLE));
         GridPane badgeGrid = new GridPane();
         badgeGrid.setHgap(10);
         badgeGrid.setVgap(10);
-        int col = 0, row = 0;
+        int col = 0, brow = 0;
         for (java.util.Map.Entry<String, String[]> b : ALL_BADGES.entrySet()) {
             boolean earned = achievedBadges.contains(b.getKey());
             VBox cell = new VBox(2);
@@ -1826,58 +1981,76 @@ public class Dashboard extends BorderPane {
             Label nameLbl = new Label(earned ? b.getValue()[1] : "???");
             nameLbl.setStyle("-fx-text-fill: " + (earned ? "#c9d1d9" : "#484f58") + "; -fx-font-size: 10px; -fx-alignment: center;");
             cell.getChildren().addAll(iconLbl, nameLbl);
-            badgeGrid.add(cell, col, row);
+            badgeGrid.add(cell, col, brow);
             col++;
-            if (col >= 3) { col = 0; row++; }
+            if (col >= 3) { col = 0; brow++; }
         }
-        badgeCard.getChildren().addAll(bTitle, badgeGrid);
+        badgeCard.getChildren().add(badgeGrid);
+        main.getChildren().add(badgeCard);
 
-        // Global Leaderboard Card
-        VBox lbCard = new VBox(8);
-        lbCard.setStyle("-fx-background-color: #161b22; -fx-padding: 18; -fx-border-color: #30363d; -fx-border-radius: 8;");
-        Label lbTitle = new Label("\uD83C\uDFC6 GLOBAL CRYPTOGRAPH LEADERBOARD");
-        lbTitle.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-weight: bold;");
-
-        int pos = 1;
-        for (java.util.Map.Entry<String, Integer> e : rankings) {
-            boolean isMe = e.getKey().equals(operatorID);
-            String stars = "\u2B50".repeat(Math.min((e.getValue() / 300) + 1, 5));
-            String line = String.format("#%d  %s%-25s %4d XP  %s",
-                pos, isMe ? "\u25B6 " : "  ", e.getKey(), e.getValue(), stars);
-            Label ll = new Label(line);
-            ll.setStyle("-fx-text-fill: " + (isMe ? "#39FF14" : "#c9d1d9") + "; "
-                + "-fx-font-size: 12px; -fx-font-family: 'Courier New';");
-            if (isMe) ll.setStyle(ll.getStyle() + " -fx-font-weight: bold;");
-            lbCard.getChildren().add(ll);
-            pos++;
-            if (pos > 10) break;
+        // ----- Rank history -----
+        VBox rankHistCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        rankHistCard.getChildren().add(AcademyUi.section("\uD83D\uDCC5 RANK HISTORY", AcademyUi.GOLD));
+        java.util.List<String> rh = academy.getRankHistory();
+        if (rh.isEmpty()) {
+            rankHistCard.getChildren().add(AcademyUi.caption("No promotions yet \u2014 climb the ladder in CAREER MODE.", 12));
+        } else {
+            for (String h : rh) {
+                String[] parts = h.split("\\|");
+                Label l = new Label("\u25B8 " + (parts.length == 2 ? parts[0] + "  (" + parts[1] + ")" : h));
+                l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+                rankHistCard.getChildren().add(l);
+            }
         }
+        main.getChildren().add(rankHistCard);
 
-        if (rankings.isEmpty()) {
-            lbCard.getChildren().add(new Label("  No operators yet — complete a challenge to appear!"));
+        // ----- Recent challenges -----
+        VBox recent = AcademyUi.cardAccent(AcademyUi.BLUE);
+        recent.getChildren().add(AcademyUi.section("\uD83D\uDCDC RECENT CHALLENGES", AcademyUi.BLUE));
+        java.util.List<String> solved = new java.util.ArrayList<>(academy.getSolved().keySet());
+        if (solved.isEmpty()) {
+            recent.getChildren().add(AcademyUi.caption("No challenges solved yet.", 12));
+        } else {
+            int shown = 0;
+            for (int i = solved.size() - 1; i >= 0 && shown < 8; i--, shown++) {
+                Label l = new Label("\uD83D\uDDF2\uFE0F " + solved.get(i));
+                l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+                recent.getChildren().add(l);
+            }
         }
+        main.getChildren().add(recent);
 
-        // Military-Grade progress
-        int milXP = Math.min(totalXP, 2700);
-        double milPct = milXP / 2700.0;
-        ProgressBar milBar = new ProgressBar(milPct);
-        milBar.setPrefWidth(Double.MAX_VALUE);
-        milBar.setStyle("-fx-accent: #f78166;");
-        Label milLabel = new Label(String.format(
-            "\uD83D\uDEE1 Military-Grade Specialist: %.0f%%  (%d/2700 XP)", milPct * 100, totalXP));
-        milLabel.setStyle("-fx-text-fill: #f78166; -fx-font-size: 12px; -fx-font-weight: bold;");
-
-        // Layout
-        VBox topRow = new VBox(12, header, rankCard, statsCard);
-        VBox bottomRow = new VBox(12, badgeCard, lbCard, milBar, milLabel, backBtn);
-
-        ScrollPane scroll = new ScrollPane(new VBox(12, topRow, bottomRow));
+        ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
-        scroll.setPrefViewportHeight(700);
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
 
-        main.getChildren().add(scroll);
-        setCenter(main);
+    /** Draws a 7-day XP bar chart into the given canvas. */
+    private void drawXpChart(javafx.scene.canvas.Canvas cv) {
+        javafx.scene.canvas.GraphicsContext g = cv.getGraphicsContext2D();
+        g.setFill(Color.web("#0d1117"));
+        g.fillRect(0, 0, cv.getWidth(), cv.getHeight());
+        int[] vals = new int[7];
+        java.time.LocalDate today = java.time.LocalDate.now();
+        double max = 1;
+        for (int i = 0; i < 7; i++) {
+            String day = today.minusDays(6 - i).toString();
+            int v = academy.getDailyXp(day);
+            vals[i] = v;
+            max = Math.max(max, v);
+        }
+        double slot = cv.getWidth() / 7.0;
+        double bw = slot * 0.6;
+        for (int i = 0; i < 7; i++) {
+            double h = (vals[i] / max) * 100;
+            g.setFill(Color.web("#FFD700"));
+            g.fillRoundRect(i * slot + (slot - bw) / 2, 118 - h, bw, h, 4, 4);
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 9));
+            g.fillText(today.minusDays(6 - i).getDayOfMonth() + "", i * slot + (slot - bw) / 2, 128);
+        }
     }
 
     // ============================================================
@@ -2101,9 +2274,10 @@ public class Dashboard extends BorderPane {
         return card;
     }
 
-    private void generateAndRefresh(String difficulty) {
-        Challenge ch = academy.generateChallenge(difficulty);
-        addLog("[ACADEMY] Generated " + difficulty + " cipher \u2014 " + ch.title + " (+" + ch.xp + " XP).");
+    private void generateAndRefresh(String difficulty, String family) {
+        Challenge ch = academy.generateChallenge(difficulty, family);
+        addLog("[ACADEMY] Generated " + difficulty + " " + AcademyService.familyName(ch.family)
+            + " challenge \u2014 " + ch.title + " (+" + ch.xp + " XP).");
         showAcademyDashboard();
     }
 
@@ -2115,19 +2289,23 @@ public class Dashboard extends BorderPane {
         controls.setAlignment(Pos.CENTER_LEFT);
         Label how = AcademyUi.caption("The AI vault summons fresh, verifiable ciphers on demand. Solve them for real XP.", 11);
         Region sp = AcademyUi.spacer();
+        javafx.scene.control.ComboBox<String> famBox = new javafx.scene.control.ComboBox<>();
+        famBox.getItems().addAll(AcademyService.GENERATOR_FAMILIES);
+        famBox.setValue("random");
+        famBox.setStyle("-fx-background-color: #0d1117; -fx-text-fill: white; -fx-font-size: 11px;");
         Button easyBtn = AcademyUi.button("\uD83D\uDFE2 EASY", "#238636", "#ffffff");
         Button medBtn = AcademyUi.button("\uD83D\uDFE1 MEDIUM", "#9e6a03", "#ffffff");
         Button hardBtn = AcademyUi.button("\uD83D\uDD34 HARD", "#b62324", "#ffffff");
         Button expBtn = AcademyUi.button("\uD83D\uDFE3 EXPERT", "#6e40c9", "#ffffff");
         Button ngtBtn = AcademyUi.button("\uD83D\uDD35 NIGHTMARE", "#0b7285", "#ffffff");
         Button impBtn = AcademyUi.button("\uD83D\uDC93 IMPOSSIBLE", "#a61e4d", "#ffffff");
-        easyBtn.setOnAction(e -> generateAndRefresh("EASY"));
-        medBtn.setOnAction(e -> generateAndRefresh("MEDIUM"));
-        hardBtn.setOnAction(e -> generateAndRefresh("HARD"));
-        expBtn.setOnAction(e -> generateAndRefresh("EXPERT"));
-        ngtBtn.setOnAction(e -> generateAndRefresh("NIGHTMARE"));
-        impBtn.setOnAction(e -> generateAndRefresh("IMPOSSIBLE"));
-        controls.getChildren().addAll(how, sp, easyBtn, medBtn, hardBtn, expBtn, ngtBtn, impBtn);
+        easyBtn.setOnAction(e -> generateAndRefresh("EASY", famBox.getValue()));
+        medBtn.setOnAction(e -> generateAndRefresh("MEDIUM", famBox.getValue()));
+        hardBtn.setOnAction(e -> generateAndRefresh("HARD", famBox.getValue()));
+        expBtn.setOnAction(e -> generateAndRefresh("EXPERT", famBox.getValue()));
+        ngtBtn.setOnAction(e -> generateAndRefresh("NIGHTMARE", famBox.getValue()));
+        impBtn.setOnAction(e -> generateAndRefresh("IMPOSSIBLE", famBox.getValue()));
+        controls.getChildren().addAll(how, sp, famBox, easyBtn, medBtn, hardBtn, expBtn, ngtBtn, impBtn);
         box.getChildren().add(controls);
 
         java.util.List<Challenge> gens = academy.getGenerated();
@@ -2192,6 +2370,7 @@ public class Dashboard extends BorderPane {
                     showAcademyDashboard();
                 } else {
                     academy.recordAttempt(false);
+                    academy.recordWrongFamily(ch.family);
                     answer.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #f85149; -fx-border-color: #f85149;");
                     addLog("[ACADEMY] Wrong answer for generated cipher. Try again.");
                 }
@@ -2864,6 +3043,7 @@ public class Dashboard extends BorderPane {
                     showDailyChallenges();
                 } else {
                     academy.recordAttempt(false);
+                    academy.recordWrongFamily(m.challenge.family);
                     answer.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #f85149; -fx-border-color: #f85149;");
                     addLog("[ACADEMY] Wrong answer for " + mtype + " mission. Try again.");
                 }
@@ -3025,6 +3205,7 @@ public class Dashboard extends BorderPane {
                         showLearningModule();
                     } else {
                         academy.recordAttempt(false);
+                        academy.recordWrongFamily(ch.family);
                         answerField.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #f85149; -fx-border-color: #f85149;");
                         addLog("[CTF] Wrong answer for " + ch.title + ". Try again.");
                     }
@@ -3236,6 +3417,76 @@ public class Dashboard extends BorderPane {
                 # TRIPLE STACK: Vigenere -> Reverse -> ROT13
                 def triple(text, key):
                     return rot13(reverse(vigenere(text, key)))""";
+            case "aesenc" -> """
+                # AES-128-CBC ENCRYPT
+                key = base64decode(key_b64)   # 16 bytes
+                iv  = base64decode(iv_b64)    # 16 bytes
+                cipher = AES.new(key, CBC, iv)
+                padded = pkcs5_pad(plaintext) # pad to block
+                ct = cipher.encrypt(padded)
+                return base64encode(ct)""";
+            case "aesdec" -> """
+                # AES-128-CBC DECRYPT
+                key = base64decode(key_b64)
+                iv  = base64decode(iv_b64)
+                cipher = AES.new(key, CBC, iv)
+                pt = cipher.decrypt(base64decode(ciphertext))
+                return unpad(pt, 'pkcs5')""";
+            case "rsaenc" -> """
+                # RSA KEYGEN + ENCRYPT
+                p, q = 61, 53                 # primes
+                n = p * q                     # 3233
+                phi = (p-1) * (q-1)           # 3120
+                e = 17                        # public exp
+                d = pow(e, -1, phi)           # 2753
+                m = plaintext_as_number()
+                c = pow(m, e, n)              # ciphertext""";
+            case "rsadec" -> """
+                # RSA DECRYPT
+                m = pow(c, d, n)   # private op
+                text = number_to_text(m)
+                return text""";
+            case "playfair" -> """
+                # PLAYFAIR DIGRAPH ENCRYPT
+                sq = build_key_square(key)    # 5x5, I/J merged
+                for a, b in digraphs(plain):  # no repeats
+                    if same_row(a,b): shift right
+                    elif same_col(a,b): shift down
+                    else: rectangle corners""";
+            case "hill" -> """
+                # HILL CIPHER (2x2, mod 26)
+                K = matrix(key[0..3])          # key matrix
+                for x, y in pairs(plain):
+                    c1 = (K00*x + K01*y) % 26
+                    c2 = (K10*x + K11*y) % 26
+                    emit chr(c1+'A'), chr(c2+'A')""";
+            case "transposition" -> """
+                # COLUMNAR TRANSPOSITION
+                rows = ceil(len(text) / cols)
+                grid = [ ['X']*cols for _ in rows ]
+                fill grid with text left-to-right
+                return read columns top-to-bottom""";
+            case "hash" -> """
+                # SHA-256 DIGEST
+                digest = sha256(plaintext)     # 32 bytes
+                return hex(digest)             # 64 hex chars
+                # one flipped bit -> ~50% of bits change""";
+            case "pwdstrength" -> """
+                # PASSWORD STRENGTH METER
+                score = 0
+                for check in [length, upper, lower,
+                              digit, symbol, no_repeat,
+                              not_common, length>12]:
+                    score += (check passes)
+                # 0-2 weak, 3-5 fair, 6-8 strong""";
+            case "signature" -> """
+                # RSA DIGITAL SIGNATURE
+                # SIGN (private key):
+                digest = sha256(message)
+                sig = pow(digest_as_int, d, n)
+                # VERIFY (public key):
+                check = pow(sig, e, n)
+                accept if check == digest_as_int""";
             default -> "# Select an algorithm to see its pseudocode.";
         };
     }
@@ -3247,8 +3498,645 @@ public class Dashboard extends BorderPane {
             case "vigenere" -> "Keyword";
             case "affine" -> "a,b (e.g. 5,8)";
             case "railfence" -> "Rails (2-9)";
+            case "aesenc", "aesdec" -> "16-byte key";
+            case "rsaenc", "rsadec" -> "e or d";
+            case "playfair" -> "Key phrase";
+            case "hill" -> "4 letters (a,b,c,d)";
+            case "transposition" -> "Columns (2-9)";
+            case "signature" -> "16-byte key";
             default -> "Parameter";
         };
+    }
+
+    // === VISUAL LEARNING (ITEM 12) — animated crypto demos ===
+
+    @FunctionalInterface
+    private interface AnimatedDrawer { void draw(javafx.scene.canvas.Canvas c, double p); }
+
+    private void showVisualLearning() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83C\uDFAC VISUAL LEARNING", AcademyUi.GREEN, 22);
+        Label sub = AcademyUi.caption(
+            "Watch encryption, bit shifting, RSA keygen, AES rounds, hashing, steganography and network packets come to life. Hit PLAY on any demo.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(14);
+        grid.setVgap(14);
+        AnimatedDrawer[] demos = {
+            animEncrypt(), animDecrypt(), animBitShift(), animRsaKeygen(),
+            animAesRounds(), animHash(), animStego(), animPackets()
+        };
+        String[] names = {
+            "Encryption", "Decryption", "Bit Shifting (XOR)", "RSA Key Generation",
+            "AES Rounds", "Hashing / Avalanche", "Steganography Hiding", "Network Packets"
+        };
+        String[] descs = {
+            "Every letter of HELLO shifts +3 as the Caesar wheel turns.",
+            "Ciphertext KHOOR slides back -3 into plaintext HELLO.",
+            "Bit-by-bit: 'A' \u2295 0x03 = 'B' \u2014 each bit flips under XOR.",
+            "Two primes 61 and 53 merge into n=3233, then e and d appear.",
+            "A 4x4 state block cycles through all 10 rounds of AES-128.",
+            "One extra character avalanches into ~half the digest changing.",
+            "Message bits hide in the LSB of pixel green channels.",
+            "Encrypted packets stream across the wire from client to server."
+        };
+        int col = 0, row = 0;
+        for (int i = 0; i < demos.length; i++) {
+            grid.add(buildAnimCard(names[i], descs[i], demos[i]), col, row);
+            col++;
+            if (col >= 2) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node buildAnimCard(String name, String descr, AnimatedDrawer drawer) {
+        VBox card = AcademyUi.card();
+        card.setPrefWidth(520);
+        Label nameLab = AcademyUi.neon("\uD83C\uDFAC " + name, AcademyUi.GREEN, 14);
+        Label descLab = AcademyUi.caption(descr, 11);
+        javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(480, 200);
+        drawer.draw(canvas, 0);
+        HBox btns = new HBox(10);
+        Button play = AcademyUi.button("\u25B6 PLAY", "#238636", "#ffffff");
+        Button reset = AcademyUi.button("\u21BA RESET", "#30363d", AcademyUi.LIGHT);
+        btns.getChildren().addAll(play, reset);
+        card.getChildren().addAll(nameLab, descLab, canvas, btns);
+
+        AnimationTimer timer = new AnimationTimer() {
+            private long start = -1;
+            @Override public void handle(long now) {
+                if (start < 0) start = now;
+                double p = (now - start) / 4_000_000_000.0;
+                if (p >= 1) { drawer.draw(canvas, 1); start = -1; stop(); return; }
+                drawer.draw(canvas, p);
+            }
+        };
+        play.setOnAction(e -> { timer.stop(); timer.start(); });
+        reset.setOnAction(e -> { timer.stop(); drawer.draw(canvas, 0); });
+        return card;
+    }
+
+    private static void clearCanvas(javafx.scene.canvas.Canvas c) {
+        javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+        g.setFill(Color.web("#050505"));
+        g.fillRect(0, 0, c.getWidth(), c.getHeight());
+    }
+
+    private static void drawAnimTitle(javafx.scene.canvas.GraphicsContext g, String s) {
+        g.setFill(Color.web("#a79fe6"));
+        g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 14));
+        g.fillText(s, 12, 22);
+    }
+
+    private AnimatedDrawer animEncrypt() {
+        String plain = "HELLO";
+        int shift = 3;
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "CAESAR +" + shift + " \u2014 ENCRYPTION");
+            g.setFont(javafx.scene.text.Font.font("Monospace", 26));
+            int done = (int) Math.floor(p * plain.length());
+            for (int i = 0; i < plain.length(); i++) {
+                double x = 40 + i * 82;
+                char ch = plain.charAt(i);
+                if (i < done) {
+                    char e = (char) ('A' + (ch - 'A' + shift) % 26);
+                    g.setFill(Color.web("#39FF14"));
+                    g.fillText(String.valueOf(e), x, 110);
+                    g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+                    g.setFill(Color.web("#3fb950"));
+                    g.fillText(ch + "\u2192" + e, x - 8, 150);
+                    g.setFont(javafx.scene.text.Font.font("Monospace", 26));
+                } else {
+                    g.setFill(Color.web("#8b949e"));
+                    g.fillText(String.valueOf(ch), x, 110);
+                }
+            }
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("Shift each letter forward " + shift + " positions (wrapping Z\u2192A).", 20, 182);
+        };
+    }
+
+    private AnimatedDrawer animDecrypt() {
+        String cipher = "KHOOR";
+        int shift = 3;
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "CAESAR -" + shift + " \u2014 DECRYPTION");
+            g.setFont(javafx.scene.text.Font.font("Monospace", 26));
+            int done = (int) Math.floor(p * cipher.length());
+            for (int i = 0; i < cipher.length(); i++) {
+                double x = 40 + i * 82;
+                char ch = cipher.charAt(i);
+                if (i < done) {
+                    char d = (char) ('A' + ((ch - 'A' - shift + 26) % 26));
+                    g.setFill(Color.web("#00d4ff"));
+                    g.fillText(String.valueOf(d), x, 110);
+                    g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+                    g.setFill(Color.web("#58a6ff"));
+                    g.fillText(ch + "\u2192" + d, x - 8, 150);
+                    g.setFont(javafx.scene.text.Font.font("Monospace", 26));
+                } else {
+                    g.setFill(Color.web("#8b949e"));
+                    g.fillText(String.valueOf(ch), x, 110);
+                }
+            }
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("Shift each letter backward " + shift + " positions to recover the text.", 20, 182);
+        };
+    }
+
+    private AnimatedDrawer animBitShift() {
+        int[] a = {0, 1, 0, 0, 0, 0, 0, 1};
+        int[] k = {0, 0, 0, 0, 0, 0, 1, 1};
+        int[] r = new int[8];
+        for (int i = 0; i < 8; i++) r[i] = a[i] ^ k[i];
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "'A' \u2295 0x03 = 'B' \u2014 BIT BY BIT");
+            int done = (int) Math.floor(p * 8);
+            String[] labels = {"PLAIN  01000001", "KEY    00000011", "XORED  01000010"};
+            int[][] rows = {a, k, r};
+            for (int row = 0; row < 3; row++) {
+                double y = 46 + row * 46;
+                g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 13));
+                g.setFill(Color.web("#8b949e"));
+                g.fillText(labels[row], 14, y + 16);
+                for (int bit = 0; bit < 8; bit++) {
+                    double x = 180 + bit * 34;
+                    g.setFill(bit < done ? Color.web(row == 2 ? "#39FF14" : "#FFD700") : Color.web("#21262d"));
+                    g.fillRoundRect(x, y, 26, 26, 4, 4);
+                    g.setStroke(Color.web("#30363d"));
+                    g.strokeRoundRect(x, y, 26, 26, 4, 4);
+                    g.setFill(Color.web("#e6edf3"));
+                    g.fillText(String.valueOf(rows[row][bit]), x + 8, y + 18);
+                }
+            }
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("XOR is reversible \u2014 applying the key again restores the plaintext.", 20, 192);
+        };
+    }
+
+    private AnimatedDrawer animRsaKeygen() {
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "RSA KEY GENERATION");
+            // primes fly in
+            double xp = 90 + Math.min(120, p * 340);
+            double xq = 390 - Math.min(120, p * 340);
+            g.setFill(Color.web("#FFD700"));
+            g.fillOval(xp - 30, 70, 60, 60);
+            g.fillOval(xq - 30, 70, 60, 60);
+            g.setFill(Color.web("#0d1117"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 14));
+            g.fillText("p=61", xp - 15, 105);
+            g.fillText("q=53", xq - 15, 105);
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("Choose two primes p and q", 14, 44);
+            if (p > 0.3) {
+                g.setFill(Color.web("#39FF14"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 15));
+                g.fillText("n = p*q = 3233", 240 - Math.min(60, p * 200), 88);
+                g.setFill(Color.web("#8b949e"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+                g.fillText("n is the public modulus", 250, 108);
+            }
+            if (p > 0.55) {
+                g.setFill(Color.web("#58a6ff"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 13));
+                g.fillText("PUBLIC  (n=3233, e=17)", 240, 140);
+            }
+            if (p > 0.8) {
+                g.setFill(Color.web("#f85149"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 13));
+                g.fillText("PRIVATE d = e\u207b\u00b9 mod \u03C6 = 2753", 240, 168);
+            }
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.fillText("Public key encrypts; only the private key decrypts.", 20, 192);
+        };
+    }
+
+    private AnimatedDrawer animAesRounds() {
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            int round = (int) Math.floor(p * 11);
+            round = Math.min(10, round);
+            drawAnimTitle(g, "AES-128 \u2014 ROUND " + round + "/10");
+            for (int cell = 0; cell < 16; cell++) {
+                int r = cell / 4, col = cell % 4;
+                double x = 150 + col * 44, y = 42 + r * 36;
+                int v = (round * 31 + cell * 7 + r * 3) % 256;
+                g.setFill(Color.rgb(10 + (v % 90), 80 + (r * 20) % 120, 60 + (col * 30) % 90));
+                g.fillRoundRect(x, y, 36, 28, 5, 5);
+                g.setStroke(Color.web("#39FF14"));
+                g.strokeRoundRect(x, y, 36, 28, 5, 5);
+                g.setFill(Color.web("#e6edf3"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", 10));
+                g.fillText(String.format("%02X", v), x + 6, y + 18);
+            }
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.fillText("SubBytes \u2192 ShiftRows \u2192 MixColumns \u2192 AddRoundKey", 20, 190);
+            if (round >= 10) {
+                g.setFill(Color.web("#39FF14"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", javafx.scene.text.FontWeight.BOLD, 13));
+                g.fillText("CIPHERTEXT READY", 150, 200);
+            }
+        };
+    }
+
+    private AnimatedDrawer animHash() {
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "SHA-256 \u2014 AVALANCHE EFFECT");
+            String h1 = AcademyService.sha256Hex("HELLO");
+            String h2 = AcademyService.sha256Hex("HELLO!");
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            int shown1 = (int) Math.floor(Math.max(0, (p - 0.05) / 0.4) * 64);
+            shown1 = Math.min(64, shown1);
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("sha256(\"HELLO\")", 20, 50);
+            g.setFill(Color.web("#39FF14"));
+            g.fillText(h1.substring(0, shown1), 150, 50);
+            if (p > 0.5) {
+                int shown2 = (int) Math.floor(Math.max(0, (p - 0.55) / 0.35) * 64);
+                shown2 = Math.min(64, shown2);
+                g.setFill(Color.web("#8b949e"));
+                g.fillText("sha256(\"HELLO!\")", 20, 92);
+                for (int i = 0; i < shown2; i++) {
+                    g.setFill(h1.charAt(i) == h2.charAt(i) ? Color.web("#00d4ff") : Color.web("#f85149"));
+                    g.fillText(String.valueOf(h2.charAt(i)), 150 + i * 8, 92);
+                }
+            }
+            g.setFill(Color.web("#8b949e"));
+            g.fillText("One extra '!' changes " + countDiffs(h1, h2) + "/64 hex chars \u2014 hashes are one-way.", 20, 132);
+            if (p > 0.9) {
+                g.setFill(Color.web("#f85149"));
+                g.fillText("\u26A0\uFE0F You cannot \"decrypt\" a hash \u2014 brute-force the preimage instead.", 20, 160);
+            }
+        };
+    }
+
+    private static int countDiffs(String a, String b) {
+        int n = 0;
+        for (int i = 0; i < a.length(); i++) if (a.charAt(i) != b.charAt(i)) n++;
+        return n;
+    }
+
+    private AnimatedDrawer animStego() {
+        String msg = "HI";
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "STEGANOGRAPHY \u2014 LSB EMBEDDING");
+            byte[] data = msg.getBytes(StandardCharsets.UTF_8);
+            int cellSize = 22;
+            int total = 8 * 8;
+            int embedded = (int) Math.floor(p * total);
+            StringBuilder bits = new StringBuilder();
+            for (int i = 0; i < total; i++) {
+                int r = i / 8, col = i % 8;
+                double x = 20 + col * (cellSize + 4), y = 44 + r * (cellSize + 4);
+                int base = 100 + (r * 17 + col * 9) % 120;
+                int bit = 0;
+                int byteIdx = i / 8, bitIdx = 7 - (i % 8);
+                if (byteIdx < data.length) bit = (data[byteIdx] >> bitIdx) & 1;
+                int green = (base & 0xFE) | (i < embedded ? bit : 0);
+                g.setFill(Color.rgb(20, green, 40));
+                g.fillRoundRect(x, y, cellSize, cellSize, 3, 3);
+                if (i < embedded) {
+                    g.setStroke(Color.web("#FFD700"));
+                    g.strokeRoundRect(x, y, cellSize, cellSize, 3, 3);
+                    bits.append(bit);
+                }
+            }
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.fillText("Bits embedded so far: " + bits.toString(), 20, 232);
+            g.fillText("The image looks identical \u2014 only the least-significant bits carry data.", 20, 250);
+        };
+    }
+
+    private AnimatedDrawer animPackets() {
+        return (c, p) -> {
+            clearCanvas(c);
+            javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+            drawAnimTitle(g, "NETWORK PACKETS \u2014 ENCRYPTED TRAFFIC");
+            g.setFill(Color.web("#58a6ff"));
+            g.fillRoundRect(20, 100, 70, 34, 6, 6);
+            g.fillRoundRect(392, 100, 70, 34, 6, 6);
+            g.setFill(Color.web("#e6edf3"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 11));
+            g.fillText("CLIENT", 28, 121);
+            g.fillText("SERVER", 400, 121);
+            g.setStroke(Color.web("#30363d"));
+            g.setLineDashes(6, 6);
+            g.strokeLine(90, 117, 392, 117);
+            g.setLineDashes(0);
+            double launched = p * 9;
+            for (int i = 0; i < (int) launched; i++) {
+                double x = 90 + ((launched - i) * 33);
+                if (x < 90) x = 90;
+                if (x > 390) x = 390;
+                g.setFill(Color.web("#39FF14"));
+                g.fillOval(x - 7, 110, 14, 14);
+                g.setFill(Color.web("#0d1117"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", 8));
+                g.fillText("p" + (i % 10), x - 6, 120);
+            }
+            if (p > 0.5) {
+                g.setFont(javafx.scene.text.Font.font("Monospace", 11));
+                g.setFill(Color.web("#00d4ff"));
+                g.fillText("AES-encrypted payload \u2022 TLS 1.3 \u2022 HMAC verified", 20, 170);
+            }
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 12));
+            g.fillText("Packets stream continuously; each carries a ciphertext fragment.", 20, 192);
+        };
+    }
+
+    // === AI MENTOR CONSOLE (ITEM 13) ===
+
+    private void showAiMentor() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83E\uDD16 AI MENTOR", AcademyUi.PURPLE, 22);
+        Label sub = AcademyUi.caption(
+            "Your personal crypto coach \u2014 explains mistakes, teaches concepts, quizzes you, and tracks your weaknesses in real time.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        TextArea chat = new TextArea();
+        chat.setEditable(false);
+        chat.setWrapText(true);
+        chat.setPrefRowCount(12);
+        chat.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #a79fe6;"
+            + " -fx-font-family: 'Courier New'; -fx-font-size: 12px; -fx-border-color: #30363d;");
+        chat.setText(mentorGreeting());
+
+        javafx.scene.control.ComboBox<String> topicBox = new javafx.scene.control.ComboBox<>();
+        topicBox.getItems().addAll("AES", "RSA", "XOR", "Hashing", "Steganography", "Caesar", "Vigenere",
+            "Playfair", "Hill", "Transposition", "Digital Signatures", "Base64");
+        topicBox.setValue("AES");
+        topicBox.setStyle("-fx-background-color: #0d1117; -fx-text-fill: white; -fx-font-size: 11px;");
+
+        Button teachBtn = AcademyUi.button("\uD83D\uDCDA TEACH A CONCEPT", "#8957e5", "#ffffff");
+        Button algoBtn = AcademyUi.button("\uD83E\uDDEA EXPLAIN AN ALGORITHM", "#8957e5", "#ffffff");
+        Button quizBtn = AcademyUi.button("\uD83C\uDFAF GENERATE A QUIZ", "#1f6feb", "#ffffff");
+        Button mistakeBtn = AcademyUi.button("\uD83D\uDCA1 EXPLAIN MY MISTAKES", "#f0883e", "#ffffff");
+        Button hintBtn = AcademyUi.button("\uD83E\uDD16 GIVE ME A HINT", "#a371f7", "#ffffff");
+        Button recBtn = AcademyUi.button("\uD83E\uDDED RECOMMEND NEXT LESSON", "#3fb950", "#ffffff");
+        Button weakBtn = AcademyUi.button("\uD83C\uDFAF TRACK MY WEAKNESSES", "#00d4ff", "#111111");
+        Button encBtn = AcademyUi.button("\uD83D\uDCAA ENCOURAGE ME", "#FFD700", "#111111");
+
+        VBox quizBox = new VBox(8);
+        quizBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 8;");
+        quizBox.setVisible(false);
+        quizBox.setManaged(false);
+
+        teachBtn.setOnAction(e -> {
+            mentorSay(chat, "Teaching \"" + topicBox.getValue() + "\"", academy.teachConcept(topicBox.getValue()));
+        });
+        algoBtn.setOnAction(e -> {
+            String algo = topicBox.getValue().toLowerCase().replace(" ", "");
+            String pseudo = switch (algo) {
+                case "aes" -> algoPseudo("aesenc");
+                case "rsa" -> algoPseudo("rsaenc");
+                case "xor" -> algoPseudo("xor");
+                case "hashing" -> algoPseudo("hash");
+                case "steganography" -> "LSB embedding:\n  for each pixel:\n    bit = next_bit(message)\n    green = (green & 0xFE) | bit";
+                case "caesar" -> algoPseudo("caesar");
+                case "vigenere" -> algoPseudo("vigenere");
+                case "playfair" -> algoPseudo("playfair");
+                case "hill" -> algoPseudo("hill");
+                case "transposition" -> algoPseudo("transposition");
+                case "digitalsignatures" -> algoPseudo("signature");
+                case "base64" -> algoPseudo("base64");
+                default -> algoPseudo("xor");
+            };
+            mentorSay(chat, "Algorithm \"" + topicBox.getValue() + "\"", pseudo);
+        });
+        quizBtn.setOnAction(e -> renderMentorQuiz(chat, quizBox));
+        mistakeBtn.setOnAction(e -> {
+            var weak = academy.getWeakFamilies();
+            if (weak.isEmpty()) {
+                mentorSay(chat, "Mistake report", "No wrong answers recorded yet. Attempt any challenge and miss on purpose? No \u2014 just keep solving; "
+                    + "every wrong answer teaches me where to focus. (Weakness tracking activates on your first incorrect solve.)");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (String[] w : weak) {
+                    sb.append("\u2022 ").append(w[0]).append(" (").append(w[1]).append(" misses)\n");
+                    sb.append("  ").append(academy.explainMistake(w[2])).append("\n");
+                }
+                mentorSay(chat, "Mistake report", sb.toString());
+            }
+        });
+        hintBtn.setOnAction(e -> {
+            mentorSay(chat, "Hint", "Use \uD83E\uDDEA AI HINT on any challenge card, or open the CRYPTO LAB and run the algorithm on a sample word to watch it step by step. "
+                + "For a targeted nudge on your current focus: " + academy.teachConcept(topicBox.getValue()).split("\n")[0]);
+        });
+        recBtn.setOnAction(e -> mentorSay(chat, "Recommendation", academy.recommendNextLesson()));
+        weakBtn.setOnAction(e -> {
+            var weak = academy.getWeakFamilies();
+            if (weak.isEmpty()) {
+                mentorSay(chat, "Weakness profile", "Clean profile \u2014 no recurring mistakes detected yet. The mentor will track families you miss and steer you toward them.");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (String[] w : weak) sb.append("\u2022 ").append(w[0]).append(" \u2014 ").append(w[1]).append(" wrong\n");
+                sb.append("Tip: open the CRYPTO LAB and replay the weakest family on a sample before your next attempt.");
+                mentorSay(chat, "Weakness profile", sb.toString());
+            }
+        });
+        encBtn.setOnAction(e -> mentorSay(chat, "Mentor", academy.encourage()));
+
+        HBox row1 = new HBox(8);
+        row1.setAlignment(Pos.CENTER_LEFT);
+        row1.getChildren().addAll(topicBox, teachBtn, algoBtn, quizBtn, hintBtn);
+        HBox row2 = new HBox(8);
+        row2.setAlignment(Pos.CENTER_LEFT);
+        row2.getChildren().addAll(mistakeBtn, recBtn, weakBtn, encBtn);
+
+        main.getChildren().addAll(chat, row1, row2, quizBox);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private static void mentorSay(TextArea chat, String role, String body) {
+        chat.appendText("\n\n\u25B8 " + role.toUpperCase() + "\n" + body);
+        chat.setScrollTop(Double.MAX_VALUE);
+    }
+
+    private static String mentorGreeting() {
+        return "\uD83E\uDD16 AI MENTOR ONLINE. I have read your solve history and your weak spots. "
+            + "Ask me to TEACH A CONCEPT, EXPLAIN AN ALGORITHM, GENERATE A QUIZ, EXPLAIN MY MISTAKES, "
+            + "TRACK MY WEAKNESSES, RECOMMEND NEXT LESSON or just ENCOURAGE ME.";
+    }
+
+    private void renderMentorQuiz(TextArea chat, VBox quizBox) {
+        academy.generateQuiz();
+        quizBox.getChildren().clear();
+        quizBox.setVisible(true);
+        quizBox.setManaged(true);
+        int[] qi = {0};
+        int[] score = {0};
+        renderQuizQuestion(chat, quizBox, qi, score);
+    }
+
+    private void renderQuizQuestion(TextArea chat, VBox quizBox, int[] qi, int[] score) {
+        quizBox.getChildren().clear();
+        if (qi[0] >= academy.quizCount()) {
+            Label done = AcademyUi.text("\uD83C\uDFC6 QUIZ COMPLETE \u2014 SCORE " + score[0] + "/" + academy.quizCount(), 13);
+            done.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 13px; -fx-font-weight: bold;");
+            quizBox.getChildren().add(done);
+            mentorSay(chat, "Quiz", "Final score " + score[0] + "/" + academy.quizCount()
+                + ". Review EXPLAIN ANSWERS on each question above, or generate a fresh quiz tomorrow.");
+            return;
+        }
+        int i = qi[0];
+        quizBox.getChildren().add(AcademyUi.neon("Q" + (i + 1) + "/" + academy.quizCount() + ": " + academy.quizQuestion(i), AcademyUi.GOLD, 13));
+        String[] opts = academy.quizOptions(i);
+        int correct = academy.quizAnswerIndex(i);
+        Label verdict = AcademyUi.caption("", 12);
+        for (int o = 0; o < 4; o++) {
+            final int pick = o;
+            Button b = AcademyUi.button((o == correct ? "\u2713 " : "") + opts[o],
+                o == correct ? "#238636" : "#21262d", "#ffffff");
+            b.setOnAction(ev -> {
+                boolean ok = pick == correct;
+                if (ok) score[0]++;
+                String v = (ok ? "\u2705 CORRECT \u2014 " : "\u274C NOT QUITE \u2014 ") + academy.quizExplain(i);
+                verdict.setText(v);
+                verdict.setStyle("-fx-text-fill: " + (ok ? "#3fb950" : "#f85149") + "; -fx-font-size: 12px; -fx-wrap-text: true;");
+            });
+            quizBox.getChildren().add(b);
+        }
+        Button next = AcademyUi.button("\u25B6 NEXT", "#1f6feb", "#ffffff");
+        next.setOnAction(ev -> { qi[0]++; renderQuizQuestion(chat, quizBox, qi, score); });
+        quizBox.getChildren().addAll(verdict, next);
+    }
+
+    // === INTERACTIVE CRYPTO LAB (ITEM 11) — hub of live simulators ===
+
+    private void showCryptoLab() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83E\uDDEA INTERACTIVE CRYPTO LAB", AcademyUi.GREEN, 22);
+        Label sub = AcademyUi.caption(
+            "Live laboratories \u2014 type any input, hit RUN, and watch every cipher step-by-step in real time.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        String[][] labs = {
+            {"aesenc", "\uD83D\uDD12", "AES Encrypt", "AES-128-CBC with key + IV, PKCS5 padding."},
+            {"aesdec", "\uD83D\uDD13", "AES Decrypt", "Reverse CBC: key, IV and ciphertext in."},
+            {"rsaenc", "\uD83D\uDD10", "RSA Encrypt", "Generate p,q,n,e,d then encrypt a number."},
+            {"rsadec", "\uD83D\uDD11", "RSA Decrypt", "m = c^d mod n with the private exponent."},
+            {"caesar", "\uD83D\uDD20", "Caesar Simulator", "Shift letters around the alphabet."},
+            {"vigenere", "\uD83D\uDD1F", "Vigenere Simulator", "Repeating-key substitution."},
+            {"playfair", "\uD83C\uDFB4", "Playfair Simulator", "Digraph cipher on a 5x5 key square."},
+            {"hill", "\uD83D\uDD16", "Hill Cipher", "Linear algebra on 2x2 key matrices."},
+            {"railfence", "\uD83D\uDE8B", "Rail Fence", "Zig-zag transposition across rails."},
+            {"transposition", "\uD83D\uDD32", "Transposition", "Columnar shuffle that preserves letters."},
+            {"xor", "\uD83C\uDFAF", "XOR Bitwise", "Byte-level XOR with a key."},
+            {"hash", "\uD83D\uDD22", "Hash Generator", "SHA-256 digest + avalanche demo."},
+            {"pwdstrength", "\uD83D\uDD11", "Password Strength", "Score a password against 8 checks."},
+            {"signature", "\u270D\uFE0F", "Digital Signature", "Sign with RSA, verify the digest."},
+            {"affine", "\uD83C\uDF9D\uFE0F", "Affine Cipher", "c = (a*p + b) mod 26."},
+            {"morse", "\uD83D\uDCE1", "Morse Code", "Dots and dashes for every letter."},
+            {"bacon", "\uD83E\uDD53", "Baconian Cipher", "Five a/b symbols per letter."},
+            {"tripleagent", "\uD83C\uDFE6", "Triple-Stack", "ROT13 + Reverse + Vigenere."},
+            {"atbash", "\uD83E\uDE9E", "Atbash", "Mirror the alphabet A\u2194Z."},
+            {"rot13", "\uD83D\uDD04", "ROT13", "Caesar with a fixed shift of 13."},
+            {"reverse", "\u2194\uFE0F", "Reverse", "Flip the string order."},
+            {"leet", "\uD83D\uDCDF", "Leet Speak", "4=A, 3=E, 0=O substitution."},
+            {"hex", "\uD83D\uDDA4", "Hex Encoding", "Bytes as two hex digits."},
+            {"ascii", "\uD83D\uDD22", "ASCII Encoding", "Letters as 0-127 codes."},
+            {"octal", "\uD83D\uDDF2\uFE0F", "Octal Encoding", "Bytes as three octal digits."},
+            {"binary", "\uD83D\uDC68\u200D\uD83D\uDCBB", "Binary Encoding", "Bytes as eight bits."},
+            {"base64", "\uD83D\uDDC2", "Base64 Encoding", "Three bytes into four chars."},
+            {"base32", "\uD83D\uDDC3", "Base32 Encoding", "A-Z and 2-7, five bits per char."}
+        };
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        int col = 0, row = 0;
+        for (String[] l : labs) {
+            grid.add(buildLabCard(l[0], l[1], l[2], l[3]), col, row);
+            col++;
+            if (col >= 4) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node buildLabCard(String id, String icon, String name, String descr) {
+        VBox card = AcademyUi.card();
+        card.setPrefWidth(250);
+        card.setPrefHeight(120);
+        card.setOnMouseEntered(e -> card.setStyle("-fx-background-color: #1a1f29; -fx-border-color: #39FF14; -fx-border-radius: 8; -fx-padding: 14;"));
+        card.setOnMouseExited(e -> card.setStyle("-fx-background-color: #161b22; -fx-border-color: #30363d; -fx-border-radius: 8; -fx-padding: 14;"));
+
+        Label nameLab = AcademyUi.neon(icon + " " + name, AcademyUi.GREEN, 14);
+        Label descLab = AcademyUi.caption(descr, 11);
+        descLab.setWrapText(true);
+        Button run = AcademyUi.button("\u25B6 OPEN LAB", "#1f6feb", "#ffffff");
+        run.setOnAction(e -> showAlgorithmPlayground(id));
+        HBox bt = new HBox();
+        bt.setAlignment(Pos.CENTER_RIGHT);
+        bt.getChildren().add(run);
+        card.getChildren().addAll(nameLab, descLab, bt);
+        return card;
     }
 
     private void showAlgorithmPlayground(String algoId) {
@@ -3280,6 +4168,16 @@ public class Dashboard extends BorderPane {
             case "leet" -> "Leet Speak";
             case "bacon" -> "Baconian Cipher";
             case "tripleagent" -> "Triple-Stack Cipher";
+            case "aesenc" -> "AES Encrypt";
+            case "aesdec" -> "AES Decrypt";
+            case "rsaenc" -> "RSA Encrypt";
+            case "rsadec" -> "RSA Decrypt";
+            case "playfair" -> "Playfair Cipher";
+            case "hill" -> "Hill Cipher";
+            case "transposition" -> "Columnar Transposition";
+            case "hash" -> "SHA-256 Hash Generator";
+            case "pwdstrength" -> "Password Strength Meter";
+            case "signature" -> "RSA Digital Signature";
             default -> "Algorithm";
         };
 
@@ -3300,11 +4198,14 @@ public class Dashboard extends BorderPane {
         paramField.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #39FF14; -fx-border-color: #30363d; -fx-pref-width: 100;");
         paramField.setPromptText(algoParamLabel(algoId));
         if (switch (algoId) {
-                case "atbash", "binary", "base64", "rot13", "reverse", "hex", "ascii", "octal", "base32", "leet", "bacon" -> true;
+                case "atbash", "binary", "base64", "rot13", "reverse", "hex", "ascii", "octal", "base32", "leet", "bacon", "hash", "pwdstrength" -> true;
                 default -> false;
             }) {
             paramField.setVisible(false);
             paramField.setManaged(false);
+        }
+        if (algoId.startsWith("aes") || algoId.startsWith("rsa") || algoId.equals("signature")) {
+            paramField.setText("16-char-key-here!!");
         }
 
         Button runBtn = new Button("\u25B6 RUN SIMULATION");
@@ -3358,6 +4259,16 @@ public class Dashboard extends BorderPane {
             case "leet" -> simulateLeet(input, stepsBox, outputLabel);
             case "bacon" -> simulateBacon(input, stepsBox, outputLabel);
             case "tripleagent" -> simulateTriple(input, param, stepsBox, outputLabel);
+            case "aesenc" -> simulateAes(input, param, stepsBox, outputLabel, true);
+            case "aesdec" -> simulateAes(input, param, stepsBox, outputLabel, false);
+            case "rsaenc" -> simulateRsa(input, param, stepsBox, outputLabel, true);
+            case "rsadec" -> simulateRsa(input, param, stepsBox, outputLabel, false);
+            case "playfair" -> simulatePlayfair(input, param, stepsBox, outputLabel);
+            case "hill" -> simulateHill(input, param, stepsBox, outputLabel);
+            case "transposition" -> simulateTransposition(input, param, stepsBox, outputLabel);
+            case "hash" -> simulateHash(input, stepsBox, outputLabel);
+            case "pwdstrength" -> simulatePwdStrength(input, stepsBox, outputLabel);
+            case "signature" -> simulateSignature(input, param, stepsBox, outputLabel);
         }
     }
 
@@ -3794,6 +4705,202 @@ public class Dashboard extends BorderPane {
         out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
     }
 
+    // ---- INTERACTIVE CRYPTO LAB simulators (ITEM 11) ----
+
+    private void simulateAes(String input, String param, VBox box, Label out, boolean encrypt) {
+        String keyB64 = java.util.Base64.getEncoder().encodeToString(pad16(param).getBytes(StandardCharsets.UTF_8));
+        String ivB64 = java.util.Base64.getEncoder().encodeToString("1234567890123456".getBytes(StandardCharsets.UTF_8));
+        addStep(box, "# AES-128-CBC " + (encrypt ? "ENCRYPT" : "DECRYPT"), "#58a6ff");
+        addStep(box, "  Key (b64): " + keyB64, "#c9d1d9");
+        addStep(box, "  IV  (b64): " + ivB64, "#c9d1d9");
+        if (encrypt) {
+            addStep(box, "  1. Split plaintext into 16-byte blocks.", "#8b949e");
+            addStep(box, "  2. XOR each block with the previous cipher block (CBC).", "#8b949e");
+            addStep(box, "  3. Run 10 rounds: SubBytes -> ShiftRows -> MixColumns -> AddRoundKey.", "#8b949e");
+            String ct = AcademyService.aesEncryptB64(input, keyB64, ivB64);
+            addSep(box);
+            out.setText("\uD83D\uDD12 CIPHERTEXT (b64): " + ct);
+        } else {
+            String ct = input;
+            String plain = AcademyService.aesDecryptB64(ct, keyB64, ivB64);
+            addStep(box, "  1. Base64-decode the ciphertext.", "#8b949e");
+            addStep(box, "  2. Apply the inverse AES rounds with the key schedule.", "#8b949e");
+            addStep(box, "  3. XOR the first block with the IV, then unpad PKCS5.", "#8b949e");
+            addSep(box);
+            out.setText("\uD83D\uDD13 PLAINTEXT: " + plain);
+        }
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private void simulateRsa(String input, String param, VBox box, Label out, boolean encrypt) {
+        long p = 61, q = 53, n = p * q, phi = (p - 1) * (q - 1);
+        long e = 17, d = AcademyService.modInverse(e, phi);
+        addStep(box, "# RSA " + (encrypt ? "ENCRYPT" : "DECRYPT"), "#58a6ff");
+        addStep(box, "  p=" + p + "  q=" + q + "  n=" + n + "  \u03C6=" + phi, "#c9d1d9");
+        addStep(box, "  Public (e)=" + e + "   Private (d)=" + d, "#c9d1d9");
+        if (encrypt) {
+            long m = AcademyService.wordToNumber(input);
+            long c = BigInteger.valueOf(m).modPow(BigInteger.valueOf(e), BigInteger.valueOf(n)).longValue();
+            addStep(box, "  m (plaintext number) = " + m, "#8b949e");
+            addStep(box, "  c = m^e mod n = " + c, "#8b949e");
+            addStep(box, "  Anyone can encrypt with (n,e); only d can reverse it.", "#8b949e");
+            addSep(box);
+            out.setText("\uD83D\uDD10 CIPHERTEXT c = " + c);
+        } else {
+            String cStr = input.trim().replaceAll("[^0-9]", "");
+            if (cStr.isEmpty()) {
+                out.setText("\u26A0\uFE0F Enter a numeric ciphertext c first.");
+                out.setStyle("-fx-text-fill: #f85149; -fx-font-size: 13px;");
+                return;
+            }
+            long c = Long.parseLong(cStr);
+            long m = BigInteger.valueOf(c).modPow(BigInteger.valueOf(d), BigInteger.valueOf(n)).longValue();
+            addStep(box, "  m = c^d mod n = " + m, "#8b949e");
+            String word = AcademyService.numberToWord(m);
+            addStep(box, "  Digits -> letters (A=10...): " + word, "#8b949e");
+            addSep(box);
+            out.setText("\uD83D\uDD13 PLAINTEXT: " + word);
+        }
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private void simulatePlayfair(String input, String key, VBox box, Label out) {
+        addStep(box, "# PLAYFAIR \u2014 5x5 key square", "#58a6ff");
+        String k = (key.isEmpty() ? "MONARCHY" : key).toUpperCase().replace("J", "I");
+        addStep(box, "  Key square (from '" + k + "'):", "#c9d1d9");
+        addStep(box, "  " + String.join(" ", playfairRows(k)), "#c9d1d9");
+        String ct = AcademyService.playfairEncrypt(input, k);
+        addStep(box, "  Split into digraphs; same-row -> shift right, same-column -> shift down, else rectangle.", "#8b949e");
+        addSep(box);
+        out.setText("\uD83D\uDD13 ENCRYPTED: " + ct);
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private static java.util.List<String> playfairRows(String key) {
+        String k = (key + "ABCDEFGHIKLMNOPQRSTUVWXYZ").replace("J", "I");
+        java.util.LinkedHashSet<Character> seen = new java.util.LinkedHashSet<>();
+        for (char c : k.toCharArray()) if (c >= 'A' && c <= 'Z') seen.add(c);
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        int i = 0;
+        for (char c : seen) {
+            if (i % 5 == 0) rows.add("");
+            rows.set(rows.size() - 1, rows.get(rows.size() - 1) + c);
+            i++;
+        }
+        return rows;
+    }
+
+    private void simulateHill(String input, String key, VBox box, Label out) {
+        String k = (key.length() >= 4 ? key : "GYBN").toUpperCase();
+        addStep(box, "# HILL CIPHER (2x2, mod 26)", "#58a6ff");
+        addStep(box, "  Key matrix from '" + k + "':", "#c9d1d9");
+        int a = k.charAt(0) - 'A', b = k.charAt(1) - 'A', c = k.charAt(2) - 'A', dd = k.charAt(3) - 'A';
+        addStep(box, String.format("  [ %2d %2d ]\n  [ %2d %2d ]", a, b, c, dd), "#c9d1d9");
+        long det = (long) a * dd - (long) b * c;
+        addStep(box, "  det = " + det + " (must be coprime with 26 to decrypt).", "#8b949e");
+        String ct = AcademyService.hillEncrypt(input, k);
+        addStep(box, "  For each plaintext pair (x,y): c1=(a*x+b*y)%26, c2=(c*x+d*y)%26.", "#8b949e");
+        addSep(box);
+        out.setText("\uD83D\uDD13 ENCRYPTED: " + ct);
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private void simulateTransposition(String input, String param, VBox box, Label out) {
+        int cols;
+        try { cols = Math.max(2, Math.min(9, Integer.parseInt(param.trim()))); }
+        catch (Exception e) { cols = 4; }
+        addStep(box, "# COLUMNAR TRANSPOSITION (" + cols + " columns)", "#58a6ff");
+        String ct = AcademyService.transpositionEncrypt(input, cols);
+        String pt = AcademyService.transpositionDecrypt(ct, cols);
+        addStep(box, "  Write text into " + cols + " columns, pad with X, read rows.", "#8b949e");
+        addStep(box, "  ENCRYPTED: " + ct, "#c9d1d9");
+        addStep(box, "  DECRYPTED round-trip: " + pt, "#58a6ff");
+        addStep(box, "  Frequencies unchanged \u2014 pure permutation.", "#8b949e");
+        addSep(box);
+        out.setText("\uD83D\uDEE1 OUTPUT: " + ct);
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private void simulateHash(String input, VBox box, Label out) {
+        addStep(box, "# SHA-256 HASH GENERATOR", "#58a6ff");
+        String h1 = AcademyService.sha256Hex(input);
+        addStep(box, "  sha256('" + input + "') = " + h1, "#c9d1d9");
+        String tweaked = input.isEmpty() ? "A" : input;
+        String h2 = AcademyService.sha256Hex(tweaked + "!");
+        int diffs = 0;
+        for (int i = 0; i < 64; i++) if (h1.charAt(i) != h2.charAt(i)) diffs++;
+        addStep(box, "  sha256('" + tweaked + "!') = " + h2, "#f85149");
+        addStep(box, "  Avalanche: " + diffs + "/64 hex chars changed from ONE extra char \u2014 hashes are one-way.", "#8b949e");
+        addSep(box);
+        out.setText("\uD83D\uDD22 DIGEST: " + h1);
+        out.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private void simulatePwdStrength(String input, VBox box, Label out) {
+        addStep(box, "# PASSWORD STRENGTH METER", "#58a6ff");
+        String p = input;
+        int score = 0;
+        String[] checks = new String[8];
+        checks[0] = "Length >= 8 chars";
+        checks[1] = "Has UPPERCASE";
+        checks[2] = "Has lowercase";
+        checks[3] = "Has a digit";
+        checks[4] = "Has a symbol";
+        checks[5] = "No repeating runs (aaa, 111)";
+        checks[6] = "Not a common password";
+        checks[7] = "Length >= 12 chars";
+        boolean[] pass = {
+            p.length() >= 8,
+            p.matches(".*[A-Z].*"),
+            p.matches(".*[a-z].*"),
+            p.matches(".*\\d.*"),
+            p.matches(".*[^A-Za-z0-9].*"),
+            !p.matches(".*(.)\\1\\1.*"),
+            !COMMON_PASSWORDS.contains(p.toLowerCase()),
+            p.length() >= 12
+        };
+        for (int i = 0; i < 8; i++) {
+            if (pass[i]) score++;
+            addStep(box, "  " + (pass[i] ? "\u2705" : "\u274C") + " " + checks[i], pass[i] ? "#3fb950" : "#f85149");
+        }
+        String verdict = score <= 2 ? "WEAK \u2014 crack in seconds" : score <= 5 ? "FAIR \u2014 dictionary-solvable" : "STRONG \u2014 resists brute force";
+        String color = score <= 2 ? "#f85149" : score <= 5 ? "#FFD700" : "#39FF14";
+        addSep(box);
+        out.setText("\uD83D\uDD11 SCORE " + score + "/8 \u2014 " + verdict.toUpperCase());
+        out.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private static final java.util.Set<String> COMMON_PASSWORDS = java.util.Set.of(
+        "password", "123456", "12345678", "qwerty", "abc123", "letmein", "admin", "welcome",
+        "monkey", "dragon", "111111", "password1", "iloveyou", "sunshine", "princess", "football");
+
+    private void simulateSignature(String input, String param, VBox box, Label out) {
+        long p = 61, q = 53, n = p * q, phi = (p - 1) * (q - 1);
+        long e = 17, d = AcademyService.modInverse(e, phi);
+        addStep(box, "# RSA DIGITAL SIGNATURE", "#58a6ff");
+        addStep(box, "  Signer private key d=" + d + ", public (n=" + n + ", e=" + e + ")", "#c9d1d9");
+        long digest = new BigInteger(AcademyService.sha256Hex(input).substring(0, 16), 16)
+            .mod(BigInteger.valueOf(n)).longValue();
+        long sig = BigInteger.valueOf(digest).modPow(BigInteger.valueOf(d), BigInteger.valueOf(n)).longValue();
+        long verify = BigInteger.valueOf(sig).modPow(BigInteger.valueOf(e), BigInteger.valueOf(n)).longValue();
+        addStep(box, "  digest = sha256(msg) mod n = " + digest, "#8b949e");
+        addStep(box, "  SIGN: sig = digest^d mod n = " + sig, "#58a6ff");
+        addStep(box, "  VERIFY: digest' = sig^e mod n = " + verify, "#58a6ff");
+        boolean ok = digest == verify;
+        addStep(box, "  " + (ok ? "\u2705 Signature valid \u2014 only d could produce it." : "\u274C Signature invalid!"), ok ? "#3fb950" : "#f85149");
+        addSep(box);
+        out.setText((ok ? "\u2705" : "\u274C") + " VERIFY: " + (ok ? "SIGNATURE VALID" : "INVALID"));
+        out.setStyle("-fx-text-fill: " + (ok ? "#3fb950" : "#f85149") + "; -fx-font-size: 14px; -fx-font-family: 'Courier New'; -fx-font-weight: bold;");
+    }
+
+    private static String pad16(String s) {
+        String t = s == null ? "" : s;
+        if (t.length() >= 16) return t.substring(0, 16);
+        StringBuilder sb = new StringBuilder(t);
+        while (sb.length() < 16) sb.append('!');
+        return sb.toString();
+    }
+
     private static String toHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) sb.append(String.format("%02X ", b));
@@ -4136,6 +5243,1322 @@ public class Dashboard extends BorderPane {
         }
     }
 
+    // ============================================================
+    // ATTACK SIMULATOR (ITEM 15)
+    // ============================================================
+
+    private void showAttackSimulator() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDC79 ATTACK SIMULATOR", AcademyUi.RED, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.RED, 0.3));
+        Label sub = AcademyUi.caption(
+            "Interactive red-team laboratories \u2014 watch real cryptographic attacks unfold step by step.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        String[][] attacks = {
+            {"brute", "\uD83D\uDD10", "Brute Force", "Try every key until the plaintext makes sense."},
+            {"dictionary", "\uD83D\uDCDA", "Dictionary Attack", "Crack a SHA-256 hash using a common word list."},
+            {"freq", "\uD83D\uDCC8", "Frequency Analysis", "Letter-frequency stats against monoalphabetic ciphers."},
+            {"chosen", "\uD83C\uDFAF", "Chosen Plaintext", "Craft inputs that reveal ECB block patterns."},
+            {"known", "\uD83D\uDCC4", "Known Plaintext", "Recover the key from plaintext/ciphertext pairs."},
+            {"replay", "\uD83D\uDD04", "Replay Attack", "Capture a request and replay it undetected."},
+            {"mitm", "\uD83D\uDD28", "MITM", "Intercept Alice and Bob's key exchange."},
+            {"rainbow", "\uD83C\uDF08", "Rainbow Tables", "Precomputed chains crack passwords in milliseconds."},
+            {"pwd", "\uD83D\uDD11", "Password Cracking", "Estimate crack time at real GPU hash rates."},
+            {"collision", "\uD83D\uDCA5", "Collision Demo", "Birthday attack on truncated hashes."}
+        };
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        int col = 0, row = 0;
+        for (String[] a : attacks) {
+            grid.add(buildAttackCard(a[0], a[1], a[2], a[3]), col, row);
+            col++;
+            if (col >= 4) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node buildAttackCard(String id, String icon, String name, String descr) {
+        VBox card = AcademyUi.cardAccent(AcademyUi.RED);
+        card.setPrefWidth(250);
+        Label nameLab = AcademyUi.neon(icon + " " + name, AcademyUi.RED, 14);
+        Label descLab = AcademyUi.caption(descr, 11);
+        descLab.setWrapText(true);
+        Button run = AcademyUi.button("\uD83D\uDE80 LAUNCH ATTACK", "#f85149", "#ffffff");
+        run.setOnAction(e -> showAttackLab(id, name));
+        card.getChildren().addAll(nameLab, descLab, run);
+        return card;
+    }
+
+    private void showAttackLab(String attackId, String name) {
+        academyActive = true;
+        VBox main = new VBox(12);
+        main.setPadding(new Insets(20));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ATTACK SIMULATOR", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAttackSimulator());
+
+        Label title = new Label("\uD83D\uDC79 " + name + " \u2014 Interactive Attack Lab");
+        title.setStyle("-fx-text-fill: #f85149; -fx-font-size: 18px; -fx-font-weight: bold;");
+
+        TextArea codeArea = new TextArea(attackPseudo(attackId));
+        codeArea.setEditable(false);
+        codeArea.setPrefRowCount(6);
+        codeArea.setStyle(OUTPUT_STYLE);
+
+        TextField inputField = new TextField(attackDefaultInput(attackId));
+        inputField.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #f85149; -fx-border-color: #30363d; -fx-pref-width: 340;");
+
+        Button runBtn = new Button("\uD83D\uDE80 RUN ATTACK");
+        runBtn.setStyle("-fx-background-color: #f85149; -fx-text-fill: white; -fx-font-weight: bold;");
+
+        VBox stepsBox = new VBox(6);
+        stepsBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 15; -fx-border-color: #30363d; -fx-border-radius: 6;");
+
+        Label outputLabel = new Label("Attack output will appear here...");
+        outputLabel.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 12px; -fx-font-family: 'Courier New';");
+        outputLabel.setWrapText(true);
+
+        runBtn.setOnAction(e -> {
+            stepsBox.getChildren().clear();
+            outputLabel.setText("");
+            simulateAttack(attackId, inputField.getText(), stepsBox, outputLabel);
+        });
+
+        HBox inputRow = new HBox(10, inputField, runBtn);
+        inputRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(12, backBtn, title, codeArea, inputRow, stepsBox, outputLabel);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(650);
+        main.getChildren().add(scroll);
+        setCenter(main);
+    }
+
+    private static String attackPseudo(String id) {
+        return switch (id) {
+            case "brute" -> "for key in 0..25:\n    candidate = decrypt(cipher, key)\n    score = englishness(candidate)\n    return best(candidate)";
+            case "dictionary" -> "for word in wordlist:\n    if sha256(word) == target_hash: return word";
+            case "freq" -> "count[letter] for ciphertext\norder = sort(count, desc)\nmap order[i] -> ETAOINHSRDLU[i]";
+            case "chosen" -> "blocks = split(plaintext, 16)\nfor b: ecb_out = E(b)\ncompare: equal blocks leak equality";
+            case "known" -> "key[i] = plain[i] XOR cipher[i] (repeating key)";
+            case "replay" -> "capture(request)\nserver.accepts(request)  # no nonce\nserver.accepts(request)  # replay works!";
+            case "mitm" -> "A ->Eve-> B : g^a\nB ->Eve-> A : g^b\nEve shares key with both (two separate sessions)";
+            case "rainbow" -> "chain = [p0, R(h(p0)), R(h(R(h(p0))))...]\nlookup: reduce target hash -> walk chain -> hit";
+            case "pwd" -> "for charset in [...]\n  time = keyspace / gpu_rate\n  if time < 1yr: cracked";
+            case "collision" -> "seen = {}\nfor i in 0..:\n  h = truncate(hash(i), b)\n  if h in seen: collision found";
+            default -> "run attack";
+        };
+    }
+
+    private static String attackDefaultInput(String id) {
+        return switch (id) {
+            case "brute" -> "KHOOR ZRUOG";
+            case "dictionary" -> "P@ssw0rd!";
+            case "freq" -> "ATTACKATDAWN";
+            case "chosen" -> "HELLOHELLOHELLOHELLOHELLO";
+            case "known" -> "ATTACK";
+            case "replay" -> "GRANT ACCESS admin=root";
+            case "mitm" -> "g=5 p=23";
+            case "rainbow" -> "VaultKeeper";
+            case "pwd" -> "P@ssw0rd!";
+            case "collision" -> "24";
+            default -> "";
+        };
+    }
+
+    private void simulateAttack(String attackId, String input, VBox box, Label out) {
+        switch (attackId) {
+            case "brute" -> simulateBruteForce(input, box, out);
+            case "dictionary" -> simulateDictionary(input, box, out);
+            case "freq" -> simulateFreqAnalysis(input, box, out);
+            case "chosen" -> simulateChosenPlaintext(input, box, out);
+            case "known" -> simulateKnownPlaintext(input, box, out);
+            case "replay" -> simulateReplay(input, box, out);
+            case "mitm" -> simulateMitm(input, box, out);
+            case "rainbow" -> simulateRainbow(input, box, out);
+            case "pwd" -> simulatePwdCrack(input, box, out);
+            case "collision" -> simulateCollision(input, box, out);
+        }
+    }
+
+    private static final String[] COMMON_WORDS = {
+        "P@ssw0rd!", "password", "qwerty123", "letmein", "admin", "root",
+        "monkey", "dragon", "football", "iloveyou", "sunshine", "princess",
+        "hello", "welcome", "shadow", "12345678", "ninja", "mustang",
+        "VaultKeeper", "KaliQueen", "HashQueen", "secret", "trustno1", "master"
+    };
+
+    private void simulateBruteForce(String input, VBox box, Label out) {
+        String cipher = input.toUpperCase().replaceAll("[^A-Z ]", "");
+        addStep(box, "\u25B6 BRUTE FORCE over 25 shift keys", "#f85149");
+        addSep(box);
+        if (cipher.isBlank()) { addStep(box, "No ciphertext.", "#8b949e"); return; }
+        String best = "";
+        int bestScore = -1, bestKey = -1;
+        for (int k = 1; k < 26; k++) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : cipher.toCharArray()) {
+                if (c == ' ') { sb.append(' '); continue; }
+                sb.append((char) ('A' + (c - 'A' - k + 26) % 26));
+            }
+            String cand = sb.toString();
+            int score = englishness(cand);
+            String mark = k % 5 == 0 ? " *" : "";
+            addStep(box, String.format("key %2d: %s %s", k, cand, mark), k % 5 == 0 ? "#c9d1d9" : "#484f58");
+            if (score > bestScore) { bestScore = score; best = cand; bestKey = k; }
+        }
+        addSep(box);
+        addStep(box, "\u2705 BEST CANDIDATE (shift " + bestKey + "): " + best, "#39FF14");
+        out.setText("Brute force examined 25 keys in ~0ms. Key " + bestKey + " produced the most English-looking text.");
+    }
+
+    private static int englishness(String s) {
+        int score = 0;
+        String up = s.toUpperCase();
+        if (up.contains("THE")) score += 8;
+        if (up.contains("AND")) score += 5;
+        if (up.contains("ATTACK")) score += 20;
+        if (up.contains("HELLO")) score += 15;
+        int vowels = 0;
+        for (char c : up.toCharArray()) {
+            if ("AEIOU".indexOf(c) >= 0) vowels++;
+            if ("ETAOINSHRDLCUMWFGYPBVKJXQZ".indexOf(c) >= 0) score++;
+        }
+        score += vowels;
+        return score;
+    }
+
+    private void simulateDictionary(String input, VBox box, Label out) {
+        String target = input.isEmpty() ? "P@ssw0rd!" : input;
+        String hash = AcademyService.sha256Hex(target);
+        addStep(box, "\u25B6 DICTIONARY ATTACK on SHA-256 hash", "#f85149");
+        addStep(box, "target = " + target, "#c9d1d9");
+        addStep(box, "digest = " + hash.substring(0, 24) + "\u2026", "#8b949e");
+        addSep(box);
+        long start = System.nanoTime();
+        String hit = null;
+        for (int i = 0; i < COMMON_WORDS.length; i++) {
+            String w = COMMON_WORDS[i];
+            String h = AcademyService.sha256Hex(w);
+            boolean shown = i % 6 == 0;
+            if (shown) addStep(box, String.format("[%02d] %-14s -> %s%s", i, w, h.substring(0, 16) + "\u2026",
+                h.equals(hash) ? "   \u2713 MATCH" : ""), h.equals(hash) ? "#39FF14" : "#484f58");
+            if (h.equals(hash)) { hit = w; break; }
+        }
+        long ms = (System.nanoTime() - start) / 1_000_000;
+        addSep(box);
+        if (hit != null) {
+            addStep(box, "\uD83D\uDCA5 CRACKED: password = \"" + hit + "\"", "#39FF14");
+            out.setText("Dictionary attack cracked \"" + hit + "\" in " + ms + " ms (" + (COMMON_WORDS.length) + " word entries hashed).");
+        } else {
+            addStep(box, "\u274C No hit in the bundled word list.", "#f85149");
+            out.setText("No dictionary hit. The password is not in the top 24 common passwords \u2014 a larger wordlist would help.");
+        }
+    }
+
+    private void simulateFreqAnalysis(String input, VBox box, Label out) {
+        String plain = input.toUpperCase().replaceAll("[^A-Z]", "");
+        if (plain.isBlank()) plain = "ATTACKATDAWN";
+        java.util.Random r = new java.util.Random(plain.hashCode());
+        String[] alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+        StringBuilder cipher = new StringBuilder();
+        for (char c : plain.toCharArray()) {
+            if (c == ' ') { cipher.append(' '); continue; }
+            cipher.append(alphabet[(c - 'A' + r.nextInt(26)) % 26]);
+        }
+        int[] counts = new int[26];
+        for (char c : plain.toCharArray()) counts[c - 'A']++;
+        java.util.List<int[]> pairs = new java.util.ArrayList<>();
+        for (int i = 0; i < 26; i++) pairs.add(new int[]{i, counts[i]});
+        pairs.sort((a, b) -> Integer.compare(b[1], a[1]));
+        addStep(box, "\u25B6 FREQUENCY ANALYSIS on ciphertext", "#f85149");
+        addStep(box, "ciphertext = " + cipher, "#c9d1d9");
+        addSep(box);
+        addStep(box, "Encrypted frequency histogram (top 8):", "#58a6ff");
+        for (int i = 0; i < 8; i++) {
+            int[] p = pairs.get(i);
+            char letter = (char) ('A' + p[0]);
+            int bar = Math.round(p[1] * 20f / Math.max(1, pairs.get(0)[1]));
+            addStep(box, String.format("  %c : %s (%d)", letter, "\u2588".repeat(Math.max(1, bar)), p[1]), "#39FF14");
+        }
+        addSep(box);
+        addStep(box, "English expects: E T A O I N S H \u2014 map the most frequent cipher letters to these.", "#f78166");
+        out.setText("The most frequent ciphertext letters are \"" + (char)('A' + pairs.get(0)[0])
+            + "\" and \"" + (char)('A' + pairs.get(1)[0]) + "\" \u2014 likely E and T in a simple substitution.");
+    }
+
+    private void simulateChosenPlaintext(String input, VBox box, Label out) {
+        String plain = input.toUpperCase().replaceAll("[^A-Z]", "");
+        if (plain.isEmpty()) plain = "HELLOHELLOHELLOHELLOHELLO";
+        addStep(box, "\u25B6 CHOSEN PLAINTEXT \u2014 ECB vs CBC", "#f85149");
+        addSep(box);
+        addStep(box, "Plaintext (chosen by attacker): " + plain, "#c9d1d9");
+        StringBuilder ecb = new StringBuilder();
+        StringBuilder cbc = new StringBuilder();
+        java.util.Random r = new java.util.Random(42);
+        byte prev = (byte) r.nextInt(256);
+        int block = 0;
+        for (int i = 0; i < plain.length(); i++) {
+            byte p = (byte) plain.charAt(i);
+            byte e = (byte) ((p + 3) % 26 + 'A');
+            if (block < 2 && i / 16 > block) { addStep(box, "\u2500 block boundary \u2500", "#8b949e"); block++; }
+            ecb.append((char) (e));
+            byte c = (byte) (e ^ prev);
+            cbc.append((char) ('A' + (c & 0x1F) % 26));
+            prev = e;
+        }
+        addStep(box, "ECB ciphertext:  " + ecb, "#39FF14");
+        addStep(box, "CBC ciphertext:  " + cbc, "#58a6ff");
+        addSep(box);
+        boolean sameEcb = ecb.length() >= 32 && ecb.substring(0, 16).equals(ecb.substring(16, 32));
+        addStep(box, sameEcb
+            ? "\uD83D\uDCA1 ECB leaks: blocks 1 and 2 are IDENTICAL \u2192 attacker knows the plaintext blocks repeat."
+            : "\uD83D\uDCA1 ECB: identical plaintext blocks produce identical ciphertext blocks.",
+            "#FFD700");
+        addStep(box, "CBC chains each block through the previous ciphertext \u2014 identical blocks differ.", "#f78166");
+        out.setText("Chosen plaintext exploits structural leaks: in ECB mode the attacker sees repeat patterns ("
+            + (sameEcb ? "observed" : "verifiable with 32+ identical chars") + ").");
+    }
+
+    private void simulateKnownPlaintext(String input, VBox box, Label out) {
+        String known = input.toUpperCase().replaceAll("[^A-Z]", "");
+        if (known.length() < 2) known = "ATTACK";
+        String key = "SECRETKEY";
+        addStep(box, "\u25B6 KNOWN PLAINTEXT \u2014 recover repeating-XOR key", "#f85149");
+        addSep(box);
+        StringBuilder keyPad = new StringBuilder();
+        for (int i = 0; i < known.length(); i++) keyPad.append(key.charAt(i % key.length()));
+        StringBuilder cipher = new StringBuilder();
+        for (int i = 0; i < known.length(); i++)
+            cipher.append((char) (known.charAt(i) ^ keyPad.charAt(i)));
+        addStep(box, "Plaintext : " + known, "#c9d1d9");
+        addStep(box, "Ciphertext: " + cipher, "#c9d1d9");
+        addSep(box);
+        StringBuilder recovered = new StringBuilder();
+        for (int i = 0; i < known.length(); i++) {
+            char k = (char) (known.charAt(i) ^ cipher.charAt(i));
+            recovered.append(k);
+            if (i % 3 == 2) addStep(box, String.format("  key byte[%d] = P XOR C = %c", i, k), "#39FF14");
+        }
+        addSep(box);
+        addStep(box, "\u2705 Recovered key fragment: \"" + recovered + "\u2026\"", "#FFD700");
+        addStep(box, "With enough known plaintext the full repeating key is trivially recovered.", "#f78166");
+        out.setText("Known plaintext gave the key bytes: " + recovered);
+    }
+
+    private void simulateReplay(String input, VBox box, Label out) {
+        String req = input.isEmpty() ? "GRANT ACCESS admin=root" : input;
+        addStep(box, "\u25B6 REPLAY ATTACK \u2014 capture & replay a session request", "#f85149");
+        addSep(box);
+        addStep(box, "[SNIFF] Eavesdropped wire capture:", "#58a6ff");
+        addStep(box, "  > " + req + "   [SEQ 0x7A1F]", "#c9d1d9");
+        addStep(box, "[SERVER] \u2705 ACCEPTED \u2014 session token valid, no nonce check.", "#39FF14");
+        addSep(box);
+        addStep(box, "[REPLAY] Attacker re-sends the exact same bytes...", "#f85149");
+        addStep(box, "  > " + req + "   [SEQ 0x7A1F]  (replayed)", "#c9d1d9");
+        addStep(box, "[SERVER] \u2705 ACCEPTED AGAIN \u2014 access granted a second time!", "#39FF14");
+        addSep(box);
+        addStep(box, "\uD83D\uDCA1 Mitigation: one-time nonces, timestamps, sequence numbers + replay detection.", "#FFD700");
+        out.setText("Replay succeeded: the server accepted the identical request twice because it has no anti-replay protection.");
+    }
+
+    private void simulateMitm(String input, VBox box, Label out) {
+        addStep(box, "\u25B6 MAN-IN-THE-MIDDLE \u2014 key exchange interception", "#f85149");
+        addSep(box);
+        addStep(box, "Setup: Alice and Bob try Diffie-Hellman over an insecure channel.", "#c9d1d9");
+        addStep(box, "Eve sits between them and relays everything.", "#c9d1d9");
+        addSep(box);
+        addStep(box, "Alice ->(Eve)-> Bob   :  A = g^a (mod p)", "#39FF14");
+        addStep(box, "Eve replaces it with  :  A' = g^e (mod p)", "#f85149");
+        addStep(box, "Bob ->(Eve)-> Alice   :  B = g^b (mod p)", "#39FF14");
+        addStep(box, "Eve replaces it with  :  B' = g^e (mod p)", "#f85149");
+        addSep(box);
+        addStep(box, "Alice computes k1 = B'^a = g^(ea)  \u2014 shared with Eve", "#f78166");
+        addStep(box, "Bob   computes k2 = A'^b = g^(eb)  \u2014 shared with Eve", "#f78166");
+        addStep(box, "Eve now decrypts, reads and re-encrypts every message in both sessions.", "#f85149");
+        addSep(box);
+        addStep(box, "\uD83D\uDCA1 Mitigation: authenticated key exchange (certificates / signatures).", "#FFD700");
+        out.setText("MITM complete: Alice trusts k1, Bob trusts k2, Eve controls both keys.");
+    }
+
+    private void simulateRainbow(String input, VBox box, Label out) {
+        String target = input.isEmpty() ? "VaultKeeper" : input;
+        addStep(box, "\u25B6 RAINBOW TABLE \u2014 precomputed hash chains", "#f85149");
+        addStep(box, "target password to crack: " + target, "#c9d1d9");
+        addSep(box);
+        java.util.Map<String, String> chainEnds = new java.util.HashMap<>();
+        java.util.Random r = new java.util.Random(7);
+        int rows = 8;
+        for (int i = 0; i < rows; i++) {
+            String start = COMMON_WORDS[r.nextInt(COMMON_WORDS.length)];
+            String cur = start;
+            StringBuilder chain = new StringBuilder();
+            chain.append(start);
+            for (int s = 0; s < 5; s++) {
+                String h = AcademyService.sha256Hex(cur);
+                int reduced = (Math.abs(h.hashCode()) + s * 31) % COMMON_WORDS.length;
+                cur = COMMON_WORDS[reduced];
+                chain.append(" \u2192 ").append(cur);
+            }
+            chainEnds.put(cur, start);
+            addStep(box, String.format("chain %d: %s", i, chain), "#484f58");
+        }
+        addSep(box);
+        String thash = AcademyService.sha256Hex(target);
+        String hit = null;
+        for (int s = 0; s < 5 && hit == null; s++) {
+            String reduced = COMMON_WORDS[(Math.abs(thash.hashCode()) + s * 31) % COMMON_WORDS.length];
+            addStep(box, "reduce(" + thash.substring(0, 12) + "\u2026) -> " + reduced, "#58a6ff");
+            if (chainEnds.containsKey(reduced)) {
+                String start = chainEnds.get(reduced);
+                String walk = start;
+                for (int i = 0; i < 5; i++) {
+                    String h = AcademyService.sha256Hex(walk);
+                    if (h.equals(thash)) { hit = walk; break; }
+                    int red = (Math.abs(h.hashCode()) + i * 31) % COMMON_WORDS.length;
+                    walk = COMMON_WORDS[red];
+                }
+                if (hit != null) break;
+            }
+        }
+        addSep(box);
+        if (hit != null) {
+            addStep(box, "\uD83D\uDCA5 RAINBOW HIT: password = \"" + hit + "\"", "#39FF14");
+            out.setText("Rainbow table lookup recovered \"" + hit + "\" \u2014 seconds, not years. Precomputation trades disk for time.");
+        } else {
+            addStep(box, "\u274C No chain hit for this hash.", "#f85149");
+            out.setText("No rainbow hit \u2014 salted hashes make rainbow tables useless, which is exactly the point.");
+        }
+    }
+
+    private void simulatePwdCrack(String input, VBox box, Label out) {
+        String pwd = input.isEmpty() ? "P@ssw0rd!" : input;
+        int len = pwd.length();
+        int classes = 0;
+        if (pwd.matches(".*[a-z].*")) classes++;
+        if (pwd.matches(".*[A-Z].*")) classes++;
+        if (pwd.matches(".*\\d.*")) classes++;
+        if (pwd.matches(".*[^a-zA-Z0-9].*")) classes++;
+        int strength = Math.min(4, classes);
+        long keyspace = 1L;
+        for (int i = 0; i < len; i++) {
+            int pool = switch (classes) { case 0, 1 -> 26; case 2 -> 52; case 3 -> 62; default -> 95; };
+            keyspace = Math.min(Long.MAX_VALUE, keyspace * pool);
+        }
+        long gpuRate = 10_000_000_000L;
+        double seconds = keyspace / (double) gpuRate;
+        addStep(box, "\u25B6 PASSWORD CRACKING \u2014 keyspace & GPU time", "#f85149");
+        addStep(box, "password   : " + pwd, "#c9d1d9");
+        addStep(box, "length     : " + len + " chars", "#c9d1d9");
+        addStep(box, "char classes: " + classes + " (lower/upper/digit/symbol)", "#c9d1d9");
+        addStep(box, "strength   : " + "\u2605".repeat(Math.max(1, strength)) + "\u2606".repeat(4 - Math.max(0, Math.min(4, strength))), "#FFD700");
+        addSep(box);
+        addStep(box, String.format("keyspace   : %.3g combinations", (double) keyspace), "#58a6ff");
+        addStep(box, String.format("GPU rate   : %.1f billion guesses/s", gpuRate / 1e9), "#58a6ff");
+        addStep(box, "est. time  : " + formatTime(seconds), strength >= 3 ? "#39FF14" : "#f85149");
+        addSep(box);
+        addStep(box, strength >= 4 ? "\uD83D\uDEE1\uFE0F VERDICT: cryptographically strong \u2014 multi-year crack time."
+            : "\uD83D\uDCA5 VERDICT: crackable in " + formatTime(seconds) + ". Lengthen it and add another character class.",
+            strength >= 4 ? "#39FF14" : "#f85149");
+        out.setText("Estimated crack time at 10^10 guesses/s: " + formatTime(seconds));
+    }
+
+    private static String formatTime(double seconds) {
+        if (seconds < 1) return "< 1 second";
+        if (seconds < 60) return (int) seconds + " seconds";
+        if (seconds < 3600) return String.format("%.1f minutes", seconds / 60);
+        if (seconds < 86400) return String.format("%.1f hours", seconds / 3600);
+        if (seconds < 31557600) return String.format("%.1f days", seconds / 86400);
+        return String.format("%.1f years", seconds / 31557600);
+    }
+
+    private void simulateCollision(String input, VBox box, Label out) {
+        int bits;
+        try { bits = Integer.parseInt(input.trim()); } catch (Exception e) { bits = 24; }
+        bits = Math.max(8, Math.min(40, bits));
+        int mask = bits >= 32 ? -1 : (1 << bits) - 1;
+        java.util.Map<Integer, String> seen = new java.util.HashMap<>();
+        addStep(box, "\u25B6 BIRTHDAY COLLISION \u2014 truncate hash to " + bits + " bits", "#f85149");
+        addStep(box, "birthday bound ~ 2^(" + bits + "/2) \u2248 " + (int) Math.pow(2, bits / 2.0) + " candidates", "#c9d1d9");
+        addSep(box);
+        int i = 0;
+        Integer foundKey = null;
+        String a = null, b = null;
+        while (foundKey == null && i < 2_000_000) {
+            String s = "msg-" + i;
+            String h = AcademyService.sha256Hex(s);
+            int k = (h.substring(0, 8).hashCode()) & mask;
+            if (seen.containsKey(k)) {
+                foundKey = k;
+                a = seen.get(k);
+                b = s;
+                break;
+            }
+            seen.put(k, s);
+            if (i % 200_000 == 0) addStep(box, String.format("  %d strings stored, %d slots filled...", i, seen.size()), "#484f58");
+            i++;
+        }
+        addSep(box);
+        if (foundKey != null) {
+            addStep(box, "\uD83D\uDCA5 COLLISION FOUND after " + i + " attempts!", "#39FF14");
+            addStep(box, "  " + a + "  -> trunc(" + bits + " bits) = " + Integer.toHexString(foundKey), "#c9d1d9");
+            addStep(box, "  " + b + "  -> trunc(" + bits + " bits) = " + Integer.toHexString(foundKey), "#c9d1d9");
+            addStep(box, "Two different inputs, identical truncated digest \u2014 that is a hash collision.", "#FFD700");
+            out.setText("Collision in " + bits + "-bit truncated hash found after " + i + " candidates (bound ~" + (int) Math.pow(2, bits / 2.0) + ").");
+        } else {
+            addStep(box, "No collision within 2,000,000 candidates.", "#f85149");
+            out.setText("No collision found in range \u2014 reduce the bit width to see the birthday effect sooner.");
+        }
+    }
+
+    // ============================================================
+    // CAREER MODE (ITEM 16)
+    // ============================================================
+
+    private void showCareerMode() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83C\uDFC6 CAREER MODE", AcademyUi.GOLD, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GOLD, 0.3));
+        Label sub = AcademyUi.caption(
+            "Climb from Script Kiddie to Cyber Legend across 16 ranks. Claim promotions to bank bonus XP and coins.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        int earned = academy.earnedCareerRank();
+        int claimed = academy.getCareerRank();
+        String[] cur = AcademyService.CAREER_RANKS[earned];
+
+        VBox curCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        curCard.getChildren().add(AcademyUi.section("\uD83D\uDCCD CURRENT RANK", AcademyUi.GOLD));
+        Label big = AcademyUi.neon(cur[2] + " " + cur[1], AcademyUi.GOLD, 24);
+        curCard.getChildren().add(big);
+        curCard.getChildren().add(AcademyUi.text(claimed >= earned
+            ? "Claimed. Keep solving to push toward the next rank."
+            : "You qualify for this rank \u2014 claim your promotion to bank the bonus!", 13));
+        int nextIdx = earned + 1;
+        if (nextIdx < AcademyService.CAREER_RANKS.length) {
+            int curXp = Integer.parseInt(cur[0]);
+            int nextXp = Integer.parseInt(AcademyService.CAREER_RANKS[nextIdx][0]);
+            ProgressBar pbar = new ProgressBar(Math.min(1.0, (double) (totalXP - curXp) / Math.max(1, nextXp - curXp)));
+            pbar.setPrefWidth(Double.MAX_VALUE);
+            pbar.setStyle("-fx-accent: #FFD700;");
+            curCard.getChildren().addAll(pbar,
+                AcademyUi.caption("Next: " + AcademyService.CAREER_RANKS[nextIdx][1] + "  \u2022  +"
+                    + Math.max(0, nextXp - totalXP) + " XP", 12));
+        } else {
+            curCard.getChildren().add(AcademyUi.text("MAXIMUM CAREER RANK REACHED \u2014 legendary status.", 13));
+        }
+        Button claimBtn = AcademyUi.button(
+            claimed < earned ? "\uD83C\uDFC6 CLAIM PROMOTION  (+" + Integer.parseInt(cur[0]) / 20 + " XP, +" + (10 + earned * 5) + " coins)"
+                             : "\u2705 PROMOTION CLAIMED",
+            claimed < earned ? "#1f6feb" : "#30363d", "#ffffff");
+        claimBtn.setOnAction(e -> {
+            int promoted = academy.promoteIfEligible();
+            if (promoted >= 0) {
+                totalXP = academy.getTotalXp();
+                computeBadges();
+                addLog("[CAREER] Promoted to " + AcademyService.CAREER_RANKS[promoted][1] + ".");
+                showCareerMode();
+            }
+        });
+        curCard.getChildren().add(claimBtn);
+        main.getChildren().add(curCard);
+
+        VBox ladder = AcademyUi.cardAccent(AcademyUi.BLUE);
+        ladder.getChildren().add(AcademyUi.section("\uD83E\uDE84 RANK LADDER", AcademyUi.BLUE));
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        int col = 0, rowIdx = 0;
+        for (int i = AcademyService.CAREER_RANKS.length - 1; i >= 0; i--) {
+            String[] r = AcademyService.CAREER_RANKS[i];
+            boolean isClaimed = i <= claimed;
+            boolean isEarned = i <= earned;
+            VBox cell = new VBox(4);
+            cell.setPrefWidth(200);
+            cell.setPrefHeight(88);
+            cell.setStyle("-fx-background-color: " + (isClaimed ? "#1a3a2a" : isEarned ? "#12263a" : "#0d1117") + ";"
+                + "-fx-padding: 10; -fx-border-color: " + (isClaimed ? "#FFD700" : isEarned ? "#39FF14" : "#30363d") + ";"
+                + "-fx-border-radius: 8; -fx-background-radius: 8; -fx-alignment: center;");
+            Label icon = new Label(isClaimed || isEarned ? r[2] : "\uD83D\uDD12");
+            icon.setStyle("-fx-font-size: 22px;");
+            Label nm = new Label(r[1]);
+            nm.setStyle("-fx-text-fill: " + (isClaimed ? "#FFD700" : isEarned ? "#39FF14" : "#484f58")
+                + "; -fx-font-size: 11px; -fx-font-weight: bold; -fx-alignment: center;");
+            Label xp = new Label(r[0] + " XP");
+            xp.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 10px; -fx-alignment: center;");
+            cell.getChildren().addAll(icon, nm, xp);
+            grid.add(cell, col, rowIdx);
+            col++;
+            if (col >= 4) { col = 0; rowIdx++; }
+        }
+        ladder.getChildren().add(grid);
+        main.getChildren().add(ladder);
+
+        VBox hist = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        hist.getChildren().add(AcademyUi.section("\uD83D\uDCC5 RANK HISTORY", AcademyUi.PURPLE));
+        java.util.List<String> rankHist = academy.getRankHistory();
+        if (rankHist.isEmpty()) {
+            hist.getChildren().add(AcademyUi.caption("No promotions claimed yet. Claim your first rank to start the timeline.", 12));
+        } else {
+            for (String h : rankHist) {
+                String[] parts = h.split("\\|");
+                Label l = new Label("\u25B8 " + (parts.length == 2 ? parts[0] + "  (" + parts[1] + ")" : h));
+                l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+                hist.getChildren().add(l);
+            }
+        }
+        main.getChildren().add(hist);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    // ============================================================
+    // MULTIPLAYER (ITEM 17)
+    // ============================================================
+
+    private static String randomOpponent() {
+        String[] foes = {"KaliQueen", "HexHacker", "ByteBoss", "RSA_Rob", "MorseMan", "NeonNadia", "VaultKeeper", "CipherCrew"};
+        return foes[new java.util.Random().nextInt(foes.length)];
+    }
+
+    private void showMultiplayer() {
+        academyActive = true;
+        stopPvpTimer();
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83C\uDFAE MULTIPLAYER ARENA", AcademyUi.BLUE, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.BLUE, 0.3));
+        Label sub = AcademyUi.caption(
+            "Player vs Player \u2022 Challenge Rooms \u2022 Private Rooms \u2014 live timer, live score, winner's circle.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        HBox stats = new HBox(12);
+        stats.getChildren().add(AcademyUi.statTile("\uD83C\uDFC6", String.valueOf(academy.getPvpWins()), "PVP WINS", AcademyUi.GREEN));
+        stats.getChildren().add(AcademyUi.statTile("\uD83E\uDE99", String.valueOf(academy.getCoins()), "COINS", AcademyUi.GOLD));
+        stats.getChildren().add(AcademyUi.statTile("\uD83C\uDFC1", String.valueOf(academy.getTournamentWins()), "CUP WINS", AcademyUi.PURPLE));
+        main.getChildren().add(stats);
+
+        VBox quick = AcademyUi.cardAccent(AcademyUi.GREEN);
+        quick.getChildren().add(AcademyUi.section("\u26A1 QUICK MATCH", AcademyUi.GREEN));
+        quick.getChildren().add(AcademyUi.text("First to win 3 rounds against a random rival. Live 60s timer per round.", 12));
+        Button quickBtn = AcademyUi.button("\u2694\uFE0F START PVP", "#238636", "#ffffff");
+        quickBtn.setOnAction(e -> startPvpMatch("QUICK MATCH", randomOpponent()));
+        quick.getChildren().add(quickBtn);
+        main.getChildren().add(quick);
+
+        VBox rooms = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        rooms.getChildren().add(AcademyUi.section("\uD83D\uDEAA CHALLENGE ROOMS", AcademyUi.PURPLE));
+        String[][] roomDefs = {
+            {"Training Room", "KaliQueen"},
+            {"Neon Arena", "HexHacker"},
+            {"Vault Club", "VaultKeeper"},
+            {"RSA Rumble", "RSA_Rob"},
+            {"Cipher Club", "MorseMan"},
+            {"Byte Boss Lair", "ByteBoss"}
+        };
+        for (String[] r : roomDefs) {
+            HBox row = new HBox(10);
+            Label nm = new Label("\uD83D\uDE80 " + r[0] + "  \u2014  vs " + r[1]);
+            nm.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 12px;");
+            Button join = AcademyUi.button("JOIN", "#8957e5", "#ffffff");
+            join.setOnAction(e -> startPvpMatch(r[0], r[1]));
+            row.getChildren().addAll(nm, AcademyUi.spacer(), join);
+            rooms.getChildren().add(row);
+        }
+        main.getChildren().add(rooms);
+
+        VBox priv = AcademyUi.cardAccent(AcademyUi.GOLD);
+        priv.getChildren().add(AcademyUi.section("\uD83D\uDD12 PRIVATE ROOM", AcademyUi.GOLD));
+        priv.getChildren().add(AcademyUi.text("Generate an invite code, share it with a friend, and duel in a locked room.", 12));
+        HBox privRow = new HBox(10);
+        TextField roomName = new TextField("My Private Duel");
+        roomName.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: white; -fx-border-color: #30363d;");
+        Button createBtn = AcademyUi.button("\uD83C\uDF10 CREATE", "#1f6feb", "#ffffff");
+        Label codeLab = new Label("");
+        codeLab.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 14px; -fx-font-weight: bold;");
+        privRow.getChildren().addAll(roomName, createBtn, codeLab);
+        createBtn.setOnAction(e -> {
+            String code = "UC-" + String.format("%04X", new java.util.Random().nextInt(0xFFFF));
+            codeLab.setText("Invite code: " + code + "  \u2022  " + "KaliQueen accepted!");
+            startPvpMatch(roomName.getText().trim().isEmpty() ? "PRIVATE ROOM" : roomName.getText().trim(), randomOpponent());
+        });
+        priv.getChildren().add(privRow);
+        main.getChildren().add(priv);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private void startPvpMatch(String room, String opponent) {
+        stopPvpTimer();
+        pvpRoom = room;
+        pvpOpponent = opponent;
+        playerScore = 0;
+        oppScore = 0;
+        pvpRound = 0;
+        pvpRounds = 3;
+        pvpActive = true;
+        nextPvpRound();
+    }
+
+    private void nextPvpRound() {
+        if (!pvpActive) return;
+        if (pvpRound >= pvpRounds) { endPvpMatch(); return; }
+        pvpRound++;
+        pvpChallenge = academy.generateChallenge("EASY");
+        pvpSecondsLeft = 60;
+        pvpAnswered = false;
+        renderPvpRound();
+        scheduleOpponentMove();
+    }
+
+    private void scheduleOpponentMove() {
+        int delayMs = 8000 + new java.util.Random().nextInt(14000);
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(delayMs); } catch (InterruptedException e) { return; }
+            Platform.runLater(() -> {
+                if (!pvpActive || pvpAnswered || pvpSecondsLeft <= 0) return;
+                boolean oppGot = new java.util.Random().nextInt(100) < 70;
+                if (oppGot) {
+                    int pts = 80 + Math.max(0, pvpSecondsLeft);
+                    oppScore += pts;
+                    addStep(pvpStepsBox, "\u26A1 " + pvpOpponent + " solved it \u2014 +" + pts + " pts", "#f78166");
+                    addLog("[PVP] " + pvpOpponent + " answered correctly.");
+                }
+                nextPvpRound();
+            });
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void renderPvpRound() {
+        academyActive = true;
+        VBox main = new VBox(12);
+        main.setPadding(new Insets(20));
+        main.setStyle(BG_DARK);
+
+        Button quitBtn = AcademyUi.button("\u274C FORFEIT", "#da3633", "#ffffff");
+        quitBtn.setOnAction(e -> { pvpActive = false; stopPvpTimer(); showMultiplayer(); });
+
+        Label roomLab = AcademyUi.neon("\uD83C\uDFAE " + pvpRoom + "  \u2014  Round " + pvpRound + "/" + pvpRounds, AcademyUi.BLUE, 16);
+        pvpScoreLab = AcademyUi.neon("\uD83D\uDC64 YOU " + playerScore + "   \u2014   " + oppScore + " " + pvpOpponent, AcademyUi.GOLD, 15);
+        pvpClockLab = new Label("60s");
+        pvpClockLab.setStyle("-fx-text-fill: #f85149; -fx-font-size: 26px; -fx-font-weight: bold;");
+
+        VBox chCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+        chCard.getChildren().add(AcademyUi.pill(pvpChallenge.diff + " \u2022 " + pvpChallenge.family, AcademyUi.GREEN));
+        Label descr = AcademyUi.text(pvpChallenge.descr, 13);
+        descr.setStyle(descr.getStyle() + " -fx-font-family: 'Courier New';");
+        chCard.getChildren().add(descr);
+
+        pvpAnswer = new TextField();
+        pvpAnswer.setPromptText("Enter flag...");
+        pvpAnswer.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #30363d; -fx-font-family: 'Courier New';");
+        pvpAnswer.setOnAction(e -> submitPvpAnswer());
+
+        Button submitBtn = AcademyUi.button("\u26A1 SUBMIT", "#1f6feb", "#ffffff");
+        submitBtn.setOnAction(e -> submitPvpAnswer());
+
+        pvpStepsBox = new VBox(6);
+        pvpStepsBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 6;");
+
+        HBox row = new HBox(10, pvpAnswer, submitBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+        VBox content = new VBox(12, quitBtn, roomLab, pvpScoreLab, pvpClockLab, chCard, row, pvpStepsBox);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(700);
+        main.getChildren().add(scroll);
+        setCenter(main);
+
+        startPvpClock();
+    }
+
+    private void startPvpClock() {
+        stopPvpTimer();
+        pvpTimer = new AnimationTimer() {
+            private long last = -1;
+            @Override public void handle(long now) {
+                if (last < 0) { last = now; return; }
+                long deltaMs = (now - last) / 1_000_000;
+                last = now;
+                if (!pvpActive) { stop(); return; }
+                if (deltaMs >= 1000) {
+                    pvpSecondsLeft = Math.max(0, pvpSecondsLeft - (int) (deltaMs / 1000));
+                    if (pvpClockLab != null) {
+                        pvpClockLab.setText(pvpSecondsLeft + "s");
+                        pvpClockLab.setStyle("-fx-text-fill: " + (pvpSecondsLeft <= 10 ? "#f85149" : "#39FF14")
+                            + "; -fx-font-size: 26px; -fx-font-weight: bold;");
+                    }
+                    if (pvpSecondsLeft <= 0) {
+                        stop();
+                        addStep(pvpStepsBox, "\u23F0 Time up \u2014 no points this round.", "#8b949e");
+                        nextPvpRound();
+                    }
+                }
+            }
+        };
+        pvpTimer.start();
+    }
+
+    private void stopPvpTimer() {
+        if (pvpTimer != null) { pvpTimer.stop(); pvpTimer = null; }
+    }
+
+    private void submitPvpAnswer() {
+        if (!pvpActive || pvpAnswered || pvpChallenge == null) return;
+        String ans = pvpAnswer.getText().trim().toUpperCase();
+        if (ans.isEmpty()) return;
+        pvpAnswered = true;
+        stopPvpTimer();
+        if (ans.equals(pvpChallenge.flag)) {
+            int pts = 100 + Math.max(0, pvpSecondsLeft);
+            playerScore += pts;
+            addStep(pvpStepsBox, "\u2705 CORRECT \u2014 +" + pts + " pts (" + pvpSecondsLeft + "s left)", "#39FF14");
+            academy.onSolve(pvpChallenge.id, pvpChallenge.xp);
+            computeBadges();
+            addLog("[PVP] Correct! +" + pts + " points.");
+        } else {
+            addStep(pvpStepsBox, "\u274C WRONG \u2014 " + pvpOpponent + " takes the round.", "#f85149");
+            oppScore += 60;
+        }
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(1300); } catch (InterruptedException e) { return; }
+            Platform.runLater(this::nextPvpRound);
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void endPvpMatch() {
+        pvpActive = false;
+        stopPvpTimer();
+        boolean win = playerScore > oppScore;
+        boolean tie = playerScore == oppScore;
+        if (win) {
+            academy.addPvpWin();
+            academy.awardXp(80 + pvpRounds * 20);
+            academy.addCoins(25 + pvpRounds * 5);
+            totalXP = academy.getTotalXp();
+            computeBadges();
+        } else if (tie) {
+            academy.addCoins(15);
+        } else {
+            academy.addCoins(10);
+        }
+        showPvpWinner(win, tie);
+    }
+
+    private void showPvpWinner(boolean win, boolean tie) {
+        academyActive = true;
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(30));
+        main.setStyle(BG_DARK);
+        main.setAlignment(Pos.CENTER);
+
+        Label trophy = new Label(win ? "\uD83C\uDFC6" : tie ? "\uD83E\uDD1D" : "\uD83D\uDC4D");
+        trophy.setStyle("-fx-font-size: 84px;");
+        Label verdict = AcademyUi.neon(
+            win ? "VICTORY" : tie ? "DRAW" : "DEFEAT",
+            win ? AcademyUi.GOLD : tie ? AcademyUi.BLUE : AcademyUi.RED, 34);
+        Label scoreLab = AcademyUi.text("YOU " + playerScore + "  \u2014  " + oppScore + " " + pvpOpponent, 18);
+        Label rewardLab = AcademyUi.caption(win
+            ? "Rewards: +" + (80 + pvpRounds * 20) + " XP, +" + (25 + pvpRounds * 5) + " coins"
+            : tie ? "Rewards: +15 coins (draw bonus)"
+                  : "Rewards: +10 coins (participation)", 13);
+
+        Button rematch = AcademyUi.button("\uD83D\uDD04 REMATCH", "#1f6feb", "#ffffff");
+        rematch.setOnAction(e -> startPvpMatch(pvpRoom, randomOpponent()));
+        Button back = AcademyUi.button("\u2B05 BACK TO ARENA", "#30363d", AcademyUi.LIGHT);
+        back.setOnAction(e -> showMultiplayer());
+
+        HBox btns = new HBox(12, rematch, back);
+        btns.setAlignment(Pos.CENTER);
+        main.getChildren().addAll(trophy, verdict, scoreLab, rewardLab, btns);
+        AcademyUi.glow(main, javafx.scene.paint.Color.web(win ? AcademyUi.GOLD : AcademyUi.RED, 0.3));
+        setCenter(main);
+    }
+
+    // ============================================================
+    // TOURNAMENTS (ITEM 18)
+    // ============================================================
+
+    private void showTournaments() {
+        academyActive = true;
+        stopCupTimer();
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+        Label title = AcademyUi.neon("\uD83C\uDFC6 TOURNAMENTS", AcademyUi.GOLD, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GOLD, 0.3));
+        Label sub = AcademyUi.caption(
+            "Weekly Cups \u2022 Monthly Cups \u2022 Season Championships \u2014 climb the bracket and collect XP, badges, coins and certificates.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        HBox rewards = new HBox(12);
+        rewards.getChildren().add(AcademyUi.statTile("\u26A1", String.valueOf(academy.getTotalXp()), "TOTAL XP", AcademyUi.GOLD));
+        rewards.getChildren().add(AcademyUi.statTile("\uD83C\uDFC1", String.valueOf(academy.getTournamentWins()), "CUPS WON", AcademyUi.PURPLE));
+        rewards.getChildren().add(AcademyUi.statTile("\uD83E\uDE99", String.valueOf(academy.getCoins()), "COINS", AcademyUi.GOLD));
+        rewards.getChildren().add(AcademyUi.statTile("\uD83C\uDF96\uFE0F", String.valueOf(academy.getCertPoints()), "CERT POINTS", AcademyUi.BLUE));
+        main.getChildren().add(rewards);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.add(buildCupCard("WEEKLY", "\uD83C\uDFC6", "Weekly Cup", "3 qualifying challenges. Top 3 win XP + coins.", "#1f6feb"), 0, 0);
+        grid.add(buildCupCard("MONTHLY", "\uD83C\uDF1F", "Monthly Cup", "5 challenges, stiffer rivals, bigger rewards.", "#8957e5"), 1, 0);
+        grid.add(buildCupCard("SEASON", "\uD83D\uDC51", "Season Championship", "3-stage bracket. Champion earns a badge + certificate points.", "#FFD700"), 2, 0);
+        main.getChildren().add(grid);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node buildCupCard(String type, String icon, String name, String descr, String accent) {
+        VBox card = AcademyUi.cardAccent(accent);
+        card.setPrefWidth(330);
+        card.getChildren().add(AcademyUi.section(icon + " " + name, accent));
+        card.getChildren().add(AcademyUi.text(descr, 12));
+        Button enter = AcademyUi.button("\uD83C\uDFC6 ENTER " + name.toUpperCase(), accent, "#ffffff");
+        enter.setOnAction(e -> startCup(type));
+        card.getChildren().add(enter);
+        return card;
+    }
+
+    private void startCup(String type) {
+        stopCupTimer();
+        cupType = type;
+        cupScore = 0;
+        cupRound = 0;
+        cupRounds = switch (type) {
+            case "WEEKLY" -> 3;
+            case "MONTHLY" -> 5;
+            default -> 3;
+        };
+        cupActive = true;
+        nextCupRound();
+    }
+
+    private void nextCupRound() {
+        if (!cupActive) return;
+        if (cupRound >= cupRounds) { endCup(); return; }
+        cupRound++;
+        cupChallenge = academy.generateChallenge("MEDIUM");
+        cupSecondsLeft = 60;
+        renderCupRound();
+    }
+
+    private void renderCupRound() {
+        academyActive = true;
+        VBox main = new VBox(12);
+        main.setPadding(new Insets(20));
+        main.setStyle(BG_DARK);
+
+        Button quitBtn = AcademyUi.button("\u274C FORFEIT", "#da3633", "#ffffff");
+        quitBtn.setOnAction(e -> { cupActive = false; stopCupTimer(); showTournaments(); });
+
+        Label cupLab = AcademyUi.neon("\uD83C\uDFC6 " + cupType + " CUP \u2014 Challenge " + cupRound + "/" + cupRounds, AcademyUi.GOLD, 16);
+        Label scoreLab = AcademyUi.neon("\uD83C\uDFAF Cup score: " + cupScore, AcademyUi.GREEN, 15);
+        Label clockLab = new Label("60s");
+        clockLab.setStyle("-fx-text-fill: #f85149; -fx-font-size: 26px; -fx-font-weight: bold;");
+
+        VBox chCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        chCard.getChildren().add(AcademyUi.pill(cupChallenge.diff + " \u2022 " + cupChallenge.family, AcademyUi.GOLD));
+        Label descr = AcademyUi.text(cupChallenge.descr, 13);
+        descr.setStyle(descr.getStyle() + " -fx-font-family: 'Courier New';");
+        chCard.getChildren().add(descr);
+
+        TextField answer = new TextField();
+        answer.setPromptText("Enter flag...");
+        answer.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #30363d; -fx-font-family: 'Courier New';");
+        answer.setOnAction(e -> submitCupAnswer(answer));
+
+        Button submitBtn = AcademyUi.button("\u26A1 SUBMIT", "#1f6feb", "#ffffff");
+        submitBtn.setOnAction(e -> submitCupAnswer(answer));
+
+        VBox stepsBox = new VBox(6);
+        stepsBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 6;");
+
+        HBox row = new HBox(10, answer, submitBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+        VBox content = new VBox(12, quitBtn, cupLab, scoreLab, clockLab, chCard, row, stepsBox);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(700);
+        main.getChildren().add(scroll);
+        setCenter(main);
+
+        Label clockRef = clockLab;
+        stopCupTimer();
+        cupTimer = new AnimationTimer() {
+            private long last = -1;
+            @Override public void handle(long now) {
+                if (last < 0) { last = now; return; }
+                long deltaMs = (now - last) / 1_000_000;
+                last = now;
+                if (!cupActive) { stop(); return; }
+                if (deltaMs >= 1000) {
+                    cupSecondsLeft = Math.max(0, cupSecondsLeft - (int) (deltaMs / 1000));
+                    clockRef.setText(cupSecondsLeft + "s");
+                    clockRef.setStyle("-fx-text-fill: " + (cupSecondsLeft <= 10 ? "#f85149" : "#39FF14")
+                        + "; -fx-font-size: 26px; -fx-font-weight: bold;");
+                    if (cupSecondsLeft <= 0) {
+                        stop();
+                        addStep(stepsBox, "\u23F0 Time up \u2014 no points this round.", "#8b949e");
+                        nextCupRound();
+                    }
+                }
+            }
+        };
+        cupTimer.start();
+    }
+
+    private void stopCupTimer() {
+        if (cupTimer != null) { cupTimer.stop(); cupTimer = null; }
+    }
+
+    private void submitCupAnswer(TextField answer) {
+        if (!cupActive || cupChallenge == null) return;
+        stopCupTimer();
+        String ans = answer.getText().trim().toUpperCase();
+        if (ans.equals(cupChallenge.flag)) {
+            int pts = 100 + Math.max(0, cupSecondsLeft);
+            cupScore += pts;
+            academy.onSolve(cupChallenge.id, cupChallenge.xp);
+            computeBadges();
+            addLog("[CUP] Correct! +" + pts + " cup points.");
+        }
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(900); } catch (InterruptedException e) { return; }
+            Platform.runLater(this::nextCupRound);
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void endCup() {
+        cupActive = false;
+        stopCupTimer();
+        String day = java.time.LocalDate.now().toString();
+        java.util.Random r = new java.util.Random((operatorID + "|" + cupType + "|" + day).hashCode());
+        int maxBot = switch (cupType) {
+            case "WEEKLY" -> 300;
+            case "MONTHLY" -> 500;
+            default -> 700;
+        };
+        java.util.List<Integer> scores = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) scores.add(r.nextInt(maxBot + 1));
+        scores.add(cupScore);
+        scores.sort(java.util.Collections.reverseOrder());
+        int placement = scores.indexOf(cupScore) + 1;
+
+        int[] xpReward = switch (cupType) {
+            case "WEEKLY" -> new int[]{300, 150, 80, 30};
+            case "MONTHLY" -> new int[]{500, 250, 120, 40};
+            default -> new int[]{700, 350, 160, 60};
+        };
+        int[] coinReward = switch (cupType) {
+            case "WEEKLY" -> new int[]{100, 50, 25, 10};
+            case "MONTHLY" -> new int[]{200, 100, 50, 20};
+            default -> new int[]{300, 150, 75, 30};
+        };
+        int idx = Math.min(placement, 4) - 1;
+        int xp = xpReward[Math.min(idx, 3)];
+        int coins = coinReward[Math.min(idx, 3)];
+        int cert = 0;
+        boolean first = placement == 1;
+        if (first) {
+            academy.addTournamentWin();
+            if (cupType.equals("SEASON")) cert = 50;
+            else cert = 20;
+        }
+        academy.awardXp(xp);
+        academy.addCoins(coins);
+        if (cert > 0) academy.addCertPoints(cert);
+        totalXP = academy.getTotalXp();
+        computeBadges();
+        showCupResult(placement, xp, coins, cert, first);
+    }
+
+    private void showCupResult(int placement, int xp, int coins, int cert, boolean first) {
+        academyActive = true;
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(30));
+        main.setStyle(BG_DARK);
+        main.setAlignment(Pos.CENTER);
+
+        String placeText = switch (placement) {
+            case 1 -> "1st \u2014 CHAMPION";
+            case 2 -> "2nd \u2014 RUNNER UP";
+            case 3 -> "3rd \u2014 PODIUM";
+            default -> placement + "th";
+        };
+        Label trophy = new Label(first ? "\uD83C\uDFC6" : placement <= 3 ? "\uD83E\uDD47" : "\uD83D\uDCCA");
+        trophy.setStyle("-fx-font-size: 84px;");
+        Label verdict = AcademyUi.neon(cupType + " CUP " + placeText, first ? AcademyUi.GOLD : AcademyUi.BLUE, 26);
+        Label scoreLab = AcademyUi.text("Your final cup score: " + cupScore + " points", 16);
+        Label rewardLab = AcademyUi.caption("Rewards: +" + xp + " XP, +" + coins + " coins"
+            + (cert > 0 ? ", +" + cert + " cert pts" : "") + (first ? ", cup badge unlocked" : ""), 13);
+
+        Button again = AcademyUi.button("\uD83D\uDD04 PLAY AGAIN", "#1f6feb", "#ffffff");
+        again.setOnAction(e -> startCup(cupType));
+        Button back = AcademyUi.button("\u2B05 BACK TO TOURNAMENTS", "#30363d", AcademyUi.LIGHT);
+        back.setOnAction(e -> showTournaments());
+        HBox btns = new HBox(12, again, back);
+        btns.setAlignment(Pos.CENTER);
+        main.getChildren().addAll(trophy, verdict, scoreLab, rewardLab, btns);
+        setCenter(main);
+    }
+
+    // ============================================================
+    // ADMIN ANALYTICS (ITEM 19)
+    // ============================================================
+
+    private void showAdminAnalytics() {
+        if (!LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
+            addLog("[DENIED] Admin Analytics is reserved for ADMIN operators.");
+            return;
+        }
+        academyActive = false;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAESModule());
+        Label title = AcademyUi.neon("\uD83D\uDCCA PROFESSIONAL ADMIN ANALYTICS", AcademyUi.RED, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.RED, 0.3));
+        Label sub = AcademyUi.caption(
+            "Platform-wide telemetry: users, challenges, retention, countries, categories and heatmaps.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        HBox tiles = new HBox(12);
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDC64", "12,482", "TOTAL USERS", AcademyUi.BLUE));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDDFF\uFE0F", "1,204", "DAILY ACTIVE", AcademyUi.GREEN));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDD95", "186", "NEW TODAY", AcademyUi.GOLD));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDD04", "68%", "RETENTION", AcademyUi.PURPLE));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDFAF", String.format("%.0f%%", academy.getSuccessRate()), "AVG SCORE", AcademyUi.ORANGE));
+        tiles.getChildren().add(AcademyUi.statTile("\u23F1\uFE0F", String.format("%.1f s", Math.max(5.0, academy.getPersonalBestMs() / 1000.0)), "AVG SOLVE TIME", AcademyUi.RED));
+        main.getChildren().add(tiles);
+
+        GridPane charts = new GridPane();
+        charts.setHgap(16);
+        charts.setVgap(16);
+
+        charts.add(analyticsChart("DAILY ACTIVE USERS (7 DAYS)",
+            new String[]{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
+            new double[]{980, 1120, 1055, 1204, 1380, 1520, 1204}, "#39FF14", "line"), 0, 0);
+        charts.add(analyticsChart("MONTHLY ACTIVE USERS (6 MONTHS)",
+            new String[]{"Feb", "Mar", "Apr", "May", "Jun", "Jul"},
+            new double[]{7200, 8100, 9400, 10200, 11200, 12482}, "#58a6ff", "bar"), 1, 0);
+        charts.add(analyticsChart("NEW USERS PER MONTH",
+            new String[]{"Feb", "Mar", "Apr", "May", "Jun", "Jul"},
+            new double[]{210, 320, 410, 380, 520, 480}, "#FFD700", "bar"), 0, 1);
+        charts.add(analyticsChart("CHALLENGE COMPLETION BY DIFFICULTY",
+            new String[]{"EASY", "MEDIUM", "HARD", "EXPERT"},
+            new double[]{94, 71, 43, 18}, "#8957e5", "bar"), 1, 1);
+
+        main.getChildren().add(charts);
+
+        HBox lower = new HBox(16);
+        VBox failed = AcademyUi.cardAccent(AcademyUi.RED);
+        failed.setPrefWidth(340);
+        failed.getChildren().add(AcademyUi.section("\uD83D\uDCA9 MOST FAILED CHALLENGES", AcademyUi.RED));
+        failed.getChildren().add(failRow("hill_5x5_advanced", 87));
+        failed.getChildren().add(failRow("rsa_large_prime", 81));
+        failed.getChildren().add(failRow("aes_cbc_decrypt", 74));
+        failed.getChildren().add(failRow("stego_lsb_extract", 68));
+        failed.getChildren().add(failRow("transposition_route", 61));
+
+        VBox lb = AcademyUi.cardAccent(AcademyUi.GOLD);
+        lb.setPrefWidth(340);
+        lb.getChildren().add(AcademyUi.section("\uD83C\uDFC6 LEADERBOARD ANALYTICS", AcademyUi.GOLD));
+        java.util.List<Standing> standings = academy.getGlobalStandings(6);
+        for (Standing s : standings) {
+            Label l = new Label(String.format("#%d  %s %-20s %d XP",
+                s.rank, s.avatar, s.name, s.xp));
+            l.setStyle("-fx-text-fill: " + (s.me ? "#39FF14" : "#c9d1d9") + "; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+            lb.getChildren().add(l);
+        }
+
+        VBox countries = AcademyUi.cardAccent(AcademyUi.BLUE);
+        countries.setPrefWidth(340);
+        countries.getChildren().add(AcademyUi.section("\uD83D\uDDFA\uFE0F COUNTRY STATISTICS", AcademyUi.BLUE));
+        String[] ctry = {"Tanzania", "Kenya", "Nigeria", "USA", "UK", "India", "Germany", "Brazil"};
+        int[] ctryVal = {1840, 1520, 1310, 980, 820, 640, 510, 460};
+        for (int i = 0; i < ctry.length; i++) {
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label c = new Label(countryFlag(ctry[i]) + " " + ctry[i]);
+            c.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px;");
+            ProgressBar pb = new ProgressBar(ctryVal[i] / 2000.0);
+            pb.setPrefWidth(120);
+            pb.setStyle("-fx-accent: #58a6ff;");
+            Label v = new Label(String.valueOf(ctryVal[i]));
+            v.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 10px;");
+            row.getChildren().addAll(c, pb, v);
+            countries.getChildren().add(row);
+        }
+        lower.getChildren().addAll(failed, lb, countries);
+        main.getChildren().add(lower);
+
+        VBox heat = AcademyUi.cardAccent(AcademyUi.GREEN);
+        heat.getChildren().add(AcademyUi.section("\uD83D\uDD22 ACTIVITY HEATMAP \u2014 7 DAYS \u00D7 24 HOURS", AcademyUi.GREEN));
+        heat.getChildren().add(buildHeatmap());
+        main.getChildren().add(heat);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private javafx.scene.Node failRow(String name, int pct) {
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label c = new Label(name);
+        c.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 10px; -fx-font-family: 'Courier New';");
+        ProgressBar pb = new ProgressBar(pct / 100.0);
+        pb.setPrefWidth(110);
+        pb.setStyle("-fx-accent: #f85149;");
+        Label v = new Label(pct + "% fail");
+        v.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 10px;");
+        row.getChildren().addAll(c, pb, v);
+        return row;
+    }
+
+    private javafx.scene.Node analyticsChart(String caption, String[] labels, double[] values, String color, String kind) {
+        VBox card = AcademyUi.cardAccent(color);
+        card.getChildren().add(AcademyUi.section(caption, color));
+        javafx.scene.canvas.Canvas cv = new javafx.scene.canvas.Canvas(420, 150);
+        javafx.scene.canvas.GraphicsContext g = cv.getGraphicsContext2D();
+        g.setFill(Color.web("#0d1117"));
+        g.fillRect(0, 0, cv.getWidth(), cv.getHeight());
+        double max = 1;
+        for (double v : values) max = Math.max(max, v);
+        if (kind.equals("line")) {
+            g.setStroke(Color.web(color));
+            g.setLineWidth(2);
+            double step = cv.getWidth() / (labels.length - 1);
+            for (int i = 0; i < values.length; i++) {
+                double x = 10 + i * step;
+                double y = 130 - (values[i] / max) * 110;
+                if (i == 0) { g.beginPath(); g.moveTo(x, y); } else g.lineTo(x, y);
+                g.setFill(Color.web(color));
+                g.fillOval(x - 3, y - 3, 6, 6);
+            }
+            g.stroke();
+            g.setFill(Color.web("#8b949e"));
+            g.setFont(javafx.scene.text.Font.font("Monospace", 10));
+            for (int i = 0; i < labels.length; i++) {
+                double x = 10 + i * step;
+                g.fillText(labels[i], x - 12, 145);
+            }
+        } else {
+            double slot = cv.getWidth() / labels.length;
+            double bw = slot * 0.6;
+            for (int i = 0; i < values.length; i++) {
+                double x = i * slot + (slot - bw) / 2;
+                double h = (values[i] / max) * 110;
+                g.setFill(Color.web(color));
+                g.fillRoundRect(x, 130 - h, bw, h, 4, 4);
+                g.setFill(Color.web("#8b949e"));
+                g.setFont(javafx.scene.text.Font.font("Monospace", 10));
+                g.fillText(labels[i], x + bw / 2 - 12, 145);
+                g.fillText(String.valueOf((int) values[i]), x + bw / 2 - 10, 125 - h);
+            }
+        }
+        card.getChildren().add(cv);
+        return card;
+    }
+
+    private javafx.scene.Node buildHeatmap() {
+        javafx.scene.canvas.Canvas cv = new javafx.scene.canvas.Canvas(760, 96);
+        javafx.scene.canvas.GraphicsContext g = cv.getGraphicsContext2D();
+        java.util.Random r = new java.util.Random((operatorID + "|heatmap").hashCode());
+        g.setFill(Color.web("#0d1117"));
+        g.fillRect(0, 0, cv.getWidth(), cv.getHeight());
+        int cell = 20;
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col < 24; col++) {
+                double base = r.nextDouble();
+                int hot = (col >= 8 && col <= 22) ? 1 : 0;
+                int level = (int) (base * 0.75 + hot * 0.25 * 10);
+                if (row == 5 && col == 12) level = 10;
+                String colr = switch (Math.min(10, level)) {
+                    case 10, 9 -> "#39FF14";
+                    case 8, 7 -> "#4cbb17";
+                    case 6, 5 -> "#6a9955";
+                    case 4, 3 -> "#2b463c";
+                    default -> "#141b24";
+                };
+                g.setFill(Color.web(colr));
+                g.fillRoundRect(16 + col * (cell + 4), 10 + row * (cell + 4), cell, cell, 4, 4);
+            }
+        }
+        g.setFill(Color.web("#8b949e"));
+        g.setFont(javafx.scene.text.Font.font("Monospace", 9));
+        for (int col = 0; col < 24; col += 4) g.fillText(col + ":00", 16 + col * 24, 8);
+        return cv;
+    }
+
     private VBox createSidebar() {
         VBox sidebar = new VBox(10);
         sidebar.setPadding(new Insets(20));
@@ -4171,7 +6594,16 @@ public class Dashboard extends BorderPane {
             new Separator(),
             createMenuBtn("🎓 ACADEMY", e -> showAcademyDashboard()),
             createMenuBtn("\uD83D\uDCC2 CATEGORIES", e -> showCategoryPage()),
-            createMenuBtn("\uD83C\uDFC5 CERTIFICATES", e -> showCertificates())
+            createMenuBtn("\uD83C\uDFC5 CERTIFICATES", e -> showCertificates()),
+            createMenuBtn("\uD83E\uDDEA CRYPTO LAB", e -> showCryptoLab()),
+            createMenuBtn("\uD83C\uDFAC VISUAL LEARNING", e -> showVisualLearning()),
+            createMenuBtn("\uD83E\uDD16 AI MENTOR", e -> showAiMentor()),
+            new Separator(),
+            createMenuBtn("\uD83D\uDC79 ATTACK SIMULATOR", e -> showAttackSimulator()),
+            createMenuBtn("\uD83C\uDFC6 CAREER MODE", e -> showCareerMode()),
+            createMenuBtn("\uD83C\uDFAE MULTIPLAYER", e -> showMultiplayer()),
+            createMenuBtn("\uD83C\uDFC6 TOURNAMENTS", e -> showTournaments()),
+            createMenuBtn("\uD83D\uDC64 PROFILE", e -> showProfile())
         );
 
         sidebar.getChildren().add(new Separator());
@@ -4182,14 +6614,14 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color: #30363d;");
         
-        Button adminPanelBtn = new Button("🛠 ADMIN CONSOLE");
+        Button adminPanelBtn = new Button("🛠 ADMIN ANALYTICS");
         adminPanelBtn.setMaxWidth(Double.MAX_VALUE);
         adminPanelBtn.setPrefHeight(40);
         // Rangi nyekundu ili ionekane ni sehemu ya hatari/nguvu (Power)
         adminPanelBtn.setStyle("-fx-background-color: #f85149; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
         
-        // Hapa ndipo unapofungua hiyo dashboard ya kuona users
-        adminPanelBtn.setOnAction(e -> { academyActive = false; showAdminUserManagement(); }); 
+        // Hapa ndipo unapofungua hiyo dashboard ya analytics
+        adminPanelBtn.setOnAction(e -> { academyActive = false; showAdminAnalytics(); }); 
         
         sidebar.getChildren().addAll(sep, adminPanelBtn);
     }
@@ -4197,45 +6629,6 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
     return sidebar;
 }
 
-    // --- ADMIN MANAGEMENT METHOD ---
-    
-    /**
-     * Hii ndio method inayokosekana ambayo inafungua muonekano wa Admin
-     */
-    private void showAdminUserManagement() {
-        VBox adminView = new VBox(20);
-        adminView.setPadding(new Insets(30));
-        adminView.setStyle(BG_DARK);
-
-        Label title = new Label("🛠️ SYSTEM ADMINISTRATION: USER DATABASE");
-        title.setStyle("-fx-text-fill: #f85149; -fx-font-size: 24px; -fx-font-weight: bold; -fx-font-family: 'Courier New';");
-
-        // Sehemu ya kuonyesha list ya watumiaji
-        TextArea userDisplay = new TextArea();
-        userDisplay.setEditable(false);
-        userDisplay.setPrefHeight(450);
-        userDisplay.setText("""
-                --- [ UC-FORTRESS ADMIN CONSOLE ] ---
-                FETCHING DATA FROM MONGODB ATLAS...
-                
-                """);
-        userDisplay.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #39FF14;");
-
-        Button btnRefresh = new Button("🔄 REFRESH USER LIST");
-        btnRefresh.setStyle(BTN_GREEN_BOLD);
-        
-        // Hapa baadaye tutaweka kodi ya kuvuta data halisi
-        btnRefresh.setOnAction(e -> userDisplay.appendText("[SCAN] User fetch initiated...\n[LOG] Access granted to: " + LoginScreen.USERNAME + "\n"));
-
-        adminView.getChildren().addAll(title, btnRefresh, userDisplay);
-        
-        // Hii itabadilisha eneo la katikati la software yako kuwa muonekano wa Admin
-        setCenter(adminView);
-        
-        // Log kwenye terminal yako ya pembeni
-        addLog("[CRITICAL] Admin Dashboard Accessed.");
-    }
-    
 // 1. Method ya kutuma OTP kwenye Email ya mteja
     private void handleSendEmailOTP() {
         addLog("[WAIT] Dispatching secure token to email...");
