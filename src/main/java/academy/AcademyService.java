@@ -17,6 +17,14 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -55,15 +63,22 @@ public class AcademyService {
     public static final String[] EASY_FAMILIES =
         {"caesar", "rot13", "reverse", "atbash", "hex", "ascii", "binary", "octal", "base64", "base32", "leet"};
     public static final String[] MEDIUM_FAMILIES =
-        {"vigenere", "xor", "morse", "affine", "railfence", "bacon"};
+        {"vigenere", "xor", "morse", "affine", "railfence", "bacon", "playfair", "transposition"};
     public static final String[] HARD_FAMILIES =
-        {"tripleagent", "xor", "vigenere", "affine"};
+        {"tripleagent", "xor", "vigenere", "affine", "aes", "hill"};
     public static final String[] EXPERT_FAMILIES =
-        {"affine", "vigenere", "xor"};
+        {"affine", "vigenere", "xor", "rsa", "hashing"};
     public static final String[] NIGHTMARE_FAMILIES =
-        {"tripleagent", "xor"};
+        {"tripleagent", "xor", "stego", "forensics"};
     public static final String[] IMPOSSIBLE_FAMILIES =
-        {"tripleagent", "xor"};
+        {"tripleagent", "xor", "stego"};
+
+    /** Families the AI Challenge Generator can summon on demand (item 14). */
+    public static final String[] GENERATOR_FAMILIES = {
+        "random", "caesar", "rot13", "reverse", "atbash", "hex", "ascii", "binary",
+        "base64", "base32", "leet", "vigenere", "xor", "morse", "affine", "railfence",
+        "bacon", "aes", "rsa", "stego", "hashing", "forensics", "playfair", "hill", "transposition"
+    };
 
     private static final String[] WORDS = {
         "CIPHER", "SECRET", "HACKER", "MOUSE", "CODE", "BYTE", "BITS", "KEY", "LOCK", "HASH",
@@ -119,6 +134,26 @@ public class AcademyService {
         "Kigali Inst of Tech", "Ashesi Univ", "Addis Ababa Univ", "Univ of Pretoria", "Cairo Univ"
     };
 
+    /** The 16 career ranks: {minXp, name, icon}. Script Kiddie is rank 0. */
+    public static final String[][] CAREER_RANKS = {
+        {"0",     "Script Kiddie",     "\uD83D\uDCBB"},
+        {"100",   "Recruit",           "\uD83E\uDD4A"},
+        {"250",   "Junior Analyst",    "\uD83D\uDD0D"},
+        {"500",   "SOC Analyst",       "\uD83D\uDEE1\uFE0F"},
+        {"900",   "Security Engineer", "\uD83D\uDD27"},
+        {"1400",  "Incident Responder","\uD83D\uDE91"},
+        {"2000",  "Pen Tester",        "\uD83D\uDD2E"},
+        {"2700",  "Red Team",          "\uD83D\uDD25"},
+        {"3500",  "Blue Team",         "\uD83D\uDEE1\uFE0F"},
+        {"4500",  "Purple Team",       "\uD83E\uDD84"},
+        {"5700",  "Threat Hunter",     "\uD83D\uDC3E"},
+        {"7000",  "Malware Analyst",   "\uD83E\uDDE0"},
+        {"8500",  "Security Architect","\uD83C\uDFDB\uFE0F"},
+        {"10000", "Cryptographer",     "\uD83D\uDD10"},
+        {"12500", "Cyber Commander",   "\uD83E\uDDD1\u200D\uD83D\uDC68\u200D\uD83D\uDCBC"},
+        {"15000", "Cyber Legend",      "\uD83C\uDFC6"}
+    };
+
     private static final String[] COMPANIES = {
         "Google", "Microsoft", "Meta", "Amazon", "Apple", "Cisco", "IBM", "Oracle",
         "Vodacom", "Safaricom", "MTN", "Airtel", "Andela", "Paystack", "Flutterwave",
@@ -168,9 +203,25 @@ public class AcademyService {
     private int hintUses;
     private int fastSolves;
 
+    private final Map<String, Integer> weakFamilies = new LinkedHashMap<>();
+
     private final Map<String, Long> fastestMs = new LinkedHashMap<>();
     private final Map<String, Long> totalMs = new LinkedHashMap<>();
     private final Map<String, Integer> solveTimesCount = new LinkedHashMap<>();
+
+    // ----- Career mode (item 16) -----
+    private int careerRank;
+    private final List<String> rankHistory = new ArrayList<>();
+
+    // ----- Competitive honours (items 17/18) -----
+    private int pvpWins;
+    private int tournamentWins;
+
+    // ----- Profile customization (item 20) -----
+    private String avatar = "\uD83D\uDD75\uFE0F";
+    private String bio = "Cryptographic operator in training.";
+    private String country = COUNTRIES[0];
+    private String university = "";
 
     private List<Bot> botsCache;
 
@@ -204,6 +255,9 @@ public class AcademyService {
     public int getDailyXp() { return dailyXp.getOrDefault(today(), 0); }
     public int getWeeklyXp() { return weeklyXp.getOrDefault(thisWeek(), 0); }
     public int getMonthlyXp() { return monthlyXp.getOrDefault(thisMonth(), 0); }
+
+    /** XP earned on a specific calendar day (yyyy-mm-dd). */
+    public int getDailyXp(String day) { return dailyXp.getOrDefault(day, 0); }
 
     // ----- Coins + certificate points -----
 
@@ -301,6 +355,104 @@ public class AcademyService {
         totalXp -= spent;
         save();
         return spent;
+    }
+
+    // ----------------------------------------------------------------
+    // BONUS AWARDS (multiplayer / tournaments)
+    // ----------------------------------------------------------------
+
+    /** Adds XP without counting as a solved challenge (PvP, cups, promotions). */
+    public void awardXp(int amount) {
+        if (amount <= 0) return;
+        totalXp += amount;
+        dailyXp.merge(today(), amount, Integer::sum);
+        weeklyXp.merge(thisWeek(), amount, Integer::sum);
+        monthlyXp.merge(thisMonth(), amount, Integer::sum);
+        addActivity("\u26A1 BONUS", "+" + amount + " XP awarded");
+        save();
+    }
+
+    /** Adds coins to the wallet (matches, cup placements). */
+    public void addCoins(int amount) {
+        if (amount == 0) return;
+        coins += amount;
+        save();
+    }
+
+    /** Adds certificate points (cup placements, season rewards). */
+    public void addCertPoints(int amount) {
+        if (amount == 0) return;
+        certPoints += amount;
+        save();
+    }
+
+    // ----------------------------------------------------------------
+    // CAREER MODE (item 16)
+    // ----------------------------------------------------------------
+
+    /** Highest career rank the operator has officially claimed. */
+    public int getCareerRank() { return careerRank; }
+
+    /** Rank index earned by raw XP, regardless of claiming. */
+    public int earnedCareerRank() {
+        int idx = 0;
+        for (int i = 0; i < CAREER_RANKS.length; i++) {
+            if (totalXp >= Integer.parseInt(CAREER_RANKS[i][0])) idx = i;
+        }
+        return idx;
+    }
+
+    /** Timeline of promotions as "Rank Name|yyyy-mm-dd" entries. */
+    public List<String> getRankHistory() { return new ArrayList<>(rankHistory); }
+
+    /**
+     * Claims every rank the operator qualifies for. Awards a promotion bonus
+     * (XP + coins), records the history entry, and returns the newly reached
+     * rank index, or -1 when there is nothing to promote.
+     */
+    public int promoteIfEligible() {
+        int earned = earnedCareerRank();
+        if (earned <= careerRank) return -1;
+        careerRank = earned;
+        String[] r = CAREER_RANKS[earned];
+        rankHistory.add(r[1] + "|" + today());
+        int bonusXp = Integer.parseInt(r[0]) / 20;
+        int bonusCoins = 10 + careerRank * 5;
+        totalXp += bonusXp;
+        coins += bonusCoins;
+        addActivity("\uD83C\uDFC6 PROMOTION", "Promoted to " + r[1] + " (+" + bonusXp + " XP, +" + bonusCoins + " coins)");
+        save();
+        return earned;
+    }
+
+    // ----------------------------------------------------------------
+    // COMPETITIVE HONOURS (items 17/18)
+    // ----------------------------------------------------------------
+
+    public int getPvpWins() { return pvpWins; }
+    public void addPvpWin() { pvpWins++; save(); }
+    public int getTournamentWins() { return tournamentWins; }
+    public void addTournamentWin() { tournamentWins++; save(); }
+
+    // ----------------------------------------------------------------
+    // PROFILE CUSTOMIZATION (item 20)
+    // ----------------------------------------------------------------
+
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; save(); }
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; save(); }
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; save(); }
+    public String getUniversity() { return university; }
+    public void setUniversity(String university) { this.university = university; save(); }
+
+    /** Proficiency (0-100) for a cipher family, derived from module use + solved count. */
+    public int proficiency(String family) {
+        int solvedN = 0;
+        for (String s : solved.keySet()) if (s.contains(family)) solvedN++;
+        int uses = moduleUses.getOrDefault(family.toUpperCase(), 0);
+        return Math.min(100, solvedN * 12 + uses * 3);
     }
 
     /** Stable key of the currently active mission for the given type. */
@@ -415,6 +567,28 @@ public class AcademyService {
         generated.put(ch.id, ch);
         save();
         return ch;
+    }
+
+    /** Generates a challenge for an explicit family (or "random" to pick one). */
+    public Challenge generateChallenge(String difficulty, String family) {
+        String fam = family == null || family.isBlank() || family.equals("random")
+            ? defaultFamilyFor(difficulty)
+            : family;
+        Challenge ch = buildChallenge(fam, difficulty);
+        generated.put(ch.id, ch);
+        save();
+        return ch;
+    }
+
+    private String defaultFamilyFor(String difficulty) {
+        switch (difficulty == null ? "EASY" : difficulty) {
+            case "MEDIUM"    -> { return MEDIUM_FAMILIES[rnd().nextInt(MEDIUM_FAMILIES.length)]; }
+            case "HARD"      -> { return HARD_FAMILIES[rnd().nextInt(HARD_FAMILIES.length)]; }
+            case "EXPERT"    -> { return EXPERT_FAMILIES[rnd().nextInt(EXPERT_FAMILIES.length)]; }
+            case "NIGHTMARE" -> { return NIGHTMARE_FAMILIES[rnd().nextInt(NIGHTMARE_FAMILIES.length)]; }
+            case "IMPOSSIBLE" -> { return IMPOSSIBLE_FAMILIES[rnd().nextInt(IMPOSSIBLE_FAMILIES.length)]; }
+            default          -> { return EASY_FAMILIES[rnd().nextInt(EASY_FAMILIES.length)]; }
+        }
     }
 
     public void removeGenerated(String id) {
@@ -568,6 +742,452 @@ public class AcademyService {
         return "Fortress Legend. You have cleared nearly every cipher in the Academy \u2014 the network knows your name, operator.";
     }
 
+    // ----------------------------------------------------------------
+    // AI MENTOR (ITEM 13) — mistakes, teaching, quizzes, weaknesses
+    // ----------------------------------------------------------------
+
+    /** Tracks a wrong answer per cipher family so the mentor can target weaknesses. */
+    public void recordWrongFamily(String family) {
+        if (family == null || family.isBlank()) return;
+        weakFamilies.merge(family, 1, Integer::sum);
+        save();
+    }
+
+    /** Weakness profile: family name -> wrong-answer count, strongest first. */
+    public List<String[]> getWeakFamilies() {
+        List<String[]> out = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : weakFamilies.entrySet()) {
+            out.add(new String[]{familyName(e.getKey()), String.valueOf(e.getValue()), e.getKey()});
+        }
+        out.sort((a, b) -> Integer.compare(Integer.parseInt(b[1]), Integer.parseInt(a[1])));
+        return out;
+    }
+
+    /** Mentor explanation of the classic mistakes behind a cipher family. */
+    public String explainMistake(String family) {
+        String f = family == null ? "" : family;
+        return switch (f) {
+            case "caesar" -> "Classic mistake: wrapping past Z. \"Z+1\" must wrap to A, not a symbol. Always reduce (index + shift) mod 26.";
+            case "vigenere" -> "The key repeats but only over letters \u2014 spaces and symbols do NOT consume a key step. Most solvers miscount and drift.";
+            case "xor" -> "XOR is its own inverse: a\u2295k\u2295k = a. A common slip is XORing with a char instead of its numeric code \u2014 compare byte values, not glyphs.";
+            case "base64" -> "Base64 output can contain + and / \u2014 copying only the alphanumerics silently corrupts the last bytes. Copy the exact string.";
+            case "affine" -> "You must find a\u207b\u00b9 mod 26 first; gcd(a,26) must equal 1 or decryption is impossible. People forget the modular inverse step.";
+            case "railfence" -> "The cipher is read per rail, so ciphertext length determines where each rail starts \u2014 compute the zig-zag pattern before reading rows.";
+            case "aes" -> "AES needs the exact key AND IV \u2014 both are 16 bytes in 128-bit CBC. Mixing up padding (PKCS5) or using the key as the IV breaks everything silently.";
+            case "rsa" -> "Decrypting uses the private exponent d, not e. Compute m = c^d mod n, then encode m back to bytes \u2014 watch for leading zeros on short messages.";
+            case "stego" -> "The message hides in the LEAST significant bit. Extracting the wrong bit-plane (e.g. bit 0 vs bit 1) yields garbage that still *looks* like noise.";
+            case "hashing" -> "Hashes are one-way \u2014 you cannot \"decrypt\" them. For a short word list, brute force the preimage by hashing every candidate and comparing digests.";
+            case "forensics" -> "Files leave residuals. Look for the repeating pattern in the dump \u2014 hidden bytes are often periodic (every 3rd, 4th or 5th byte).";
+            case "playfair" -> "Digraphs cannot repeat: 'XX' becomes 'QX'. If a pair falls in the same row/column the replacement rule changes \u2014 practice all three cases.";
+            case "hill" -> "The key matrix must be invertible mod 26 (det coprime with 26). Forgetting to compute det\u207b\u00b9 mod 26 before multiplying is the classic failure.";
+            case "transposition" -> "Columnar transposition is a pure shuffle \u2014 frequencies are unchanged. If your answer has the same letters but wrong order, your column count is off.";
+            default -> "Slow down and check the basic transform first. Encrypt a tiny sample (HELLO) in the lab, then compare your working against the step-by-step trace.";
+        };
+    }
+
+    /** Mentor lesson bank for teaching concepts on demand. */
+    public String teachConcept(String topic) {
+        return switch (topic == null ? "" : topic.toLowerCase()) {
+            case "aes" -> """
+                AES (Advanced Encryption Standard) is a symmetric block cipher.
+                It splits data into 16-byte blocks and runs 10 (AES-128), 12 or 14 rounds.
+                Each round: SubBytes (S-box substitution) -> ShiftRows (rotate rows)
+                -> MixColumns (matrix multiply) -> AddRoundKey (XOR with the round key).
+                The same key encrypts and decrypts, so both parties must keep it secret.""";
+            case "rsa" -> """
+                RSA is asymmetric: a public key encrypts, a private key decrypts.
+                1. Pick two primes p, q.  2. n = p*q (modulus).  3. \u03C6 = (p-1)(q-1).
+                4. Choose e coprime to \u03C6.  5. d = e\u207b\u00b9 mod \u03C6.
+                Public = (n, e), Private = (n, d).  Encrypt: c = m^e mod n.  Decrypt: m = c^d mod n.""";
+            case "xor" -> """
+                XOR compares bits: 0\u22950=0, 0\u22951=1, 1\u22950=1, 1\u22951=0.
+                It is perfectly reversible \u2014 applying the same key twice restores the text.
+                That makes XOR a favorite for one-time pads and simple file encryption.""";
+            case "hashing" -> """
+                A hash is a fixed-length fingerprint of data (SHA-256 = 64 hex chars).
+                It is one-way: you cannot recover the input from the digest.
+                Changing ONE bit of input avalanches into ~half the output bits changing.
+                Uses: integrity checks, password storage, digital signatures.""";
+            case "steganography" -> """
+                Steganography hides a message INSIDE another medium so nobody suspects it.
+                Common trick: embed one bit of the message into the least-significant bit
+                of each pixel's colour channel. The image looks identical, but the LSBs spell the secret.""";
+            case "caesar" -> """
+                The Caesar cipher shifts every letter by a fixed number of positions.
+                Encryption: c = (p + shift) mod 26.  Decryption: p = (c - shift) mod 26.
+                ROT13 is Caesar with shift 13 \u2014 applying it twice restores the text.""";
+            case "vigenere" -> """
+                Vigenere uses a repeating keyword. Each letter is shifted by the key's
+                matching letter index: c = (p + k) mod 26. A repeated keyword leaks a
+                repeating pattern \u2014 that is how cryptanalysts break it (Kasiski test).""";
+            case "playfair" -> """
+                Playfair encrypts two letters at a time using a 5x5 key square.
+                Same-row pairs shift right, same-column pairs shift down, and diagonal
+                pairs take the rectangle corners. 'J' is merged into 'I'.""";
+            case "hill" -> """
+                The Hill cipher encrypts blocks with linear algebra mod 26.
+                Plaintext vector P becomes C = K*P mod 26, where K is the key matrix.
+                Decryption needs K\u207b\u00b9 mod 26, which exists only when det(K) is coprime with 26.""";
+            case "transposition" -> """
+                Transposition ciphers REARRANGE letters without changing them.
+                Columnar transposition: write plaintext into columns, then read rows.
+                Letter frequencies stay identical \u2014 the cipher is a pure permutation.""";
+            case "digital signatures" -> """
+                A digital signature proves a message is authentic and unmodified.
+                Sign: hash the message, then encrypt the digest with your PRIVATE key.
+                Verify: decrypt the signature with your PUBLIC key and compare digests.
+                Only the holder of the private key can produce a valid signature.""";
+            case "base64" -> """
+                Base64 encodes binary into 64 printable characters (A-Z a-z 0-9 + /).
+                Every 3 bytes become 4 characters; '=' pads the tail.
+                It is NOT encryption \u2014 anyone can decode it instantly.""";
+            default -> "Choose a topic \u2014 AES, RSA, XOR, Hashing, Steganography, Caesar, Vigenere, Playfair, Hill, Transposition, Digital Signatures or Base64.";
+        };
+    }
+
+    /** Recommends the next lesson based on weaknesses and unsolved families. */
+    public String recommendNextLesson() {
+        List<String[]> weak = getWeakFamilies();
+        if (!weak.isEmpty()) {
+            String fam = weak.get(0)[2];
+            return "Your weakest engine is " + familyName(fam) + " (" + weak.get(0)[1]
+                + " wrong answers). Open the CRYPTO LAB, run the " + familyName(fam)
+                + " simulator on a sample, then try one more " + familyName(fam) + " challenge.";
+        }
+        if (completed == 0) return "Start with the EASY tier \u2014 Caesar and Hex are the gentlest entry points to the lab.";
+        if (completed < 5) return "You are just warming up. Attack ROT13 and Base64 next \u2014 both teach the core skill: invert a transform.";
+        if (completed < 10) return "Chain two solves a day to keep your streak alive. Vigenere is the natural MEDIUM graduation step.";
+        if (completed < 20) return "Time for keyed ciphers: XOR and Vigenere. Run both in the CRYPTO LAB before attacking them.";
+        if (completed < 50) return "Push into Affine and Rail Fence, then take the Certificate Vault's course tracks seriously \u2014 AES and RSA await.";
+        return "You are deep in the vault. Explore AES, RSA and Forensics \u2014 the labs make public-key crypto tangible.";
+    }
+
+    /** Encouragement line tuned to current progress and streak. */
+    public String encourage() {
+        if (completed == 0) return "Every master once started at zero. Open the lab, encrypt HELLO with Caesar, and feel the power of the first win \u2014 I'll be right here.";
+        if (streak >= 7) return "A seven-day streak \u2014 that is elite discipline. The ciphertext is afraid of you now.";
+        if (completed >= 100) return "Over 100 ciphers cleared. You are not a student anymore \u2014 you are a cryptanalyst. The network respects you.";
+        if (completed >= 20) return "Twenty-plus ciphers down. Momentum is your weapon \u2014 keep the streak alive and the badges will follow.";
+        return "Every solve sharpens the blade. One more challenge today and you move up the global leaderboard \u2014 I believe in you, operator.";
+    }
+
+    // ---- Quiz engine (deterministic, seeded per operator/day) ----
+
+    private static final String[][] QUIZ = {
+        {"Which cipher uses the least-significant bit of pixels to hide data?", "AES", "Steganography", "Base64", "Rail Fence", "1", "Stego hides data in media so it looks innocent \u2014 e.g. message bits in the LSB of pixel colours."},
+        {"In AES-128, how many rounds does each 16-byte block pass through?", "8", "10", "12", "16", "1", "AES-128 uses 10 rounds, AES-192 uses 12, and AES-256 uses 14."},
+        {"What does the private key d do in RSA?", "Encrypts", "Decrypts", "Hashes", "Pads", "1", "m = c^d mod n. Only the holder of d can decrypt a message encrypted with the public key (n, e)."},
+        {"Why can a hash not be 'decrypted' back to its input?", "It is too short", "It is one-way", "It is encrypted", "It uses a key", "1", "A digest is a lossy, one-way fingerprint \u2014 many inputs map to the same digest; you brute-force, not reverse."},
+        {"XOR is its own ______.", "enemy", "inverse", "padding", "salt", "1", "Applying the same key twice restores the original: a\u2295k\u2295k = a."},
+        {"A 'D' shifts 4 steps backward under Caesar to?", "A", "Z", "Y", "B", "1", "D(3) - 4 = -1 -> wrap to 25 = Z."},
+        {"What is Base64 padding for?", "Alignment", "Trailing bytes", "Encryption strength", "Keys", "1", "'=' pads the final group so it fills 3 bytes -> 4 characters."},
+        {"Which attack exploits a repeating Vigenere key?", "Kasiski", "Side-channel", "Replay", "Birthday", "0", "Repeating keys leak periodic patterns \u2014 the Kasiski examination finds the key length."},
+        {"The one-time pad is only unbreakable if the key is ______.", "short", "truly random", "reused", "a word", "1", "A random key as long as the message, never reused, makes the OTP information-theoretically secure."},
+        {"Hill cipher works with which maths?", "Linear algebra mod 26", "Group theory", "Set theory", "Calculus", "0", "C = K*P mod 26 needs an invertible key matrix (det coprime to 26)."},
+        {"What does a digital signature protect against?", "Loss", "Tampering", "Size", "Speed", "1", "Signing the digest with your private key proves authenticity and integrity \u2014 tampering invalidates the signature."},
+        {"Which is NOT a symmetric cipher?", "AES", "DES", "RSA", "ChaCha20", "2", "RSA is asymmetric (public/private key); AES, DES and ChaCha20 are symmetric."},
+        {"The Caesar cipher is a special case of which larger family?", "Vigenere", "Playfair", "Affine", "Hill", "2", "Caesar is Affine with a=1: c = (1*p + b) mod 26."},
+        {"Rail fence encryption is a form of ______.", "substitution", "transposition", "hashing", "padding", "1", "It rearranges letters in a zig-zag \u2014 no letter changes, only positions."},
+        {"Forensics: hidden bytes are often placed ______ in a dump.", "randomly", "periodically", "as keys", "encrypted", "1", "Steganographic/forensic markers commonly repeat at a fixed interval (every 3rd byte, etc.)."}
+    };
+
+    private static final int QUIZ_PER_DAY = 5;
+
+    private int[] quizSelection;
+    private int[] quizOrder;
+
+    /** Deterministic quiz for today: indices into QUIZ, plus per-question shuffled option order. */
+    public void generateQuiz() {
+        Random r = new Random((operatorId + "|quiz|" + today()).hashCode());
+        int[] sel = new int[QUIZ_PER_DAY];
+        java.util.Set<Integer> used = new HashSet<>();
+        int i = 0;
+        while (i < QUIZ_PER_DAY) {
+            int idx = r.nextInt(QUIZ.length);
+            if (used.add(idx)) sel[i++] = idx;
+        }
+        quizSelection = sel;
+        quizOrder = new int[QUIZ_PER_DAY];
+        for (int q = 0; q < QUIZ_PER_DAY; q++) {
+            quizOrder[q] = 1 + r.nextInt(4);
+        }
+    }
+
+    public int quizCount() { return QUIZ_PER_DAY; }
+
+    public String quizQuestion(int i) { return QUIZ[quizSelection[i]][0]; }
+
+    /** Returns options in display order for question i; returns correct index in that order. */
+    public String[] quizOptions(int i) {
+        String[] src = new String[]{QUIZ[quizSelection[i]][1], QUIZ[quizSelection[i]][2],
+            QUIZ[quizSelection[i]][3], QUIZ[quizSelection[i]][4]};
+        int correct = Integer.parseInt(QUIZ[quizSelection[i]][5]);
+        String[] out = new String[4];
+        int place = quizOrder[i] % 4;
+        out[place] = src[correct];
+        int idx = 0;
+        for (int k = 0; k < 4; k++) {
+            if (k == place) continue;
+            while (idx == correct) idx++;
+            out[k] = src[idx];
+            idx++;
+        }
+        return out;
+    }
+
+    /** Which display position holds the correct answer for question i. */
+    public int quizAnswerIndex(int i) { return quizOrder[i] % 4; }
+
+    public String quizExplain(int i) { return QUIZ[quizSelection[i]][6]; }
+
+    // ----------------------------------------------------------------
+    // SHARED CRYPTO TOOLKIT (used by generator + interactive labs)
+    // ----------------------------------------------------------------
+
+    /** AES-128-CBC encryption of plaintext, base64 key + iv, returns base64 ciphertext. */
+    public static String aesEncryptB64(String plain, String keyB64, String ivB64) {
+        try {
+            byte[] key = java.util.Base64.getDecoder().decode(keyB64);
+            byte[] iv = java.util.Base64.getDecoder().decode(ivB64);
+            Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+            return java.util.Base64.getEncoder().encodeToString(c.doFinal(plain.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            return "[AES ERROR: " + e.getMessage() + "]";
+        }
+    }
+
+    /** AES-128-CBC decryption; returns plaintext or an error tag. */
+    public static String aesDecryptB64(String cipherB64, String keyB64, String ivB64) {
+        try {
+            byte[] key = java.util.Base64.getDecoder().decode(keyB64);
+            byte[] iv = java.util.Base64.getDecoder().decode(ivB64);
+            Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+            byte[] out = c.doFinal(java.util.Base64.getDecoder().decode(cipherB64.trim()));
+            return new String(out, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return "[AES ERROR: " + e.getMessage() + "]";
+        }
+    }
+
+    public static String aesRandomKeyB64(Random r) {
+        byte[] k = new byte[16];
+        new SecureRandom().nextBytes(k);
+        return java.util.Base64.getEncoder().encodeToString(k);
+    }
+
+    public static String aesRandomIvB64(Random r) {
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        return java.util.Base64.getEncoder().encodeToString(iv);
+    }
+
+    /** SHA-256 hex digest. */
+    public static String sha256Hex(String s) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] d = md.digest(s.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return "[HASH ERROR]";
+        }
+    }
+
+    public static long modInverse(long a, long m) {
+        return BigInteger.valueOf(a).modInverse(BigInteger.valueOf(m)).longValue();
+    }
+
+    /** Encodes a word into a number: A=10..Z=35 so leading zeros never collapse. */
+    public static long wordToNumber(String word) {
+        long m = 0;
+        for (char ch : word.toCharArray()) {
+            m = m * 100 + (ch - 'A' + 10);
+        }
+        return m;
+    }
+
+    public static String numberToWord(long m) {
+        String s = String.valueOf(m);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i + 1 < s.length(); i += 2) {
+            int v = Integer.parseInt(s.substring(i, i + 2));
+            if (v >= 10 && v <= 35) sb.append((char) ('A' + v - 10));
+        }
+        return sb.toString();
+    }
+
+    /** Embeds the message (length-prefixed) into a fake pixel grid, one bit per green LSB. */
+    public static String stegoEmbed(String msg) {
+        byte[] data = msg.getBytes(StandardCharsets.UTF_8);
+        byte[] frame = new byte[data.length + 1];
+        frame[0] = (byte) data.length;
+        System.arraycopy(data, 0, frame, 1, data.length);
+        int totalBits = frame.length * 8;
+        int cells = Math.max(16, ((totalBits + 15) / 16) * 16);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells; i++) {
+            int base = 120 + (i % 9) * 10;      // plausible green channel value
+            int bit = 0;
+            int byteIdx = i / 8;
+            int bitIdx = 7 - (i % 8);
+            if (byteIdx < frame.length) bit = (frame[byteIdx] >> bitIdx) & 1;
+            int hidden = (base & 0xFE) | bit;
+            sb.append(String.format("%03d", hidden));
+            if (i % 16 == 15) sb.append("\n"); else sb.append(" ");
+        }
+        return sb.toString();
+    }
+
+    /** Extracts the length-prefixed message from the green-LSB pixel grid. */
+    public static String stegoExtract(String grid) {
+        StringBuilder bits = new StringBuilder();
+        String[] nums = grid.replace("\n", " ").trim().split("\\s+");
+        for (String num : nums) {
+            try {
+                bits.append((char) ('0' + (Integer.parseInt(num) & 1)));
+            } catch (Exception ignored) { }
+        }
+        if (bits.length() < 8) return "";
+        int len = 0;
+        for (int j = 0; j < 8; j++) len = (len << 1) | (bits.charAt(j) - '0');
+        StringBuilder out = new StringBuilder();
+        for (int i = 8; i + 8 <= bits.length() && out.length() < len; i += 8) {
+            int v = 0;
+            for (int j = 0; j < 8; j++) v = (v << 1) | (bits.charAt(i + j) - '0');
+            out.append((char) v);
+        }
+        return out.toString();
+    }
+
+    /** Hides the flag as every 3rd byte of a fake file dump. */
+    public static String forensicsHide(String msg) {
+        byte[] data = msg.getBytes(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < data.length * 3; i++) {
+            int b;
+            if (i % 3 == 0) {
+                b = data[i / 3] & 0xFF;
+            } else {
+                b = 0x40 + (i * 7) % 120; // plausible file noise
+            }
+            sb.append(String.format("%02X", b));
+            if (i % 16 == 15) sb.append("\n"); else sb.append(" ");
+        }
+        return sb.toString();
+    }
+
+    /** Extracts every 3rd byte (starts at index 0) and decodes ASCII. */
+    public static String forensicsExtract(String dump) {
+        String hex = dump.replace("\n", " ").replace(" ", "");
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i + 1 < hex.length(); i += 6) {
+            String pair = hex.substring(i, i + 2);
+            out.append((char) Integer.parseInt(pair, 16));
+        }
+        return out.toString();
+    }
+
+    /** Playfair encryption (I/J merged). */
+    public static String playfairEncrypt(String plain, String key) {
+        char[][] sq = playfairSquare(key);
+        String clean = plain.toUpperCase().replace("J", "I").replaceAll("[^A-Z]", "");
+        StringBuilder pairs = new StringBuilder();
+        for (int i = 0; i < clean.length(); i += 2) {
+            char a = clean.charAt(i);
+            char b = (i + 1 < clean.length()) ? clean.charAt(i + 1) : 'X';
+            if (a == b) { b = 'X'; i--; }
+            pairs.append(a).append(b);
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i + 1 < pairs.length(); i += 2) {
+            char a = pairs.charAt(i), b = pairs.charAt(i + 1);
+            int[] pa = findPlayfair(sq, a), pb = findPlayfair(sq, b);
+            char ea, eb;
+            if (pa[0] == pb[0]) { // same row
+                ea = sq[pa[0]][(pa[1] + 1) % 5];
+                eb = sq[pb[0]][(pb[1] + 1) % 5];
+            } else if (pa[1] == pb[1]) { // same column
+                ea = sq[(pa[0] + 1) % 5][pa[1]];
+                eb = sq[(pb[0] + 1) % 5][pb[1]];
+            } else {
+                ea = sq[pa[0]][pb[1]];
+                eb = sq[pb[0]][pa[1]];
+            }
+            out.append(ea).append(eb);
+        }
+        return out.toString();
+    }
+
+    private static char[][] playfairSquare(String key) {
+        String k = (key.toUpperCase() + "ABCDEFGHIKLMNOPQRSTUVWXYZ").replace("J", "I");
+        LinkedHashMap<Character, Boolean> seen = new LinkedHashMap<>();
+        for (char c : k.toCharArray()) if (c >= 'A' && c <= 'Z') seen.put(c, true);
+        char[][] sq = new char[5][5];
+        int i = 0;
+        for (char c : seen.keySet()) { sq[i / 5][i % 5] = c; i++; }
+        return sq;
+    }
+
+    private static int[] findPlayfair(char[][] sq, char c) {
+        for (int r = 0; r < 5; r++) for (int col = 0; col < 5; col++)
+            if (sq[r][col] == c) return new int[]{r, col};
+        return new int[]{0, 0};
+    }
+
+    /** Hill cipher 2x2 encryption, key letters a,b,c,d. */
+    public static String hillEncrypt(String plain, String key) {
+        String k = key.toUpperCase().replaceAll("[^A-Z]", "");
+        if (k.length() < 4) k = "GYBN";
+        int[][] K = {
+            {k.charAt(0) - 'A', k.charAt(1) - 'A'},
+            {k.charAt(2) - 'A', k.charAt(3) - 'A'}
+        };
+        String p = plain.toUpperCase().replaceAll("[^A-Z]", "");
+        if (p.length() % 2 != 0) p += "X";
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < p.length(); i += 2) {
+            int x = p.charAt(i) - 'A', y = p.charAt(i + 1) - 'A';
+            int c1 = mod26(K[0][0] * x + K[0][1] * y);
+            int c2 = mod26(K[1][0] * x + K[1][1] * y);
+            out.append((char) ('A' + c1)).append((char) ('A' + c2));
+        }
+        return out.toString();
+    }
+
+    private static int mod26(int v) { return ((v % 26) + 26) % 26; }
+
+    /** Columnar transposition: pad, write columns, read rows. */
+    public static String transpositionEncrypt(String plain, int cols) {
+        String p = plain.toUpperCase().replaceAll("[^A-Z]", "");
+        int rows = (p.length() + cols - 1) / cols;
+        char[][] grid = new char[rows][cols];
+        for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) grid[r][c] = 'X';
+        int idx = 0;
+        for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++)
+            if (idx < p.length()) grid[r][c] = p.charAt(idx++);
+        StringBuilder out = new StringBuilder();
+        for (int c = 0; c < cols; c++) for (int r = 0; r < rows; r++)
+            out.append(grid[r][c]);
+        return out.toString();
+    }
+
+    /** Columnar transposition decryption. */
+    public static String transpositionDecrypt(String cipher, int cols) {
+        String c = cipher.toUpperCase().replaceAll("[^A-Z]", "");
+        int rows = (c.length() + cols - 1) / cols;
+        char[][] grid = new char[rows][cols];
+        int idx = 0;
+        for (int col = 0; col < cols; col++) for (int r = 0; r < rows; r++)
+            if (idx < c.length()) grid[r][col] = c.charAt(idx++);
+        StringBuilder out = new StringBuilder();
+        for (int r = 0; r < rows; r++) for (int col = 0; col < cols; col++)
+            out.append(grid[r][col]);
+        return out.toString();
+    }
+
     public void resetAll() {
         solved.clear();
         totalXp = 0;
@@ -593,9 +1213,18 @@ public class AcademyService {
         moduleUses.clear();
         hintUses = 0;
         fastSolves = 0;
+        weakFamilies.clear();
         fastestMs.clear();
         totalMs.clear();
         solveTimesCount.clear();
+        careerRank = 0;
+        rankHistory.clear();
+        pvpWins = 0;
+        tournamentWins = 0;
+        avatar = "\uD83D\uDD75\uFE0F";
+        bio = "Cryptographic operator in training.";
+        country = COUNTRIES[0];
+        university = "";
         save();
     }
 
@@ -633,12 +1262,22 @@ public class AcademyService {
             readBucket(j, "moduleUses", moduleUses);
             hintUses = j.optInt("hintUses");
             fastSolves = j.optInt("fastSolves");
+            readBucket(j, "weakFamilies", weakFamilies);
             readBucketLong(j, "fastestMs", fastestMs);
             readBucketLong(j, "totalMs", totalMs);
             readBucket(j, "solveTimesCount", solveTimesCount);
             readBucket(j, "dailyXp", dailyXp);
             readBucket(j, "weeklyXp", weeklyXp);
             readBucket(j, "monthlyXp", monthlyXp);
+            careerRank = j.optInt("careerRank");
+            JSONArray rh = j.optJSONArray("rankHistory");
+            if (rh != null) for (int i = 0; i < rh.length(); i++) rankHistory.add(rh.getString(i));
+            pvpWins = j.optInt("pvpWins");
+            tournamentWins = j.optInt("tournamentWins");
+            avatar = j.optString("avatar", avatar);
+            bio = j.optString("bio", bio);
+            country = j.optString("country", country);
+            university = j.optString("university", university);
             JSONArray act = j.optJSONArray("activity");
             if (act != null) for (int i = 0; i < act.length(); i++) activity.addLast(act.getString(i));
             JSONArray gen = j.optJSONArray("generated");
@@ -686,12 +1325,23 @@ public class AcademyService {
             writeBucket(j, "moduleUses", moduleUses);
             j.put("hintUses", hintUses);
             j.put("fastSolves", fastSolves);
+            writeBucket(j, "weakFamilies", weakFamilies);
             writeBucketLong(j, "fastestMs", fastestMs);
             writeBucketLong(j, "totalMs", totalMs);
             writeBucket(j, "solveTimesCount", solveTimesCount);
             writeBucket(j, "dailyXp", dailyXp);
             writeBucket(j, "weeklyXp", weeklyXp);
             writeBucket(j, "monthlyXp", monthlyXp);
+            j.put("careerRank", careerRank);
+            JSONArray rh = new JSONArray();
+            for (String h : rankHistory) rh.put(h);
+            j.put("rankHistory", rh);
+            j.put("pvpWins", pvpWins);
+            j.put("tournamentWins", tournamentWins);
+            j.put("avatar", avatar);
+            j.put("bio", bio);
+            j.put("country", country);
+            j.put("university", university);
             JSONArray act = new JSONArray();
             for (String a : activity) act.put(a);
             j.put("activity", act);
@@ -877,6 +1527,69 @@ public class AcademyService {
                 descr = "Triple-Stack: " + tripleAgent(word, key);
                 hint = "Decrypt: ROT13 -> Reverse -> Vigenere, key=" + key + ".";
             }
+            case "aes" -> {
+                String key = aesRandomKeyB64(r);
+                String iv = aesRandomIvB64(r);
+                String ct = aesEncryptB64(flag, key, iv);
+                stars = 4; xp = 420;
+                descr = "AES-128-CBC decrypt (PKCS5): " + ct
+                    + "\nKEY=" + key + "  IV=" + iv;
+                hint = "Paste the ciphertext into the AES DECRYPT lab with the key and IV above.";
+            }
+            case "rsa" -> {
+                int[] pq = {61, 53};
+                long n = (long) pq[0] * pq[1];
+                long phi = (long) (pq[0] - 1) * (pq[1] - 1);
+                long e = 17;
+                long d = modInverse(e, phi);
+                long m = wordToNumber(word);
+                long c = BigInteger.valueOf(m).modPow(BigInteger.valueOf(e), BigInteger.valueOf(n)).longValue();
+                stars = 5; xp = 500;
+                descr = "RSA decrypt. n=" + n + ", e=" + e + ", c=" + c
+                    + "\nRecover m, then map digits back to letters (A=10,B=11...).";
+                hint = "Private exponent d=" + d + ". Decrypt with the RSA lab: c^d mod n.";
+            }
+            case "stego" -> {
+                String matrix = stegoEmbed(flag);
+                stars = 5; xp = 480;
+                descr = "An image hides the flag in the lowest bit of every green channel.\nPixel grid:\n" + matrix;
+                hint = "Extract the LSB of each green value with the STEGANOGRAPHY lab.";
+            }
+            case "hashing" -> {
+                String target = sha256Hex(flag);
+                String[] options = new String[5];
+                options[0] = word;
+                for (int i = 1; i < 5; i++) options[i] = WORDS[r.nextInt(WORDS.length)];
+                java.util.Arrays.sort(options);
+                stars = 4; xp = 380;
+                descr = "SHA-256(" + flag + ") = " + target
+                    + "\nWhich of these words is the preimage?  " + String.join(", ", options);
+                hint = "Run each candidate through the HASH lab until the digest matches.";
+            }
+            case "forensics" -> {
+                String dump = forensicsHide(flag);
+                stars = 5; xp = 520;
+                descr = "Recover the deleted file. The flag bytes survive as every 3rd byte of this hex dump:\n" + dump;
+                hint = "Take every 3rd byte (starting at index 0) and decode to ASCII with the FORENSICS lab.";
+            }
+            case "playfair" -> {
+                String key = WORDS[r.nextInt(WORDS.length)];
+                stars = 3; xp = 260;
+                descr = "Playfair with key '" + key + "' encrypts the flag word as: " + playfairEncrypt(word, key);
+                hint = "Build the 5x5 key square, then decrypt the digraph pairs with the PLAYFAIR lab.";
+            }
+            case "hill" -> {
+                String key = "GYBN";
+                stars = 4; xp = 340;
+                descr = "Hill cipher (2x2 key GYBN -> [[6,24],[1,13]], mod 26) encrypts: " + hillEncrypt(word, key);
+                hint = "Use the HILL lab: invert the key matrix mod 26 and decrypt the digraphs.";
+            }
+            case "transposition" -> {
+                int cols = 2 + r.nextInt(Math.max(2, word.length() - 2));
+                stars = 3; xp = 250;
+                descr = "Columnar transposition (" + cols + " columns): " + transpositionEncrypt(word, cols);
+                hint = "Write the ciphertext row-by-row into " + cols + " columns, then read each column top-to-bottom to recover the word.";
+            }
             default -> {
                 stars = 1; xp = 100;
                 descr = fam + ": " + word;
@@ -983,6 +1696,14 @@ public class AcademyService {
             case "vigenere" -> "Vigenere Cipher";
             case "xor" -> "XOR Bitwise";
             case "tripleagent" -> "Triple-Stack Cipher";
+            case "aes" -> "AES Block Cipher";
+            case "rsa" -> "RSA Public-Key";
+            case "stego" -> "Steganography";
+            case "hashing" -> "Hashing (SHA-256)";
+            case "forensics" -> "Digital Forensics";
+            case "playfair" -> "Playfair Cipher";
+            case "hill" -> "Hill Cipher";
+            case "transposition" -> "Columnar Transposition";
             case "caesarhard" -> "Caesar Fortress";
             case "vigenerehard" -> "Vigenere Fortress";
             case "morsehard" -> "Morse Fortress";
@@ -1278,6 +1999,15 @@ public class AcademyService {
     public static String avatarFor(String name) {
         return AVATARS[(name.hashCode() & 0x7fffffff) % AVATARS.length];
     }
+
+    /** All selectable avatar glyphs for the profile page. */
+    public static String[] avatars() { return AVATARS.clone(); }
+
+    /** All selectable countries for the profile page. */
+    public static String[] countries() { return COUNTRIES.clone(); }
+
+    /** All selectable universities for the profile page. */
+    public static String[] universities() { return UNIVERSITIES.clone(); }
 
     /** Sorts a pool by XP (ties by name) and returns the top-N as {@link Standing} rows. */
     private List<Standing> ranked(int topN, List<Bot> all) {
