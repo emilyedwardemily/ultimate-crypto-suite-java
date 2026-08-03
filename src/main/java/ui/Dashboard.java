@@ -2190,7 +2190,7 @@ public class Dashboard extends BorderPane {
             }
         }
         chartsRow.getChildren().add(actCard);
-        main.getChildren().add(chartsRow);
+        main.getChildren().add(wrapCards(new java.util.ArrayList<>(chartsRow.getChildren()), 400));
 
         // ----- Skills -----
         VBox skills = AcademyUi.cardAccent(AcademyUi.GREEN);
@@ -7056,48 +7056,43 @@ public class Dashboard extends BorderPane {
         refreshBtn.setPrefHeight(40);
         HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(refreshBtn, javafx.scene.layout.Priority.ALWAYS);
         topBar.getChildren().addAll(statusBadge, refreshBtn);
         main.getChildren().addAll(backBtn, title, sub, topBar);
 
-        HBox tilesRow1 = new HBox(12);
         VBox totalUsersTile = AcademyUi.statTile("\uD83D\uDC64", "\u2014", "TOTAL USERS", AcademyUi.BLUE);
         VBox dailyActiveTile = AcademyUi.statTile("\uD83D\uDDFF\uFE0F", "\u2014", "DAILY ACTIVE", AcademyUi.GREEN);
         VBox encryptionsTile = AcademyUi.statTile("\uD83D\uDD12", "\u2014", "ENCRYPTIONS", AcademyUi.GOLD);
         VBox auditLogsTile = AcademyUi.statTile("\uD83D\uDDC2", "\u2014", "AUDIT LOGS", AcademyUi.PURPLE);
-        tilesRow1.getChildren().addAll(totalUsersTile, dailyActiveTile, encryptionsTile, auditLogsTile);
-        main.getChildren().add(tilesRow1);
-
-        HBox tilesRow2 = new HBox(12);
         VBox paymentsTile = AcademyUi.statTile("\uD83D\uDCB3", "\u2014", "PAYMENTS", AcademyUi.GREEN);
         VBox subscriptionsTile = AcademyUi.statTile("\uD83D\uDCC8", "\u2014", "SUBSCRIPTIONS", AcademyUi.BLUE);
         VBox uptimeTile = AcademyUi.statTile("\u23F1\uFE0F", "\u2014", "UPTIME", AcademyUi.RED);
         VBox challengesTile = AcademyUi.statTile("\uD83C\uDFAF", "\u2014", "CHALLENGES", AcademyUi.ORANGE);
-        tilesRow2.getChildren().addAll(paymentsTile, subscriptionsTile, uptimeTile, challengesTile);
-        main.getChildren().add(tilesRow2);
+        java.util.List<javafx.scene.Node> tiles = java.util.List.of(totalUsersTile, dailyActiveTile, encryptionsTile,
+            auditLogsTile, paymentsTile, subscriptionsTile, uptimeTile, challengesTile);
+        for (javafx.scene.Node t : tiles) if (t instanceof Region r) r.setPrefWidth(220);
+        main.getChildren().add(wrapCards(new java.util.ArrayList<>(tiles), 220));
 
         GridPane charts = new GridPane();
         charts.setHgap(16);
         charts.setVgap(16);
-
-        charts.add(analyticsChart("DAILY ACTIVE USERS (7 DAYS)",
+        java.util.List<javafx.scene.Node> chartCards = new java.util.ArrayList<>();
+        chartCards.add(analyticsChart("DAILY ACTIVE USERS (7 DAYS)",
             new String[]{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
-            new double[]{980, 1120, 1055, 1204, 1380, 1520, 1204}, "#39FF14", "line"), 0, 0);
-        charts.add(analyticsChart("MONTHLY ACTIVE USERS (6 MONTHS)",
+            new double[]{980, 1120, 1055, 1204, 1380, 1520, 1204}, "#39FF14", "line"));
+        chartCards.add(analyticsChart("MONTHLY ACTIVE USERS (6 MONTHS)",
             new String[]{"Feb", "Mar", "Apr", "May", "Jun", "Jul"},
-            new double[]{7200, 8100, 9400, 10200, 11200, 12482}, "#58a6ff", "bar"), 1, 0);
-        charts.add(analyticsChart("NEW USERS PER MONTH",
+            new double[]{7200, 8100, 9400, 10200, 11200, 12482}, "#58a6ff", "bar"));
+        chartCards.add(analyticsChart("NEW USERS PER MONTH",
             new String[]{"Feb", "Mar", "Apr", "May", "Jun", "Jul"},
-            new double[]{210, 320, 410, 380, 520, 480}, "#FFD700", "bar"), 0, 1);
-        charts.add(analyticsChart("CHALLENGE COMPLETION BY DIFFICULTY",
+            new double[]{210, 320, 410, 380, 520, 480}, "#FFD700", "bar"));
+        chartCards.add(analyticsChart("CHALLENGE COMPLETION BY DIFFICULTY",
             new String[]{"EASY", "MEDIUM", "HARD", "EXPERT"},
-            new double[]{94, 71, 43, 18}, "#8957e5", "bar"), 1, 1);
+            new double[]{94, 71, 43, 18}, "#8957e5", "bar"));
+        main.getChildren().add(wrapCards(chartCards, 440));
 
-        main.getChildren().add(charts);
-
-        HBox lower = new HBox(16);
         VBox failed = AcademyUi.cardAccent(AcademyUi.RED);
-        failed.setPrefWidth(340);
-        failed.getChildren().add(AcademyUi.section("\uD83D\uDCA9 MOST FAILED CHALLENGES", AcademyUi.RED));
+        failed.setPrefWidth(340);        failed.getChildren().add(AcademyUi.section("\uD83D\uDCA9 MOST FAILED CHALLENGES", AcademyUi.RED));
         failed.getChildren().add(failRow("hill_5x5_advanced", 87));
         failed.getChildren().add(failRow("rsa_large_prime", 81));
         failed.getChildren().add(failRow("aes_cbc_decrypt", 74));
@@ -7133,8 +7128,7 @@ public class Dashboard extends BorderPane {
             row.getChildren().addAll(c, pb, v);
             countries.getChildren().add(row);
         }
-        lower.getChildren().addAll(failed, lb, countries);
-        main.getChildren().add(lower);
+        main.getChildren().add(wrapCards(new java.util.ArrayList<>(java.util.List.of(failed, lb, countries)), 360));
 
         VBox heat = AcademyUi.cardAccent(AcademyUi.GREEN);
         heat.getChildren().add(AcademyUi.section("\uD83D\uDD22 ACTIVITY HEATMAP \u2014 7 DAYS \u00D7 24 HOURS", AcademyUi.GREEN));
@@ -10801,11 +10795,992 @@ public class Dashboard extends BorderPane {
         AcademyUi.animateIn(main);
     }
 
+    // ============================================================
+    // UC MODULES SYSTEM (UC-LABS, UC-DEVELOPER, UC-REVERSE, UC-DSA,
+    // UC-OS, UC-NETWORK, UC-CLOUD, UC-MOBILE, UC-WEB)
+    // ============================================================
+
+    private record UcItem(String id, String icon, String name, String desc, String kind) { }
+    private record UcSection(String title, String accent, UcItem[] items) { }
+    private record UcModule(String key, String title, String icon, String accent, String desc, UcSection[] sections) { }
+
+    private static UcItem it(String id, String icon, String name, String desc, String kind) {
+        return new UcItem(id, icon, name, desc, kind);
+    }
+
+    private static UcItem it(String id, String icon, String name, String desc) {
+        return new UcItem(id, icon, name, desc, "concept");
+    }
+
+    private static UcSection sec(String title, String accent, UcItem... items) {
+        return new UcSection(title, accent, items);
+    }
+
+    private static UcModule mod(String key, String title, String icon, String accent, String desc, UcSection... sections) {
+        return new UcModule(key, title, icon, accent, desc, sections);
+    }
+
+    private static final UcModule[] UC_MODULES = {
+        mod("labs", "UC-LABS", "\uD83E\uDDEA", AcademyUi.GREEN,
+            "Every security tool, organized by laboratory \u2014 crypto, stego, cryptanalysis and binary forensics.",
+            sec("Cryptography Lab", AcademyUi.GREEN,
+                it("aes", "\uD83D\uDD12", "AES", "Advanced Encryption Standard \u2014 symmetric block cipher.", "play:aesenc"),
+                it("rsa", "\uD83D\uDD10", "RSA", "Asymmetric encryption and digital signatures.", "play:rsaenc"),
+                it("ecc", "\uD83D\uDD0F", "ECC", "Elliptic-curve crypto \u2014 256-bit keys rival 3072-bit RSA."),
+                it("des", "\uD83D\uDDDD\uFE0F", "DES", "Legacy 56-bit block cipher, now broken by brute force."),
+                it("blowfish", "\uD83D\uDC21", "Blowfish", "Fast 64-bit block cipher, public domain."),
+                it("twofish", "\uD83D\uDC1F", "Twofish", "AES finalist \u2014 128-bit blocks, keyed S-boxes."),
+                it("chacha20", "\uD83C\uDF00", "ChaCha20", "Stream cipher favored by modern TLS (AEAD ChaCha20-Poly1305)."),
+                it("salsa20", "\uD83D\uDC83", "Salsa20", "ChaCha's predecessor, eSTREAM winner."),
+                it("sha", "\uD83D\uDD17", "SHA", "SHA-256 digest with avalanche demo.", "play:hash"),
+                it("hmac", "\uD83E\uDDE1", "HMAC", "Keyed hash \u2014 message authentication without encryption."),
+                it("pbkdf2", "\uD83E\uDDC2", "PBKDF2", "Password KDF with salt and many HMAC rounds."),
+                it("argon2", "\uD83E\uDD77", "Argon2", "Memory-hard KDF, winner of the Password Hashing Competition.")),
+            sec("Steganography Lab", AcademyUi.PURPLE,
+                it("lsb", "\uD83C\uDFA8", "LSB Visualizer", "Hide message bits inside image pixel channels.", "method:steg"),
+                it("payload", "\uD83D\uDCE6", "Payload Extractor", "Recover hidden payloads from carrier files."),
+                it("imgdiff", "\uD83D\uDCF7", "Image Difference", "Spot LSB changes between original and stego image."),
+                it("audiostego", "\uD83C\uDFB5", "Audio Stego", "Embed data in low-amplitude sound samples."),
+                it("metadata", "\uD83C\uDFF7\uFE0F", "Metadata Viewer", "Inspect EXIF and file headers for leaks.")),
+            sec("Cryptanalysis Lab", AcademyUi.RED,
+                it("freq", "\uD83D\uDCCA", "Frequency Analysis", "Letter-frequency scoring breaks Caesar ciphers.", "attack:freq:Frequency Analysis"),
+                it("bitflip", "\uD83E\uDE99", "Bit Flip Simulator", "Corrupt one byte and watch the plaintext shatter.", "tool:bitflip"),
+                it("padoracle", "\uD83C\uDFAD", "Padding Oracle", "Byte-by-byte CBC decryption via a padding oracle."),
+                it("differential", "\uD83D\uDCC9", "Differential Analysis", "How input differences propagate through S-boxes."),
+                it("linear", "\uD83D\uDCC8", "Linear Analysis", "Linear approximations of cipher components."),
+                it("weakkey", "\uD9C1\uDDAF", "RSA Weak Keys", "Scan for small factors and known-weak primes."),
+                it("entropy", "\uD83C\uDFB2", "Entropy Calculator", "Shannon entropy of any input \u2014 spot randomness.", "tool:entropy"),
+                it("avalanche", "\uD83C\uDF0B", "Avalanche Effect", "Flip one bit, half the digest changes.", "tool:avalanche")),
+            sec("Binary Lab", AcademyUi.BLUE,
+                it("hexview", "\uD83D\uDD22", "Hex Viewer", "Offset | hex | ASCII dump of any byte stream.", "tool:hexview"),
+                it("magicbytes", "\uD83E\uDE84", "Magic Bytes Inspector", "Identify file types from header signatures.", "tool:magicbytes"),
+                it("peview", "\uD83E\uDEA5", "PE Header Viewer", "Windows executable headers and sections."),
+                it("elfview", "\uD83D\uDC27", "ELF Header Viewer", "Linux binary structure and program headers."),
+                it("bindiff", "\uD83D\uDD00", "Binary Diff", "Compare two byte streams and quantify changes.", "tool:bindiff"))),
+
+        mod("developer", "UC-DEVELOPER", "\u2699\uFE0F", AcademyUi.BLUE,
+            "API keys, SDKs and copy-paste code for integrating UC-Suite crypto anywhere.",
+            sec("API Key Management", AcademyUi.BLUE,
+                it("apikey", "\uD83D\uDD11", "API Keys", "View and copy your gateway credentials.", "method:apikey"),
+                it("sdk", "\uD83D\uDCE6", "SDK Overview", "Client libraries available for the UC-Suite API.")),
+            sec("Code Snippets", AcademyUi.GREEN,
+                it("pysnip", "\uD83D\uDC0D", "Python Snippets", "Encrypt, hash and sign with Python.", "snippet:pysnip"),
+                it("jsnip", "\u2615", "Java Snippets", "The same operations with the JDK.", "snippet:jsnip"),
+                it("curlsnip", "\uD83C\uDF10", "Curl Examples", "Raw HTTP calls to the live gateway.", "snippet:curlsnip"),
+                it("plugin", "\uD83E\uDDE9", "Plugin SDK", "Extend the suite with your own module."))),
+
+        mod("reverse", "UC-REVERSE", "\uD83D\uDD2C", AcademyUi.RED,
+            "Reverse engineering \u2014 turn binaries back into readable truth.",
+            sec("Static Analysis", AcademyUi.RED,
+                it("disasm", "\uD83E\uDDEC", "Disassembler", "Turn raw bytes back into assembly instructions."),
+                it("decomp", "\uD83C\uDF00", "Decompiler", "Recover readable source from machine code."),
+                it("assembly", "\uD83C\uDFD7\uFE0F", "Assembly Playground", "Write and read x86/ARM snippets."),
+                it("cfg", "\uD83D\uDD78\uFE0F", "CFG Builder", "Control-flow graphs of functions and branches.")),
+            sec("Binary Formats", AcademyUi.BLUE,
+                it("pe", "\uD83E\uDEA5", "PE Analyzer", "Windows PE structure \u2014 headers, sections, imports."),
+                it("elf", "\uD83D\uDC27", "ELF Analyzer", "Linux ELF structure \u2014 segments and sections."),
+                it("macho", "\uD83C\uDF4E", "Mach-O Analyzer", "macOS/iOS binary format."),
+                it("sections", "\uD83D\uDCC4", "Section Analyzer", "Map .text/.data/.rodata/.bss."),
+                it("imp", "\uD83D\uDCE5", "Import Table", "Libraries and functions a binary links against."),
+                it("exp", "\uD83D\uDCE4", "Export Table", "Symbols a binary exposes to the world.")),
+            sec("Dynamic Analysis", AcademyUi.ORANGE,
+                it("stack", "\uD83E\uDD64", "Stack Visualizer", "Frames, locals and return addresses at runtime."),
+                it("heap", "\uD83E\uDDF0", "Heap Visualizer", "Allocations, chunks and free lists."),
+                it("memory", "\uD83D\uDCBE", "Memory Viewer", "Read raw process memory regions."),
+                it("registers", "\uD83C\uDF9B\uFE0F", "Register Viewer", "CPU state during execution."),
+                it("debugger", "\uD83D\uDC1E", "Debugger Simulator", "Breakpoints, single-step and watchpoints."),
+                it("rop", "\uD83E\uDDF1", "ROP Visualizer", "Gadget chains that defeat NX."),
+                it("shellcode", "\uD83E\uDDA8", "Shellcode Playground", "Position-independent executable payloads."),
+                it("patching", "\uD9C1\uDDAF", "Binary Patching", "NOP out checks and patch branches."),
+                it("sandbox", "\uD83C\uDFDC\uFE0F", "Malware Sandbox", "Detonate samples in a safe walled garden.")),
+            sec("Helpers", AcademyUi.GREEN,
+                it("strings", "\uD83D\uDD24", "Strings Viewer", "Extract readable strings from any binary.", "tool:strings"),
+                it("hexview", "\uD83D\uDD22", "Hex Viewer", "Dump any byte stream.", "tool:hexview"),
+                it("entropy", "\uD83C\uDFB2", "Entropy Scanner", "Find packed or encrypted regions.", "tool:entropy"))),
+
+        mod("dsa", "UC-DSA", "\uD83D\uDCD0", AcademyUi.GOLD,
+            "Data structures & algorithms \u2014 taught through their role in cryptography, malware, networking and blockchain.",
+            sec("Core Structures", AcademyUi.GOLD,
+                it("arrays", "\uD83D\uDCDA", "Arrays", "Contiguous memory, O(1) indexing."),
+                it("linkedlist", "\uD83D\uDD17", "Linked Lists", "Node chains, O(1) head insert."),
+                it("stacks", "\uD83E\uDD64", "Stacks", "LIFO \u2014 call stacks, undo, expression eval."),
+                it("queues", "\uD83D\uDC6E", "Queues", "FIFO \u2014 scheduling and buffering."),
+                it("trees", "\uD83C\uDF33", "Trees", "Hierarchies and their balanced variants."),
+                it("merkle", "\uD83C\uDF3F", "Merkle Trees", "Commitment + tamper-proof verification."),
+                it("graphs", "\uD83D\uDD78\uFE0F", "Graphs", "Relations, routes and topologies."),
+                it("trie", "\uD83C\uDF32", "Trie", "Prefix lookup \u2014 DNS, autocomplete, IP routing."),
+                it("bloom", "\uD83C\uDF38", "Bloom Filters", "Probabilistic membership, no false negatives."),
+                it("hashtable", "\uD83D\uDDC2\uFE0F", "Hash Tables", "O(1) average lookup."),
+                it("pq", "\u23EB", "Priority Queues", "Ordered extraction \u2014 task and packet queues."),
+                it("segtree", "\uD83E\uDDE9", "Segment Trees", "Range queries and point updates."),
+                it("disjoint", "\uD83D\uDD27", "Disjoint Sets", "Union-find for graph components."),
+                it("bst", "\uD83C\uDF34", "Binary Search Trees", "Ordered binary search.")),
+            sec("Balanced & Advanced Trees", AcademyUi.PURPLE,
+                it("avl", "\u2696\uFE0F", "AVL Trees", "Strictly self-balancing BST."),
+                it("redblack", "\uD83C\uDF7A", "Red-Black Trees", "Balanced with color invariants."),
+                it("btree", "\uD83C\uDFDB\uFE0F", "B Trees", "Disk-friendly multiway trees."),
+                it("bplus", "\uD83D\uDDC4\uFE0F", "B+ Trees", "Range scans in database indexes."),
+                it("heaps", "\u26F0\uFE0F", "Heaps", "Priority via implicit tree arrays.")),
+            sec("Algorithms", AcademyUi.BLUE,
+                it("sorting", "\uD83D\uDD00", "Sorting", "Ordering \u2014 canonicalization and signatures."),
+                it("searching", "\uD83D\uDD0E", "Searching", "Lookup in ordered and unordered data."),
+                it("graphalgo", "\uD83E\uDDED", "Graph Algorithms", "BFS, DFS, shortest paths, flow."),
+                it("dp", "\uD83E\uDDE0", "Dynamic Programming", "Overlapping subproblems, memoized."),
+                it("greedy", "\uD83D\uDCB0", "Greedy", "Local-optimum choices that pay off.")),
+            sec("Analysis", AcademyUi.RED,
+                it("bigo", "\uD83D\uDCD0", "Big O Analyzer", "Complexity of any algorithm.", "tool:bigo"),
+                it("vis", "\uD83D\uDCFA", "Algorithm Visualizer", "Watch structures build step by step."))),
+
+        mod("os", "UC-OS", "\uD83D\uDCBB", "#00d4ff",
+            "Operating system internals \u2014 processes to paging, loading to injection.",
+            sec("Processes & Scheduling", "#00d4ff",
+                it("processes", "\uD83D\uDCC0", "Processes", "Isolated execution contexts with address spaces."),
+                it("threads", "\uD83E\uDDF5", "Threads", "Lightweight units sharing a process address space."),
+                it("scheduling", "\uD83D\uDD04", "Scheduling", "Which thread runs next, and for how long.")),
+            sec("Memory", AcademyUi.PURPLE,
+                it("memory", "\uD83D\uDCDA", "Memory Management", "Allocation, virtual addresses, protection."),
+                it("virtual", "\uD83D\uDCF1", "Virtual Memory", "Illusion of infinite private RAM."),
+                it("paging", "\uD83D\uDCC1", "Paging", "Frames, page tables, TLB, page faults."),
+                it("heap", "\uD83E\uDDF0", "Heap Management", "malloc/free, chunks, overflows.")),
+            sec("Kernel & Loading", AcademyUi.RED,
+                it("kernel", "\u2699\uFE0F", "Kernel", "Privileged core \u2014 syscalls, drivers, security."),
+                it("syscalls", "\uD83D\uDCE9", "Syscalls", "The user \u2194 kernel interface."),
+                it("elfload", "\uD83D\uDC27", "ELF Loading", "How Linux maps and executes an ELF."),
+                it("peload", "\uD83E\uDEA5", "Windows PE Loading", "PE loader and ASLR/CFG."),
+                it("dll", "\uD83D\uDCE6", "DLL Injection", "Force-loading code into a remote process."),
+                it("shared", "\uD83D\uDC65", "Shared Libraries", "Linking, PLT/GOT and hijacking.")),
+            sec("IPC & Signals", AcademyUi.GREEN,
+                it("signals", "\uD83D\uDCE2", "Signals", "Async notifications \u2014 and the races they cause."),
+                it("ipc", "\uD83D\uDD0C", "IPC", "Pipes, sockets, shared memory, message queues."),
+                it("boot", "\uD83D\uDE80", "Boot Process", "BIOS/UEFI \u2192 bootloader \u2192 kernel \u2192 init."))),
+
+        mod("network", "UC-NETWORK", "\uD83C\uDF10", AcademyUi.BLUE,
+            "Networking \u2014 protocols, packets, and the attacks that live in between.",
+            sec("Protocols", AcademyUi.BLUE,
+                it("tcpip", "\uD83D\uDCE1", "TCP/IP", "Reliable stream over the unreliable internet."),
+                it("udp", "\uD83D\uDCE8", "UDP", "Connectionless datagrams, low latency."),
+                it("arp", "\uD83D\uDD03", "ARP", "Maps IP to MAC \u2014 and poisons for MITM."),
+                it("icmp", "\uD83D\uDCA2", "ICMP", "Errors and pings \u2014 tunneling and covert channels."),
+                it("dns", "\uD83C\uDF0D", "DNS", "Name resolution \u2014 hijacking, tunneling, exfil."),
+                it("dhcp", "\uD83D\uDCE1", "DHCP", "Automatic addressing \u2014 rogue servers and starvation."),
+                it("tls", "\uD83D\uDD12", "TLS", "Handshake, cipher suites, certificates, pinning."),
+                it("https", "\uD83D\uDDD0\uFE0F", "HTTPS", "HTTP over TLS \u2014 the trust model in practice."),
+                it("http2", "\uD83D\uDD00", "HTTP/2", "Multiplexed streams, HPACK, connection smuggling."),
+                it("http3", "\u2699\uFE0F", "HTTP/3", "QUIC over UDP \u2014 0-RTT and migration.")),
+            sec("Tools", AcademyUi.GREEN,
+                it("pktview", "\uD83D\uDCF9", "Packet Visualizer", "Decode a raw hex Ethernet/IP/TCP packet.", "tool:pktview"),
+                it("pktbuilder", "\uD83D\uDEE0\uFE0F", "Packet Builder", "Craft your own packets byte by byte."),
+                it("pktanalyzer", "\uD83D\uDD0D", "Packet Analyzer", "Statistical analysis of capture files."),
+                it("wireshark", "\uD83E\uDD89", "Wireshark Simulator", "Filter and follow streams like the real tool."))),
+
+        mod("cloud", "UC-CLOUD", "\u2601\uFE0F", "#79c0ff",
+            "Cloud security \u2014 IAM, encryption, containers and secrets in the big three clouds.",
+            sec("Providers", "#79c0ff",
+                it("aws", "\u2601\uFE0F", "AWS", "S3, EC2, IAM, KMS \u2014 the shared responsibility model."),
+                it("azure", "\uD83D\uDCA0", "Azure", "AD, key vault, managed identities."),
+                it("gcp", "\uD83D\uDC9A", "GCP", "IAM, Cloud KMS, VPC SC.")),
+            sec("Security Domains", AcademyUi.GOLD,
+                it("iam", "\uD83D\uDD11", "IAM", "Identity & access \u2014 least privilege, roles, MFA."),
+                it("cloudenc", "\uD83D\uDD12", "Cloud Encryption", "KMS, envelope encryption, client-side keys."),
+                it("s3", "\uD83D\uDCC0", "S3 Security", "Bucket policies, ACLs, public-read leaks."),
+                it("k8s", "\u2699\uFE0F", "Kubernetes Security", "RBAC, network policies, pod security."),
+                it("docker", "\uD83D\uDC33", "Docker Security", "Image scanning, seccomp, read-only rootfs."),
+                it("secrets", "\uD83D\uDD10", "Secrets Manager", "Never hardcode \u2014 rotate, scope, audit."))),
+
+        mod("mobile", "UC-MOBILE", "\uD83D\uDCF1", AcademyUi.PURPLE,
+            "Mobile security \u2014 APK/IPA internals, instrumentation and malware.",
+            sec("Android", AcademyUi.GREEN,
+                it("android", "\uD83E\uDDF3", "Android", "Package model, permissions and sandboxing."),
+                it("apk", "\uD83D\uDCE6", "APK Analysis", "Decompile, decode resources, resign."),
+                it("manifest", "\uD83D\uDCCB", "Manifest Analyzer", "Exported components, permissions, attack surface."),
+                it("dex", "\uD83D\uDCC9", "DEX Viewer", "Dalvik bytecode and smali.")),
+            sec("iOS", AcademyUi.BLUE,
+                it("ios", "\uD83C\uDF4E", "iOS", "App sandbox, code signing, entitlements."),
+                it("ipa", "\uD83D\uDCE6", "IPA Viewer", "Inspect the .app bundle without a jailbreak.")),
+            sec("Instrumentation", AcademyUi.RED,
+                it("frida", "\uD83D\uDCA9", "Frida", "Dynamic instrumentation of live apps."),
+                it("objection", "\uD83D\uDEA7", "Objection", "Frida-powered runtime exploration."),
+                it("mobmal", "\uD83E\uDD40", "Mobile Malware", "Banking trojans, spyware, packers."))),
+
+        mod("web", "UC-WEB", "\uD83D\uDD78\uFE0F", AcademyUi.ORANGE,
+            "Web security \u2014 every OWASP class with the exploit, the fix and the defense.",
+            sec("OWASP Top 10", AcademyUi.ORANGE,
+                it("owasp", "\uD83D\uDCD6", "OWASP Top 10", "The ten most critical web risks \u2014 and how to stop them."),
+                it("xss", "\uD83D\uDCA5", "XSS", "Injecting script into other users' pages.", "tool:bigo"),
+                it("csrf", "\uD83D\uDD02", "CSRF", "Forcing a victim's browser to act."),
+                it("sqli", "\uD83D\uDCE5", "SQL Injection", "Querying your database through your input."),
+                it("ssrf", "\uD83C\uDF05", "SSRF", "Making the server fetch wherever you say."),
+                it("ssti", "\uD83D\uDCCB", "SSTI", "Template injection to server-side code."),
+                it("xxe", "\uD83D\uDD0A", "XXE", "XML entities read files and hit SSRF.")),
+            sec("Identity", AcademyUi.PURPLE,
+                it("jwt", "\uD83E\uDDFD", "JWT", "Stateless tokens \u2014 decode and inspect them.", "tool:jwt"),
+                it("oauth", "\uD83D\uDD11", "OAuth", "Delegated authorization flows."),
+                it("openid", "\uD83C\uDFDB\uFE0F", "OpenID", "Federated identity on top of OAuth.")),
+            sec("Browser & Transport", AcademyUi.BLUE,
+                it("cors", "\uD83C\uDF0D", "CORS", "Who is allowed to read your responses."),
+                it("websockets", "\uD83C\uDF0A", "WebSockets", "Bidirectional channels \u2014 origin attacks."),
+                it("csp", "\uD83D\uDEE1\uFE0F", "CSP", "Header rules that kill XSS at the browser."),
+                it("samesite", "\uD83C\uDF6A", "SameSite Cookies", "CSRF defense baked into the cookie.")))
+    };
+
+    private static UcModule findModule(String key) {
+        for (UcModule m : UC_MODULES) if (m.key().equals(key)) return m;
+        return null;
+    }
+
+    private void showModuleHub(String key) {
+        UcModule m = findModule(key);
+        if (m == null) { showAcademyDashboard(); return; }
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+        Label title = AcademyUi.neon(m.icon() + " " + m.title(), m.accent(), 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(m.accent(), 0.3));
+        Label sub = AcademyUi.caption(m.desc(), 12);
+        sub.setWrapText(true);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        for (UcSection s : m.sections()) {
+            main.getChildren().add(AcademyUi.section(s.title(), s.accent()));
+            java.util.List<javafx.scene.Node> cards = new java.util.ArrayList<>();
+            for (UcItem item : s.items()) cards.add(buildUcCard(item, key));
+            main.getChildren().add(wrapCards(cards, 250));
+        }
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private javafx.scene.Node buildUcCard(UcItem item, String moduleKey) {
+        VBox card = AcademyUi.card();
+        card.setPrefWidth(250);
+        card.setPrefHeight(150);
+        String accent = kindAccent(item.kind());
+        card.setOnMouseEntered(e -> card.setStyle("-fx-background-color: #1a1f29; -fx-border-color: " + accent + "; -fx-border-radius: 8; -fx-padding: 14;"));
+        card.setOnMouseExited(e -> card.setStyle("-fx-background-color: #161b22; -fx-border-color: #30363d; -fx-border-radius: 8; -fx-padding: 14;"));
+        Label nameLab = AcademyUi.neon(item.icon() + " " + item.name(), accent, 14);
+        Label descLab = AcademyUi.caption(item.desc(), 11);
+        descLab.setWrapText(true);
+        Button run = AcademyUi.button(kindLabel(item.kind()), accent, "#0d1117");
+        run.setOnAction(e -> openUcItem(item, moduleKey));
+        card.getChildren().addAll(nameLab, descLab, run);
+        return card;
+    }
+
+    private static String kindAccent(String kind) {
+        if (kind == null || kind.equals("concept")) return AcademyUi.GOLD;
+        if (kind.startsWith("tool")) return AcademyUi.BLUE;
+        if (kind.startsWith("play")) return AcademyUi.GREEN;
+        if (kind.startsWith("attack")) return AcademyUi.RED;
+        if (kind.startsWith("snippet")) return AcademyUi.PURPLE;
+        return AcademyUi.GOLD;
+    }
+
+    private static String kindLabel(String kind) {
+        if (kind == null || kind.equals("concept")) return "\uD83D\uDCD6 LEARN";
+        if (kind.startsWith("tool")) return "\uD83D\uDEE0\uFE0F OPEN TOOL";
+        if (kind.startsWith("play")) return "\u25B6 OPEN SIMULATOR";
+        if (kind.startsWith("attack")) return "\uD83D\uDCA5 LAUNCH LAB";
+        if (kind.startsWith("snippet")) return "\uD83D\uDCCB SNIPPETS";
+        if (kind.startsWith("method")) return "\uD83D\uDD13 OPEN";
+        return "\uD83D\uDCD6 LEARN";
+    }
+
+    private void openUcItem(UcItem item, String moduleKey) {
+        String k = item.kind();
+        if (k == null) { showConcept(moduleKey, item); return; }
+        if (k.startsWith("play:")) showAlgorithmPlayground(k.substring(5));
+        else if (k.startsWith("attack:")) {
+            String[] p = k.substring(7).split(":");
+            showAttackLab(p[0], p.length > 1 ? p[1] : item.name());
+        } else if (k.startsWith("tool:")) showMiniTool(k.substring(5), item.name());
+        else if (k.startsWith("snippet:")) showSnippetLib(k.substring(8), item.name());
+        else if (k.startsWith("method:")) openUcMethod(k.substring(7));
+        else showConcept(moduleKey, item);
+    }
+
+    private void openUcMethod(String id) {
+        switch (id) {
+            case "steg" -> showStegModule();
+            case "apikey" -> showDeveloperApiKeys();
+            default -> showAcademyDashboard();
+        }
+    }
+
+    private String moduleTitle(String key) {
+        UcModule m = findModule(key);
+        return m == null ? "DASHBOARD" : m.title();
+    }
+
+    private String moduleAccent(String key) {
+        UcModule m = findModule(key);
+        return m == null ? AcademyUi.GOLD : m.accent();
+    }
+
+    private void showConcept(String moduleKey, UcItem item) {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        String backLabel = moduleKey == null ? "DASHBOARD" : moduleTitle(moduleKey);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO " + backLabel, "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> { if (moduleKey == null) showAcademyDashboard(); else showModuleHub(moduleKey); });
+        Label title = AcademyUi.neon(item.icon() + " " + item.name(), moduleAccent(moduleKey == null ? "dsa" : moduleKey), 20);
+        Label sub = AcademyUi.caption(item.desc(), 12);
+        sub.setWrapText(true);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        VBox how = AcademyUi.card();
+        how.getChildren().add(AcademyUi.section("HOW IT WORKS", moduleAccent(moduleKey == null ? "dsa" : moduleKey)));
+        for (String b : conceptHow(item.id(), item.name())) {
+            Label l = AcademyUi.text("\u2022 " + b, 12);
+            l.setWrapText(true);
+            how.getChildren().add(l);
+        }
+        main.getChildren().add(how);
+
+        main.getChildren().add(AcademyUi.section("SECURITY APPLICATIONS", AcademyUi.GOLD));
+        String[] uses = securityUses(item.id(), item.name());
+        String[][] boxes = {
+            {"CRYPTOGRAPHY", uses[0]}, {"MALWARE", uses[1]}, {"NETWORKING", uses[2]}, {"BLOCKCHAIN", uses[3]}
+        };
+        java.util.List<javafx.scene.Node> useCards = new java.util.ArrayList<>();
+        for (String[] u : boxes) {
+            VBox c = AcademyUi.card();
+            c.setPrefWidth(300);
+            c.getChildren().add(AcademyUi.section(u[0], AcademyUi.BLUE));
+            Label l = AcademyUi.caption(u[1], 11);
+            l.setWrapText(true);
+            c.getChildren().add(l);
+            useCards.add(c);
+        }
+        main.getChildren().add(wrapCards(useCards, 300));
+
+        if (item.kind() != null && !item.kind().equals("concept")) {
+            Button run = AcademyUi.button("\u25B6 RUN RELATED TOOL", "#238636", "#ffffff");
+            run.setOnAction(e -> openUcItem(item, moduleKey));
+            main.getChildren().add(run);
+        }
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private void showDeveloperApiKeys() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO UC-DEVELOPER", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showModuleHub("developer"));
+        Label title = AcademyUi.neon("\uD83D\uDD11 API KEY MANAGEMENT", AcademyUi.BLUE, 20);
+        main.getChildren().addAll(backBtn, title);
+
+        VBox keyCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        keyCard.getChildren().add(AcademyUi.section("SESSION CREDENTIALS", AcademyUi.BLUE));
+        String token = LoginScreen.SESSION_TOKEN.isEmpty() ? "(no active session token)" : LoginScreen.SESSION_TOKEN;
+        Label tok = AcademyUi.text("X-API-KEY: " + token, 12);
+        tok.setWrapText(true);
+        keyCard.getChildren().addAll(tok,
+            AcademyUi.caption("Gateway base: https://ultimate-crypto-python.onrender.com", 11),
+            AcademyUi.caption("Node gateway: https://ultimate-crypto-node-gateway.onrender.com", 11));
+        Button copy = AcademyUi.button("\uD83D\uDCCB COPY TOKEN", "#1f6feb", "#ffffff");
+        copy.setOnAction(e -> copyToClipboard(token));
+        keyCard.getChildren().add(copy);
+        main.getChildren().add(keyCard);
+
+        VBox tips = AcademyUi.card();
+        tips.getChildren().add(AcademyUi.section("BEST PRACTICES", AcademyUi.GOLD));
+        for (String t : new String[]{
+            "Send the key in the X-API-KEY header on every authenticated call.",
+            "Rotate keys periodically; never commit them to source control.",
+            "Scope keys to the least privilege your integration needs.",
+            "Use the Snippets tab for ready-made clients in Python, Java and curl."
+        }) {
+            Label l = AcademyUi.text("\u2022 " + t, 12);
+            l.setWrapText(true);
+            tips.getChildren().add(l);
+        }
+        main.getChildren().add(tips);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private void showSnippetLib(String libId, String name) {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO UC-DEVELOPER", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showModuleHub("developer"));
+        Label title = AcademyUi.neon("\uD83D\uDCCB " + name, AcademyUi.PURPLE, 20);
+        main.getChildren().addAll(backBtn, title);
+
+        String[][] snippets = libId.equals("pysnip") ? PY_SNIPPETS : libId.equals("jsnip") ? JAVA_SNIPPETS : CURL_SNIPPETS;
+        for (String[] s : snippets) {
+            VBox card = AcademyUi.card();
+            card.getChildren().add(AcademyUi.section(s[0], AcademyUi.PURPLE));
+            TextArea ta = new TextArea(s[1]);
+            ta.setEditable(false);
+            ta.setWrapText(true);
+            ta.setPrefRowCount(Math.min(14, 1 + s[1].split("\n").length));
+            ta.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #58a6ff;"
+                + " -fx-font-family: 'DejaVu Sans Mono', 'Courier New'; -fx-font-size: 11px; -fx-border-color: #30363d;");
+            Button c = AcademyUi.button("\uD83D\uDCCB COPY", "#1f6feb", "#ffffff");
+            c.setOnAction(e -> copyToClipboard(s[1]));
+            card.getChildren().addAll(ta, c);
+            main.getChildren().add(card);
+        }
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private void showMiniTool(String toolId, String name) {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO MODULES", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showModuleHub(moduleForTool(toolId)));
+        Label title = AcademyUi.neon("\uD83D\uDEE0\uFE0F " + name, AcademyUi.BLUE, 20);
+        Label sub = AcademyUi.caption(toolPrompt(toolId), 11);
+        sub.setWrapText(true);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        TextField in1 = new TextField(toolSample1(toolId));
+        in1.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #58a6ff; -fx-border-color: #30363d; -fx-font-family: 'Courier New';");
+        HBox.setHgrow(in1, javafx.scene.layout.Priority.ALWAYS);
+
+        TextField in2 = new TextField(toolSample2(toolId));
+        in2.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #58a6ff; -fx-border-color: #30363d; -fx-font-family: 'Courier New';");
+        in2.setPrefWidth(220);
+        in2.setPromptText(toolParamPrompt(toolId));
+        boolean needs2 = toolNeedsSecond(toolId);
+        in2.setVisible(needs2);
+        in2.setManaged(needs2);
+
+        Button runBtn = AcademyUi.button("\u25B6 RUN", "#1f6feb", "#ffffff");
+        Label out = new Label("Output will appear here...");
+        out.setWrapText(true);
+        out.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 6;"
+            + " -fx-text-fill: #39FF14; -fx-font-family: 'Courier New'; -fx-font-size: 12px;");
+        out.setMaxWidth(Double.MAX_VALUE);
+
+        HBox inRow = new HBox(10, in1, in2, runBtn);
+        inRow.setAlignment(Pos.CENTER_LEFT);
+        main.getChildren().addAll(inRow, out);
+
+        runBtn.setOnAction(e -> {
+            try {
+                out.setText(computeTool(toolId, in1.getText(), needs2 ? in2.getText() : ""));
+            } catch (Exception ex) {
+                out.setText("ERROR: " + ex.getMessage());
+            }
+        });
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private static String moduleForTool(String toolId) {
+        return switch (toolId) {
+            case "pktview" -> "network";
+            case "bigo", "strings" -> "reverse";
+            default -> "labs";
+        };
+    }
+
+    private static boolean toolNeedsSecond(String toolId) {
+        return toolId.equals("bindiff") || toolId.equals("bitflip");
+    }
+
+    private static String toolPrompt(String toolId) {
+        return switch (toolId) {
+            case "hexview" -> "Type or paste any text \u2014 see its bytes as an offset | hex | ASCII dump.";
+            case "magicbytes" -> "Paste the first bytes as hex (or leave the sample) \u2014 we identify the file type from its signature.";
+            case "entropy" -> "Paste text or binary data \u2014 Shannon entropy (0=uniform, 8=max) flags randomness.";
+            case "bindiff" -> "Two inputs are diffed byte by byte \u2014 quantify how different two streams really are.";
+            case "strings" -> "Extract printable ASCII runs (length 4+) from any binary or text.";
+            case "bitflip" -> "Flip a single bit inside your text and see the result \u2014 the seed of the bit-flipping attack.";
+            case "avalanche" -> "Change one character and watch SHA-256 flip roughly half its bits.";
+            case "bigo" -> "Type an algorithm (binary search, bubble sort, hash table, dijkstra, bfs...) to get its complexity.";
+            case "pktview" -> "Paste a hex packet \u2014 we decode Ethernet, IPv4 and TCP/UDP headers.";
+            case "jwt" -> "Paste a JWT \u2014 we decode the header and payload (never verify the signature here).";
+            default -> "Enter input and run.";
+        };
+    }
+
+    private static String toolParamPrompt(String toolId) {
+        return switch (toolId) {
+            case "bindiff" -> "second input";
+            case "bitflip" -> "byte:bit";
+            default -> "param";
+        };
+    }
+
+    private static String toolSample1(String toolId) {
+        return switch (toolId) {
+            case "hexview", "strings" -> "Hello UC-Suite 12345!";
+            case "magicbytes" -> "FFD8FFE000104A46494600010101006000600000";
+            case "entropy" -> "aaaaaaaaaaaaaaaa";
+            case "bindiff" -> "Hello World";
+            case "bitflip" -> "HELLO";
+            case "avalanche" -> "attack at dawn";
+            case "bigo" -> "merge sort";
+            case "pktview" -> "00112233445566778899AABB08004500003400000000400600000A0000010A00000204D2C3500000000000000000500020000F700000";
+            case "jwt" -> "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkVtaWx5Iiwicm9sZSI6IkFETUlOIn0.signature";
+            default -> "input";
+        };
+    }
+
+    private static String toolSample2(String toolId) {
+        return switch (toolId) {
+            case "bindiff" -> "Hello W0rld!";
+            case "bitflip" -> "0:7";
+            default -> "";
+        };
+    }
+
+    private String computeTool(String toolId, String in1, String in2) {
+        return switch (toolId) {
+            case "hexview" -> hexDump(in1);
+            case "magicbytes" -> detectMagic(in1);
+            case "entropy" -> entropyReport(in1);
+            case "bindiff" -> binaryDiff(in1, in2);
+            case "strings" -> extractStrings(in1);
+            case "bitflip" -> bitFlip(in1, in2);
+            case "avalanche" -> avalanche(in1);
+            case "bigo" -> bigO(in1);
+            case "pktview" -> parsePacket(in1);
+            case "jwt" -> decodeJwt(in1);
+            default -> "Unknown tool.";
+        };
+    }
+
+    private static String hexDump(String text) {
+        byte[] b = text.getBytes(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        for (int off = 0; off < b.length; off += 16) {
+            sb.append(String.format("%08X  ", off));
+            for (int i = 0; i < 16; i++) {
+                if (off + i < b.length) sb.append(String.format("%02X ", b[off + i]));
+                else sb.append("   ");
+                if (i == 7) sb.append(' ');
+            }
+            sb.append(" |");
+            for (int i = 0; i < 16 && off + i < b.length; i++) {
+                char c = (char) (b[off + i] & 0xff);
+                sb.append(c >= 32 && c < 127 ? c : '.');
+            }
+            sb.append("|\n");
+        }
+        return sb.toString();
+    }
+
+    private static String detectMagic(String hex) {
+        String h = hex.toUpperCase().replaceAll("[^0-9A-F]", "");
+        String sig = h;
+        if (sig.startsWith("FFD8FF")) return "JPEG image";
+        if (sig.startsWith("89504E470D0A1A0A")) return "PNG image";
+        if (sig.startsWith("474946383961") || sig.startsWith("474946383761")) return "GIF image";
+        if (sig.startsWith("504B0304")) return "ZIP archive / DOCX / APK / JAR";
+        if (sig.startsWith("7F454C46")) return "ELF executable (Linux)";
+        if (sig.startsWith("4D5A")) return "PE / DOS executable (Windows)";
+        if (sig.startsWith("25504446")) return "PDF document";
+        if (sig.startsWith("494433") || sig.startsWith("FFFB") || sig.startsWith("FFF3")) return "MP3 audio";
+        if (sig.startsWith("0000001C66747970")) return "MP4 video";
+        if (sig.startsWith("52494646")) return "RIFF container (WAV audio / WEBP image / AVI)";
+        if (sig.startsWith("CAFEBABE")) return "Java class file";
+        if (sig.startsWith("1F8B")) return "GZIP archive";
+        if (sig.startsWith("424D")) return "BMP image";
+        if (sig.startsWith("4F676753")) return "OGG audio";
+        if (sig.startsWith("D0CF11E0")) return "OLE2 / old Office document";
+        if (sig.startsWith("3C3F786D6C")) return "XML document";
+        return "Unknown signature \u2014 not in the common magic-byte table. First 8 bytes: "
+            + (h.length() >= 16 ? h.substring(0, 16) : h + " (too short)");
+    }
+
+    private static String entropyReport(String s) {
+        byte[] b = s.getBytes(StandardCharsets.UTF_8);
+        if (b.length == 0) return "Empty input \u2014 nothing to measure.";
+        java.util.Map<Integer, Integer> counts = new java.util.HashMap<>();
+        for (byte x : b) counts.merge(x & 0xff, 1, Integer::sum);
+        double e = 0;
+        for (int c : counts.values()) {
+            double p = (double) c / b.length;
+            e -= p * (Math.log(p) / Math.log(2));
+        }
+        String verdict = e < 2 ? "LOW entropy \u2014 highly compressible, likely text or structured data."
+            : e < 5 ? "MODERATE entropy \u2014 mixed content."
+            : "HIGH entropy \u2014 looks random: ciphertext, compressed or encrypted data.";
+        return String.format("Input: %d bytes, %d distinct byte values\nShannon entropy: %.4f bits/byte (max 8)\n%s", b.length, counts.size(), e, verdict);
+    }
+
+    private static String binaryDiff(String a, String b) {
+        byte[] x = a.getBytes(StandardCharsets.UTF_8);
+        byte[] y = b.getBytes(StandardCharsets.UTF_8);
+        int n = Math.min(x.length, y.length);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Lengths: ").append(x.length).append(" vs ").append(y.length).append("\n");
+        int diff = 0;
+        for (int i = 0; i < n; i++) {
+            if (x[i] != y[i]) {
+                diff++;
+                if (diff <= 16) sb.append(String.format("byte[%d] 0x%02X vs 0x%02X\n", i, x[i] & 0xff, y[i] & 0xff));
+            }
+        }
+        if (x.length != y.length) diff += Math.abs(x.length - y.length);
+        int maxLen = Math.max(x.length, y.length);
+        double pct = maxLen == 0 ? 0 : diff * 100.0 / maxLen;
+        sb.append(String.format("\n%d differing byte(s) \u2014 similarity %.1f%%", diff, Math.max(0, 100 - pct)));
+        return sb.toString();
+    }
+
+    private static String extractStrings(String s) {
+        byte[] b = s.getBytes(StandardCharsets.UTF_8);
+        StringBuilder out = new StringBuilder();
+        StringBuilder cur = new StringBuilder();
+        for (byte x : b) {
+            char c = (char) (x & 0xff);
+            if (c >= 32 && c < 127) cur.append(c);
+            else { if (cur.length() >= 4) out.append(cur).append('\n'); cur.setLength(0); }
+        }
+        if (cur.length() >= 4) out.append(cur).append('\n');
+        return out.length() == 0 ? "(no printable strings of length 4+ found)" : out.toString().trim();
+    }
+
+    private static String bitFlip(String text, String param) {
+        byte[] b = text.getBytes(StandardCharsets.UTF_8);
+        if (b.length == 0) return "Empty input.";
+        String[] p = param == null || param.isEmpty() ? new String[]{"0", "7"} : param.split(":");
+        int bi = 0, bit = 7;
+        try {
+            bi = Integer.parseInt(p[0].trim());
+            bit = Integer.parseInt(p[1].trim());
+        } catch (Exception ignored) { }
+        bi = Math.min(Math.max(bi, 0), b.length - 1);
+        bit = Math.min(Math.max(bit, 0), 7);
+        b[bi] ^= (byte) (1 << bit);
+        return "Flipped bit " + bit + " of byte " + bi + ":\n" + new String(b, StandardCharsets.UTF_8)
+            + "\n\nOriginal: " + text + "\n\n(One bit. Whole meaning changes \u2014 that is why integrity checks exist.)";
+    }
+
+    private static String avalanche(String text) {
+        if (text.isEmpty()) return "Empty input.";
+        char last = text.charAt(text.length() - 1);
+        String mod = text.substring(0, text.length() - 1) + (char) (last == 0x7f ? 0x7e : last + 1);
+        String h1 = AcademyService.sha256Hex(text);
+        String h2 = AcademyService.sha256Hex(mod);
+        byte[] a = hexToBytes(h1), bb = hexToBytes(h2);
+        int diff = 0;
+        for (int i = 0; i < a.length; i++) diff += Integer.bitCount((a[i] ^ bb[i]) & 0xff);
+        return "SHA-256(\"" + text + "\")        = " + h1
+            + "\nSHA-256(\"" + mod + "\") = " + h2
+            + "\n\nDifferent bits: " + diff + " / 256 (" + String.format("%.0f%%", diff * 100.0 / 256)
+            + ")\n\nThe avalanche effect guarantees ~50% of bits change for a single flipped input bit.";
+    }
+
+    private static String bigO(String name) {
+        String n = name == null ? "" : name.toLowerCase();
+        if (n.contains("binary search") || n.contains("bst") || n.contains("balanced tree")) return "O(log n)";
+        if (n.contains("bubble") || n.contains("insertion") || n.contains("selection")) return "O(n\u00B2) \u2014 nested loops over every pair";
+        if (n.contains("merge") || n.contains("quick") || n.contains("heap sort")) return "O(n log n) \u2014 divide and conquer";
+        if (n.contains("dijkstra") || n.contains("bellman") || n.contains("shortest")) return "O((V+E) log V) \u2014 graph shortest paths";
+        if (n.contains("dfs") || n.contains("bfs") || n.contains("traversal")) return "O(V+E) \u2014 visit every vertex and edge once";
+        if (n.contains("hash table") || n.contains("hashmap") || n.contains("lookup")) return "O(1) average \u2014 direct index into buckets";
+        if (n.contains("dynamic") || n.contains("dp")) return "O(n\u00B2) typical \u2014 subproblem table";
+        if (n.contains("bloom")) return "O(k) \u2014 k hash functions, constant space";
+        if (n.contains("merkle")) return "O(log n) \u2014 hash path from leaf to root";
+        if (n.contains("sorting") || n.contains("sort")) return "O(n log n) for good sorts; O(n\u00B2) for naive ones";
+        if (n.contains("array") || n.contains("access")) return "O(1) access, O(n) search";
+        if (n.contains("linked")) return "O(1) head insert, O(n) index access";
+        return "Unknown algorithm \u2014 try: binary search, bubble sort, merge sort, hash table, dijkstra, bfs, "
+            + "bloom filter, merkle tree, dynamic programming, sorting.";
+    }
+
+    private static String parsePacket(String hex) {
+        String h = hex.toUpperCase().replaceAll("[^0-9A-F]", "");
+        StringBuilder sb = new StringBuilder();
+        if (h.length() < 48) return "Packet too short \u2014 need at least the 14-byte Ethernet header + IPv4 header (48 hex chars).";
+        String dst = h.substring(0, 12), src = h.substring(12, 24), type = h.substring(24, 28);
+        sb.append("ETHERNET\n  DST MAC: ").append(fmtMac(dst)).append("\n  SRC MAC: ").append(fmtMac(src))
+            .append("\n  TYPE: 0x").append(type).append(type.equals("0800") ? " (IPv4)" : type.equals("86DD") ? " (IPv6)" : " (other)").append("\n");
+        int ip = 28;
+        if (h.length() >= ip + 20) {
+            int ver = Integer.parseInt(h.substring(ip, ip + 1), 16);
+            int ihl = Integer.parseInt(h.substring(ip + 1, ip + 2), 16) * 4;
+            String protoHex = h.substring(ip + 18, ip + 20);
+            String sip = ipv4(h.substring(ip + 24, ip + 32));
+            String dip = ipv4(h.substring(ip + 32, ip + 40));
+            sb.append("\nIPV4\n  VERSION: ").append(ver).append("  IHL: ").append(ihl).append(" bytes")
+                .append("\n  PROTOCOL: 0x").append(protoHex).append(" (").append(protoName(protoHex)).append(")")
+                .append("\n  SRC: ").append(sip).append("  DST: ").append(dip).append("\n");
+            int tp = ip + ihl;
+            if (protoHex.equals("06") && h.length() >= tp + 20) {
+                sb.append("\nTCP\n  SPORT: ").append(Integer.parseInt(h.substring(tp, tp + 4), 16))
+                    .append("  DPORT: ").append(Integer.parseInt(h.substring(tp + 4, tp + 8), 16)).append("\n");
+            } else if (protoHex.equals("11") && h.length() >= tp + 8) {
+                sb.append("\nUDP\n  SPORT: ").append(Integer.parseInt(h.substring(tp, tp + 4), 16))
+                    .append("  DPORT: ").append(Integer.parseInt(h.substring(tp + 4, tp + 8), 16)).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String protoName(String hex) {
+        return switch (hex) {
+            case "01" -> "ICMP";
+            case "06" -> "TCP";
+            case "11" -> "UDP";
+            default -> "unknown";
+        };
+    }
+
+    private static String fmtMac(String m) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 12; i += 2) {
+            if (i > 0) sb.append(':');
+            sb.append(m.charAt(i)).append(m.charAt(i + 1));
+        }
+        return sb.toString();
+    }
+
+    private static String ipv4(String h) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 8; i += 2) {
+            if (i > 0) sb.append('.');
+            sb.append(Integer.parseInt(h.substring(i, i + 2), 16));
+        }
+        return sb.toString();
+    }
+
+    private static String decodeJwt(String token) {
+        String[] parts = token.trim().split("\\.");
+        if (parts.length < 3) return "Not a JWT \u2014 expected header.payload.signature (3 dot-separated base64url parts).";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 2; i++) {
+            try {
+                byte[] d = java.util.Base64.getDecoder().decode(parts[i].replace('-', '+').replace('_', '/'));
+                sb.append(i == 0 ? "HEADER:\n" : "PAYLOAD:\n").append(new String(d, StandardCharsets.UTF_8)).append("\n\n");
+            } catch (Exception e) {
+                sb.append(i == 0 ? "HEADER: <invalid base64url>\n\n" : "PAYLOAD: <invalid base64url>\n\n");
+            }
+        }
+        sb.append("SIGNATURE: ").append(parts[2].length() > 24 ? parts[2].substring(0, 24) + "... (verify server-side with the key, never trust client claims)" : parts[2]);
+        return sb.toString();
+    }
+
+    private static byte[] hexToBytes(String hex) {
+        byte[] out = new byte[hex.length() / 2];
+        for (int i = 0; i < out.length; i++) out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        return out;
+    }
+
+    private static final String[][] PY_SNIPPETS = {
+        {"Encrypt with the gateway (requests)",
+            "import requests\n\nAPI = \"https://ultimate-crypto-python.onrender.com/encrypt\"\nKEY = \"YOUR_X_API_KEY\"\n\nr = requests.post(\n    API,\n    headers={\"X-API-KEY\": KEY, \"Content-Type\": \"application/json\"},\n    json={\"data\": \"Hello UC-Suite\", \"operation\": \"encrypt\", \"key\": \"secret\"},\n)\nprint(r.json())\n# {\"status\": \"success\", \"result\": \"...\"}"},
+        {"Hash with hashlib",
+            "import hashlib\n\nfor alg in (\"md5\", \"sha1\", \"sha256\"):\n    h = hashlib.new(alg, b\"password\".hexdigest()\n    print(alg, h)"},
+        {"HMAC message authentication",
+            "import hmac, hashlib\n\nsecret = b\"shared-secret\"\nmsg = b\"transfer 100 to emily\"\nsig = hmac.new(secret, msg, hashlib.sha256).hexdigest()\nprint(sig)\n# receiver recomputes and compares with hmac.compare_digest()"},
+        {"AES-256 CBC with cryptography",
+            "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\nfrom cryptography.hazmat.primitives import padding\nimport os\n\nkey = os.urandom(32)\niv = os.urandom(16)\npad = padding.PKCS7(128).padder()\ndata = pad.update(b\"secret message\") + pad.finalize()\nct = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor().update(data)\nprint(key.hex(), iv.hex(), ct.hex())"}
+    };
+
+    private static final String[][] JAVA_SNIPPETS = {
+        {"SHA-256 digest (JDK only)",
+            "import java.security.MessageDigest;\nimport java.nio.charset.StandardCharsets;\n\nbyte[] d = MessageDigest.getInstance(\"SHA-256\")\n        .digest(\"password\".getBytes(StandardCharsets.UTF_8));\nStringBuilder sb = new StringBuilder();\nfor (byte b : d) sb.append(String.format(\"%02x\", b));\nSystem.out.println(sb);"},
+        {"HMAC-SHA256",
+            "import javax.crypto.Mac;\nimport javax.crypto.spec.SecretKeySpec;\n\nMac mac = Mac.getInstance(\"HmacSHA256\");\nmac.init(new SecretKeySpec(\"shared-secret\".getBytes(), \"HmacSHA256\"));\nbyte[] sig = mac.doFinal(\"message\".getBytes());\nSystem.out.println(bytesToHex(sig));"},
+        {"AES-128-CBC",
+            "import javax.crypto.Cipher;\nimport javax.crypto.spec.SecretKeySpec;\nimport javax.crypto.spec.IvParameterSpec;\n\nbyte[] key = new byte[16]; // 16 bytes\nCipher c = Cipher.getInstance(\"AES/CBC/PKCS5Padding\");\nc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, \"AES\"),\n        new IvParameterSpec(new byte[16]));\nbyte[] ct = c.doFinal(\"hello\".getBytes());"},
+        {"Call the gateway",
+            "import java.net.URI;\nimport java.net.http.*;\n\nHttpClient client = HttpClient.newHttpClient();\nHttpRequest req = HttpRequest.newBuilder(URI.create(\n    \"https://ultimate-crypto-python.onrender.com/encrypt\"))\n    .header(\"X-API-KEY\", \"YOUR_X_API_KEY\")\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\n        \"{\\\"data\\\":\\\"hi\\\",\\\"operation\\\":\\\"encrypt\\\",\\\"key\\\":\\\"secret\\\"}\"))\n    .build();\nSystem.out.println(client.send(req, HttpResponse.BodyHandlers.ofString()).body());"}
+    };
+
+    private static final String[][] CURL_SNIPPETS = {
+        {"Encrypt",
+            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/encrypt \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: YOUR_X_API_KEY\" \\\n  -d '{\"data\":\"Hello\",\"operation\":\"encrypt\",\"key\":\"secret\"}'"},
+        {"Health check",
+            "curl -sS https://ultimate-crypto-python.onrender.com/health"},
+        {"Verify a certificate QR",
+            "curl -sS \"https://ultimate-crypto-python.onrender.com/verify-cert?vid=YOUR_VID&sig=YOUR_SIG\""},
+        {"Legacy Caesar",
+            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/legacy-cipher \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: YOUR_X_API_KEY\" \\\n  -d '{\"data\":\"HELLO\",\"shift\":3}'"}
+    };
+
+    // --- concept content: how it works ---
+    private static String[] conceptHow(String id, String name) {
+        return switch (id) {
+            case "ecc" -> new String[]{"Uses points on an elliptic curve over a finite field.", "Scalar multiplication k*G gives one-wayness: recover k from k*G is infeasible.", "A 256-bit ECC key offers roughly the security of a 3072-bit RSA key."};
+            case "des" -> new String[]{"64-bit block cipher with a 56-bit key.", "16 Feistel rounds, each with a round key derived from the master key.", "56 bits was brute-forced in 1999 (DESCHALL) \u2014 replaced by AES."};
+            case "blowfish" -> new String[]{"64-bit block cipher designed by Bruce Schneier in 1993.", "Key schedule up to 448 bits; fast and patent-free.", "Deprecated for hashing (bcrypt) but still seen in legacy systems."};
+            case "twofish" -> new String[]{"128-bit block cipher, an AES finalist.", "Keyed S-boxes and a Feistel-like network.", "Secure but lost to AES on speed/efficiency grounds."};
+            case "chacha20" -> new String[]{"Stream cipher over a 256-bit key and 96-bit nonce.", "ARX (add-rotate-xor) operations, very fast in software.", "Used by TLS 1.3 via ChaCha20-Poly1305, and in WireGuard."};
+            case "salsa20" -> new String[]{"Predecessor of ChaCha20, eSTREAM portfolio winner.", "Applies 20 rounds of quarter-round mixing to a 64-byte state.", "ChaCha improved diffusion by changing the ordering of the rounds."};
+            case "hmac" -> new String[]{"Hash keyed with a secret using inner/outer padding.", "Resists length-extension attacks that plain hashes allow.", "Used for API signatures, TLS record integrity and password KDFs."};
+            case "pbkdf2" -> new String[]{"Applies HMAC iteratively to derive a key from a password + salt.", "Cost parameter c slows each guess, defeating fast brute force.", "Still safe, but memory-hard KDFs (Argon2, scrypt) resist GPU cracking better."};
+            case "argon2" -> new String[]{"Winner of the 2015 Password Hashing Competition.", "Memory-hard: needs large RAM per hash, hurting GPU/ASIC attackers.", "Modes: Argon2d (data-dependent), Argon2i (data-independent), Argon2id (hybrid)."};
+            case "lsb", "payload", "imgdiff", "audiostego", "metadata" -> new String[]{"Steganography hides data inside innocuous carrier media.", "LSB replaces the least-significant bit of pixel/sample values with message bits.", "Detection requires statistical analysis \u2014 high entropy in low bits is a tell."};
+            case "padoracle" -> new String[]{"CBC decryption un-pads every block after decrypting.", "A server that reports 'invalid padding' is a padding oracle.", "Attacker flips bytes in the previous block and reads the oracle bit by bit to recover plaintext."};
+            case "differential" -> new String[]{"Studies how a chosen input difference propagates through rounds.", "Finds pairs whose difference produces a biased output difference.", "Used to attack DES (differential cryptanalysis) and to design S-boxes."};
+            case "linear" -> new String[]{"Approximates the cipher with linear equations.", "Finds high-bias linear relations between plaintext, ciphertext and key bits.", "Gathers many (plaintext,ciphertext) pairs to solve for key bits."};
+            case "weakkey" -> new String[]{"Some RSA moduli share a common prime factor.", "The GCD of two moduli instantly reveals a shared factor.", "Scans many public keys for shared factors \u2014 a known real-world attack."};
+            case "merkle" -> new String[]{"Each leaf is a hash; each parent hashes its children.", "The root commits to every leaf without revealing the others.", "A membership proof is just the sibling hashes along one path \u2014 O(log n) size."};
+            case "bloom" -> new String[]{"Bit array + k hash functions per element.", "Insert: set k bits. Query: check k bits \u2014 any 0 means 'not present'.", "No false negatives; false positives trade off with array size."};
+            case "hashtable" -> new String[]{"Maps keys to buckets via a hash function.", "Collisions chained or probed; load factor controls performance.", "Attackers can force collisions (hash-flooding) if the hash is predictable."};
+            case "trie" -> new String[]{"Tree keyed by character prefixes.", "Lookup is O(length of key), independent of dictionary size.", "Foundation of DNS resolution tables and network route tables."};
+            case "stacks" -> new String[]{"LIFO push/pop with O(1) top access.", "Every function call pushes a frame; the stack pointer tracks it.", "Buffer overflows corrupt return addresses on the stack \u2014 the classic exploit."};
+            case "queues" -> new String[]{"FIFO with O(1) enqueue/dequeue.", "Networking: packet queues, scheduler ready-queues, message buffers.", "Queue-overflow DoS attacks exhaust these buffers."};
+            case "priority" -> new String[]{"Each element carries a priority; extract-max/min in O(log n).", "Implemented with a binary heap.", "Drives scheduling, Dijkstra's algorithm and rate-limiters."};
+            case "disjoint" -> new String[]{"Union-find tracks connected components.", "Nearly O(1) amortized with path compression.", "Used by Kruskal's MST and to detect loops in graphs."};
+            case "avl" -> new String[]{"BST that keeps |balance| \u2264 1 on every node.", "Rotations restore balance after insert/delete.", "Guarantees O(log n) worst-case search."};
+            case "redblack" -> new String[]{"BST colored red/black with 5 invariants.", "Guarantees a balanced tree with fewer rotations than AVL.", "The classic implementation is Java's TreeMap/TreeSet."};
+            case "btree" -> new String[]{"Multiway tree storing many keys per node.", "Minimizes disk seeks \u2014 one node = one disk block.", "Database index structures are B/B+ trees."};
+            case "bplus" -> new String[]{"B-tree variant: all values live in the leaves.", "Leaves are linked for fast range scans.", "MySQL/PostgreSQL indexes and key-value stores use them."};
+            case "heaps" -> new String[]{"Complete binary tree as a flat array.", "Parent at i, children at 2i+1 and 2i+2.", "Priority queues, heap sort, and scheduler heaps."};
+            case "graphalgo" -> new String[]{"BFS/DFS traverse graphs; Dijkstra/Bellman-Ford find shortest paths.", "Kruskal/Prim build minimum spanning trees.", "Network routing, dependency resolution and firewall rule graphs all use these."};
+            case "jwt" -> new String[]{"Header.payload.signature, each part base64url.", "Signature = HMAC(header.payload) or RSA/ECDSA with a private key.", "Servers must verify the signature and expiry on every request \u2014 never trust the client."};
+            case "xss" -> new String[]{"Attacker injects <script> into a page other users view.", "Stored (in DB), reflected (in URL) or DOM-based.", "CSP, output encoding and escaping are the fix."};
+            case "csrf" -> new String[]{"Attacker tricks a logged-in browser into sending a state-changing request.", "Cookies ride along automatically \u2014 the server can't tell who clicked.", "SameSite cookies and CSRF tokens defeat it."};
+            case "sqli" -> new String[]{"User input concatenated into a SQL query.", "' OR 1=1 -- changes the query's meaning entirely.", "Parameterized queries/prepared statements fix it; WAFs only help."};
+            case "ssrf" -> new String[]{"Server fetches a URL the attacker supplies.", "file://, internal metadata endpoints and localhost become reachable.", "Allow-list destinations and block loopback/private ranges."};
+            case "xxe" -> new String[]{"XML external entities let the parser read files or hit URLs.", "<!ENTITY xxe SYSTEM \"file:///etc/passwd\">.", "Disable external entities in the parser."};
+            case "ssti" -> new String[]{"User input rendered inside a template engine.", "{{7*7}} evaluates server-side if the context is unsafe.", "Sandbox templates and never render user input as templates."};
+            case "oauth" -> new String[]{"Delegated authorization: the user grants a client limited access.", "Flows: authorization code, implicit, client credentials, device.", "Redirect URI validation is the classic breaking point."};
+            case "cors" -> new String[]{"Browser enforces which origins may read a response.", "Access-Control-Allow-Origin reflects or restrict.", "Mis-set wildcards and reflection allow any site to exfiltrate."};
+            case "websockets" -> new String[]{"Bidirectional TCP connection with an HTTP handshake.", "Origin isn't checked by default \u2014 cross-site WebSocket hijacking.", "Validate Origin and use tokens in the first message."};
+            case "csp" -> new String[]{"Header telling the browser what may load from where.", "script-src 'self' blocks injected <script> outright.", "Defense-in-depth: encode output too, CSP is a second layer."};
+            case "samesite" -> new String[]{"Cookie attribute: Lax/Strict/None control cross-site sending.", "Lax stops most CSRF while keeping top-level navigation working.", "Combine with CSRF tokens for defense-in-depth."};
+            case "apk" -> new String[]{"APK = ZIP with dex, resources, manifest and signatures.", "Decompile to smali, patch, re-sign.", "Manifest exported components are the prime attack surface."};
+            case "dex" -> new String[]{"Dalvik bytecode \u2014 registers-based, unlike JVM's stack machine.", "Smali is the human-readable assembly of DEX.", "DEX-to-Java decompilers recover near-original code."};
+            case "frida" -> new String[]{"Injects a JavaScript engine into a running app.", "Hook functions, intercept arguments, change return values live.", "Classic for bypassing root checks and certificate pinning."};
+            case "disasm" -> new String[]{"Machine bytes are mapped to instructions (opcode, operands).", "x86 is variable-length \u2014 a single byte can be one or many instructions.", "objdump, capstone and IDA/Ghidra are the standard tools."};
+            case "decomp" -> new String[]{"Lifts machine code to an intermediate representation, then to C-like source.", "Variable names and types are reconstructed heuristically.", "Ghidra's decompiler is the open-source reference."};
+            case "rop" -> new String[]{"NX makes the stack non-executable, so attackers reuse existing code.", "Small instruction sequences ending in ret are 'gadgets'.", "Chaining gadgets re-creates arbitrary logic without writing new code."};
+            case "shellcode" -> new String[]{"Position-independent code that runs wherever it lands.", "Avoids null bytes that strcpy would truncate.", "Alphanumeric and encoded variants slip past filters."};
+            case "strings" -> new String[]{"Printable ASCII/Unicode runs embedded in binaries.", "Reveal URLs, usernames, flag strings and format strings.", "The quickest triage step in any RE investigation."};
+            case "processes" -> new String[]{"Each process owns an isolated virtual address space.", "Context switches swap registers and page tables.", "Privilege separation (user/kernel) is enforced by the MMU."};
+            case "threads" -> new String[]{"Threads share memory, so they're cheap but racy.", "Synchronization primitives prevent data races.", "Race conditions are a top source of memory-safety bugs."};
+            case "scheduling" -> new String[]{"CFS (Linux) / multi-level queues pick the next thread.", "Priorities, time slices and fairness all matter.", "DoS attacks exploit scheduler starvation and priority inversion."};
+            case "paging" -> new String[]{"Memory divided into fixed-size pages.", "A page table maps virtual to physical frames, cached by the TLB.", "Dirty/cow pages, ASLR and page-table attacks live here."};
+            case "kernel" -> new String[]{"Runs in the highest privilege ring.", "Syscalls are the only sanctioned entry point.", "Kernel exploits chain a memory bug to escalate privileges."};
+            case "syscalls" -> new String[]{"read, write, mmap, execve, clone...", "The only way userspace touches hardware safely.", "Seccomp filters can deny syscalls \u2014 a common sandbox."};
+            case "dll" -> new String[]{"Loading a DLL into another process lets you run code in its context.", "Techniques: CreateRemoteThread, SetWindowsHookEx, AppInit_DLLs.", "Defenders use DLL load-path and signature verification."};
+            case "tls" -> new String[]{"Handshake negotiates cipher suite and keys.", "Certificate chain proves server identity.", "Downgrade, renegotiation and padding attacks are historic."};
+            case "arp" -> new String[]{"Broadcast 'who has IP?' maps to a MAC reply.", "No authentication \u2014 anyone can spoof the reply.", "ARP spoofing enables on-path sniffing in a LAN."};
+            case "dns" -> new String[]{"Resolver hierarchy: root, TLD, authoritative.", "UDP port 53, DNSSEC adds signatures.", "DNS rebinding, tunneling and exfiltration are common attacks."};
+            case "tcpip" -> new String[]{"TCP adds reliability on top of IP.", "Three-way handshake, sequence numbers, retransmission.", "Sequence prediction and RST injection are classic off-path attacks."};
+            default -> new String[]{
+                name + " is a core concept in systems and security.",
+                "Understanding its structure and operations is the foundation for reasoning about secure systems.",
+                "Combine it with the UC-LABS simulators and CODE SANDBOX to experiment hands-on."
+            };
+        };
+    }
+
+    private static String[] securityUses(String id, String name) {
+        return switch (id) {
+            case "arrays" -> new String[]{"Key schedules, block states and lookup tables are arrays.", "Heap overflows corrupt adjacent array elements.", "Ring buffers and packet reassembly buffers.", "Transaction and block storage as sequential arrays."};
+            case "linkedlist" -> new String[]{"Memory allocators manage free blocks as linked lists.", "Use-after-free attacks walk freed nodes.", "NIC descriptor rings and connection state lists.", "Blockchains link blocks into an unbroken chain."};
+            case "stacks" -> new String[]{"Stack frames hold return addresses \u2014 the overflow target.", "Stack canaries and shadow stacks defend the return address.", "Call stacks in firewalls and proxies.", "Stack-based LIFO used in scripting languages on-chain."};
+            case "queues" -> new String[]{"Message and job queues buffer untrusted input.", "Queue floods are a DoS vector.", "Network packet queues and backpressure.", "Transaction mempools are priority-ordered queues."};
+            case "trees" -> new String[]{"Directory/role hierarchies and parse trees.", "Tree-shaped object graphs are traversal attack targets.", "Routing tables are trees.", "Merkle/patricia trees prove blockchain state."};
+            case "merkle" -> new String[]{"Merkle-Damgard construction underlies MD5/SHA-1/SHA-2.", "Tamper-evidence: any leaf change changes the root.", "Certificate transparency and gossip protocols.", "Bitcoin merkle roots commit all transactions per block."};
+            case "graphs" -> new String[]{"Dependency graphs in dependency-confusion attacks.", "Malware C2 graphs and kill chains.", "Network topologies and routing graphs.", "Block DAGs and account-address graphs in analytics."};
+            case "trie" -> new String[]{"Prefix tables for autocomplete and censoring.", "Matching prefixes of malicious patterns.", "IP prefix/CIDR routing tables.", "Ethereum's Patricia-Merkle trie stores world state."};
+            case "bloom" -> new String[]{"Cheap membership checks for blocklists.", "Faster malware signature screening.", "Caching and dedup in CDNs/proxies.", "Light-client filters over chain data."};
+            case "hashtable" -> new String[]{"Hash functions power the table itself.", "Collision attacks (hash-flooding) slow servers.", "Flow tables, session tables, DNS caches.", "Bloom/PoW hashing and state DBs are hash tables."};
+            case "pq" -> new String[]{"Scheduler and priority-ordered crypto work.", "Priority-inversion attacks.", "Packet scheduling and QoS queues.", "Transaction fee-priority ordering in mempools."};
+            case "segtree" -> new String[]{"Range-aggregate verification over logs.", "Finding anomalous ranges in telemetry.", "Network range ACL lookups.", "Range proofs over balances."};
+            case "disjoint" -> new String[]{"Detecting clusters in incident graphs.", "Finding connected components in botnets.", "Subnet and AS connectivity.", "Consensus validator-set partitions."};
+            case "bst" -> new String[]{"Balanced BSTs back sorted maps (TreeMap).", "Ordered lookups in security logs.", "Sorted route/index structures.", "Ordered key stores for chain state."};
+            case "avl" -> new String[]{"Guaranteed O(log n) worst case for secure maps.", "Deterministic ordering avoids hash attacks.", "Sorted tree indexes.", "Deterministic state ordering in engines."};
+            case "redblack" -> new String[]{"Java TreeMap/TreeSet power many crypto key stores.", "Faster inserts than AVL, still balanced.", "Kernel/network ordered structures.", "Ordered maps in chain clients."};
+            case "btree" -> new String[]{"Encrypted database indexes (searchable encryption).", "Anti-tamper log storage.", "Routing/forwarding tables.", "Blockchain DB indexes (LevelDB/RocksDB are LSM+B-tree hybrids)."};
+            case "bplus" -> new String[]{"Range scans over encrypted logs.", "Efficient audit-log retrieval.", "Flow records and time-series stores.", "Chain state range queries."};
+            case "heaps" -> new String[]{"Heap-based priority in scheduler crypto.", "Heap overflow/underflow is a core memory bug.", "Timer heaps in network stacks.", "Priority queues for fee-based mining."};
+            case "sorting" -> new String[]{"Canonicalization before signing prevents ambiguity.", "Sorting helps stable, reproducible artifacts.", "Flow/packet ordering and dedup.", "Deterministic transaction ordering."};
+            case "searching" -> new String[]{"Binary search in secure index lookups.", "Searching binary patterns in memory/disk.", "Route/packet lookups.", "Address and UTXO lookups."};
+            case "graphalgo" -> new String[]{"Shortest-path in key schedule and network flows.", "Botnet C2 path discovery.", "Routing algorithms are graph algorithms.", "DAG ordering and finality protocols."};
+            case "dp" -> new String[]{"Cryptanalysis cost optimization.", "Exploit-chain planning (A* search).", "Congestion/flow optimization.", "Optimal gas/transaction scheduling."};
+            case "greedy" -> new String[]{"Greedy key/byte-choice in compression attacks.", "Malware downloader prioritization.", "Rate-limiting and routing heuristics.", "Mining revenue maximization."};
+            case "bigo" -> new String[]{"Algorithmic complexity analysis of attacks.", "Estimating brute-force cost and defense limits.", "Scaling analysis of packet processing.", "Scalability of consensus and state."};
+            case "aes" -> new String[]{"AES is the workhorse symmetric cipher for data-at-rest/in-transit.", "AES-NI hardware accelerates it on every modern CPU.", "TLS and disk encryption use AES-GCM/CBC.", "No role in chain crypto (kept for wallet vaults)."};
+            case "rsa" -> new String[]{"RSA underpins key exchange, encryption and signatures.", "Weak-key scans find shared primes among public keys.", "TLS certificates are RSA/ECDSA-signed.", "Not used on-chain, but powers exchange custody."};
+            case "ecc" -> new String[]{"ECDH key agreement and ECDSA signatures.", "Small keys speed embedded and mobile crypto.", "TLS/SSH/WireGuard all rely on curve25519/P-256.", "Bitcoin and Ethereum use ECDSA secp256k1."};
+            case "sha" -> new String[]{"SHA-256 builds HMAC and KDFs.", "Hashing is used to fingerprint malware.", "TLS transcript hashes and IPsec.", "SHA-256 is Bitcoin's proof-of-work and address hash."};
+            case "hmac" -> new String[]{"Authenticates API calls (your X-API-KEY flow).", "Detects tampered binaries/updates.", "TLS record authentication.", "Not used on-chain directly, but wraps custody APIs."};
+            case "pbkdf2" -> new String[]{"Derives encryption keys from passwords.", "Hardens stolen-password databases.", "VPN/IPsec pre-shared keys.", "Wallet seed derivation (BIP-39 uses PBKDF2)."};
+            case "argon2" -> new String[]{"Modern password storage.", "Slows offline password cracking.", "Session key derivation in apps.", "Wallet encryption with strong KDF."};
+            case "chacha20", "salsa20" -> new String[]{"Stream ciphers for bulk encryption.", "Fast constant-time software crypto.", "TLS 1.3 ChaCha20-Poly1305 suites.", "Lightweight chain libraries on constrained devices."};
+            case "jwt" -> new String[]{"Sign tokens with HMAC/RSA \u2014 verify server-side.", "alg=none and weak-key forgery are classic attacks.", "Bearer tokens in web APIs.", "Signed off-chain identity for wallets."};
+            case "xss" -> new String[]{"Steals cookies and session tokens.", "Phishing overlays on trusted pages.", "Browser-side; no direct network impact.", "Wallet phishing via dApp overlays."};
+            case "csrf" -> new String[]{"State-changing actions on authenticated sessions.", "Malware-driven or via malicious sites.", "Web APIs and admin panels.", "Exchange/withdrawal CSRF attacks."};
+            case "sqli" -> new String[]{"Data exfiltration from vulnerable apps.", "Credential theft fuels further compromise.", "Dashboards and log stores are prime targets.", "Exploiting exchange databases to drain wallets."};
+            case "ssrf" -> new String[]{"Access cloud metadata and internal services.", "Reach internal C2 from a compromised web app.", "Probe internal networks through a proxy.", "Hit validator/relayer internals."};
+            case "xxe" -> new String[]{"Read files via XML parsing.", "Internal port scanning via entities.", "Attacking SOAP/XML APIs.", "XML-based wallet formats."};
+            case "arp" -> new String[]{"Used in LAN MITM (sniffing, credential theft).", "Malware uses ARP spoofing to intercept neighbors.", "Ethernet/IP glue \u2014 on-path position.", "LAN segments hosting validator nodes."};
+            case "dns" -> new String[]{"DNS rebinding and tunneling.", "C2 exfiltration via DNS queries.", "Core resolution protocol.", "ENS domains resolve to wallet addresses."};
+            case "tls" -> new String[]{"Encrypts traffic against passive sniffing.", "TLS pinning is bypassed by malware.", "The web's transport trust layer.", "Wallet and exchange transport security."};
+            case "apk" -> new String[]{"Repackaging and signing flaws.", "Trojanized apps exfiltrate data.", "App-to-server channels.", "Fake wallet apps steal keys."};
+            case "dex" -> new String[]{"Decompilation reveals logic and secrets.", "DEX patching repurposes apps.", "In-app network behavior.", "Obfuscated dex hides wallet-stealing logic."};
+            case "disasm", "decomp" -> new String[]{"Reverse malware to recover keys and algorithms.", "Extract C2 addresses and decryption routines.", "Understand protocol parsers.", "Audit smart-contract bytecode."};
+            case "rop" -> new String[]{"Code-reuse exploitation of memory bugs.", "Bypasses NX on stack/heap.", "Remote exploitation primitives.", "Attacking node software."};
+            case "shellcode" -> new String[]{"The payload after a memory-corruption bug.", "Droppers and downloaders.", "Listener/beacon payloads.", "Compromised node implants."};
+            case "paging" -> new String[]{"Rowhammer and page-table attacks.", "Page-cache side channels (Meltdown/Spectre class).", "DMA and page sharing.", "Validator memory isolation."};
+            case "kernel" -> new String[]{"LPE chains target kernel bugs.", "Kernel rootkits hide malware.", "Netfilter/iptables live in-kernel.", "Chain nodes harden kernels."};
+            case "dll" -> new String[]{"DLL hijacking and injection.", "Persistent malware loading.", "Winsock hooks sniff traffic.", "Injected miners in exchange hosts."};
+            default -> new String[]{
+                name + " appears across crypto (key schedules, KDFs, signing).",
+                "Malware uses it for evasion, persistence and payloads.",
+                "Networking builds on it for protocols, packets and defenses.",
+                "Blockchain applies it to consensus, proofs and wallets."
+            };
+        };
+    }
+
     private VBox createSidebar() {
         VBox sidebar = new VBox(10);        sidebar.setPadding(new Insets(20));
         sidebar.setPrefWidth(240);
         sidebar.setStyle("-fx-background-color: #010409; -fx-border-color: #30363d; -fx-border-width: 0 1 0 0;");
-        
+
         try {
             javafx.scene.image.Image img = new javafx.scene.image.Image(getClass().getResourceAsStream("/logo.png"));
             javafx.scene.image.ImageView logoView = new javafx.scene.image.ImageView(img);
@@ -10819,7 +11794,25 @@ public class Dashboard extends BorderPane {
         }
 
         sidebar.getChildren().add(new Separator());
-        
+
+        // ======================= UC MODULES =======================
+        Label modHeader = new Label("🧩 UC MODULES");
+        modHeader.setStyle("-fx-text-fill: #FFD700; -fx-font-size: 10px; -fx-font-weight: bold; -fx-letter-spacing: 1px;");
+        sidebar.getChildren().add(modHeader);
+        sidebar.getChildren().addAll(
+            createMenuBtn("🧪 UC-LABS", e -> showModuleHub("labs")),
+            createMenuBtn("⚙ UC-DEVELOPER", e -> showModuleHub("developer")),
+            createMenuBtn("🔬 UC-REVERSE", e -> showModuleHub("reverse")),
+            createMenuBtn("📐 UC-DSA", e -> showModuleHub("dsa")),
+            createMenuBtn("💻 UC-OS", e -> showModuleHub("os")),
+            createMenuBtn("🌐 UC-NETWORK", e -> showModuleHub("network")),
+            createMenuBtn("⛓️ UC-BLOCKCHAIN", e -> showBlockchain()),
+            createMenuBtn("☁️ UC-CLOUD", e -> showModuleHub("cloud")),
+            createMenuBtn("📱 UC-MOBILE", e -> showModuleHub("mobile")),
+            createMenuBtn("🕸️ UC-WEB", e -> showModuleHub("web"))
+        );
+        sidebar.getChildren().add(new Separator());
+
         sidebar.getChildren().addAll(
             createMenuBtn("🛡️ AES HYBRID", e -> showAESModule()),
             createMenuBtn("📧 PGP ENCRYPT", e -> showPGPModule()),
@@ -10857,20 +11850,20 @@ public class Dashboard extends BorderPane {
         sidebar.getChildren().add(new Separator());
 
 if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
-        
+
         // Ongeza mstari wa kutenganisha (Separator)
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color: #30363d;");
-        
+
         Button adminPanelBtn = new Button("🛠 ADMIN ANALYTICS");
         adminPanelBtn.setMaxWidth(Double.MAX_VALUE);
         adminPanelBtn.setPrefHeight(40);
         // Rangi nyekundu ili ionekane ni sehemu ya hatari/nguvu (Power)
         adminPanelBtn.setStyle("-fx-background-color: #f85149; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;");
-        
+
         // Hapa ndipo unapofungua hiyo dashboard ya analytics
-        adminPanelBtn.setOnAction(e -> { academyActive = false; showAdminAnalytics(); }); 
-        
+        adminPanelBtn.setOnAction(e -> { academyActive = false; showAdminAnalytics(); });
+
         sidebar.getChildren().addAll(sep, adminPanelBtn);
     }
 

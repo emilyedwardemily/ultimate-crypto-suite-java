@@ -14,6 +14,7 @@ ui/RegisterScreen.class
 academy/AcademyService$GlobalPosition.class
 academy/EliteService$ArchComponent.class
 ui/Dashboard$9.class
+ui/Dashboard$UcItem.class
 academy/EliteService$Block.class
 app/MainApp.class
 academy/EliteService$Board.class
@@ -33,6 +34,7 @@ academy/AcademyService$ScanResult.class
 ui/Dashboard$3.class
 academy/AcademyFx.class
 academy/EliteService$Incident.class
+ui/Dashboard$UcSection.class
 storage/MongoManager.class
 academy/EliteService$CustomLab.class
 academy/EliteService$Team.class
@@ -62,6 +64,7 @@ ui/Dashboard$ChallengeData.class
 academy/EliteService$LearningPath.class
 ui/Dashboard$5.class
 academy/EliteService$Course.class
+ui/Dashboard$UcModule.class
 ui/Dashboard$2.class
 academy/EliteService$MarketListing.class
 academy/EliteService$Thread.class
