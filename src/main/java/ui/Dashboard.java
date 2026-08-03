@@ -59,6 +59,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -421,7 +422,15 @@ public class Dashboard extends BorderPane {
         Button btnSign = new Button("🖋️ RSA SIGN");
         btnSign.setStyle(BTN_PURPLE);
         btnSign.setOnAction(e -> handleDigitalSignature());
-        actionBox.getChildren().addAll(btnSign, btnSync);
+
+        Button btnPy = new Button("🐍 EXPORT PYTHON");
+        btnPy.setStyle(BTN_BLUE);
+        btnPy.setOnAction(e -> showExportDialog(buildPythonScript(titleStr)));
+
+        Button btnCurl = new Button("📋 COPY CURL");
+        btnCurl.setStyle("-fx-background-color: #21262d; -fx-text-fill: #c9d1d9; -fx-font-weight: bold; -fx-cursor: hand;");
+        btnCurl.setOnAction(e -> copyToClipboard(buildCurlCommand(titleStr)));
+        actionBox.getChildren().addAll(btnSign, btnSync, btnPy, btnCurl);
 
         main.getChildren().addAll(title, mfaBar, new Label("PLAINTEXT / CIPHERTEXT:"), inputArea, 
                                   new Label("SECURITY KEY:"), keyField, strengthMeter, 
@@ -430,6 +439,137 @@ public class Dashboard extends BorderPane {
         
         main.getChildren().forEach(n -> { if (n instanceof Label label && n != title) label.setTextFill(Color.web(LABEL_COLOR)); });
         setCenter(main);
+    }
+
+    /** Generates a standalone Python port of the current module for the given input/key. */
+    private String buildPythonScript(String titleStr) {
+        String input = inputArea.getText();
+        String key = keyField.getText();
+        String m = titleStr.toLowerCase();
+        if (m.contains("xor")) {
+            return "#!/usr/bin/env python3\n"
+                + "# XOR BITWISE ENGINE port\n"
+                + "text = " + pyStr(input) + "\n"
+                + "key  = " + pyStr(key.isEmpty() ? "KEY" : key) + "\n"
+                + "out  = ''.join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(text))\n"
+                + "print(out)\n"
+                + "# decrypt by running the same XOR on the output with the same key";
+        }
+        if (m.contains("caesar") || m.contains("rot13")) {
+            return "#!/usr/bin/env python3\n"
+                + "import string\n"
+                + "text = " + pyStr(input) + "\n"
+                + "shift = 3\n"
+                + "def caesar(s, n):\n"
+                + "    u = string.ascii_uppercase; l = string.ascii_lowercase\n"
+                + "    return s.translate(str.maketrans(u + l, u[n:] + u[:n] + l[n:] + l[:n]))\n"
+                + "print(caesar(text, shift))";
+        }
+        if (m.contains("base64")) {
+            return "#!/usr/bin/env python3\n"
+                + "import base64\n"
+                + "data = " + pyStr(input) + "\n"
+                + "print(base64.b64encode(data.encode()).decode())\n"
+                + "# decode: print(base64.b64decode(data).decode())";
+        }
+        if (m.contains("pgp")) {
+            return "#!/usr/bin/env python3\n"
+                + "# OpenPGP port (requires python-gnupg)\n"
+                + "import gnupg\n"
+                + "gpg = gnupg.GPG()\n"
+                + "enc = gpg.encrypt(" + pyStr(input) + ", recipients=['you@example.com'])\n"
+                + "print(str(enc))";
+        }
+        if (m.contains("stego")) {
+            return "#!/usr/bin/env python3\n"
+                + "from PIL import Image\n"
+                + "img = Image.open('carrier.png').convert('RGB')\n"
+                + "msg = " + pyStr(input) + " + '\\0'   # null-terminator ends the message\n"
+                + "bits = ''.join(f'{ord(c):08b}' for c in msg)\n"
+                + "px = img.load(); i = 0\n"
+                + "for y in range(img.height):\n"
+                + "    for x in range(img.width):\n"
+                + "        if i >= len(bits): break\n"
+                + "        r, g, b = px[x, y]\n"
+                + "        px[x, y] = (r & 0xFE) | int(bits[i]); i += 1\n"
+                + "img.save('hidden.png')";
+        }
+        if (m.contains("rsa")) {
+            return "#!/usr/bin/env python3\n"
+                + "from Crypto.PublicKey import RSA\n"
+                + "from Crypto.Cipher import PKCS1_OAEP\n"
+                + "key = RSA.generate(2048)\n"
+                + "cipher = PKCS1_OAEP.new(key.publickey())\n"
+                + "ct = cipher.encrypt(" + pyStr(input) + ".encode())\n"
+                + "print(ct.hex())\n"
+                + "print(PKCS1_OAEP.new(key).decrypt(ct).decode())";
+        }
+        if (m.contains("aes") || m.contains("smime") || m.contains("forensic")) {
+            return "#!/usr/bin/env python3\n"
+                + "# AES-256 hybrid port\n"
+                + "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\n"
+                + "from cryptography.hazmat.primitives import padding\n"
+                + "import os\n"
+                + "data = " + pyStr(input) + ".encode()\n"
+                + "key = os.urandom(32); iv = os.urandom(16)\n"
+                + "pad = padding.PKCS7(128).padder(); padded = pad.update(data) + pad.finalize()\n"
+                + "enc = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()\n"
+                + "ct = enc.update(padded) + enc.finalize()\n"
+                + "print('key:', key.hex()); print('iv:', iv.hex()); print('ct:', ct.hex())";
+        }
+        return "#!/usr/bin/env python3\n# UC-Suite module port\nprint(" + pyStr(input) + ")";
+    }
+
+    /** Builds a curl command against the UC-Suite API gateway for the current module. */
+    private String buildCurlCommand(String titleStr) {
+        String input = inputArea.getText();
+        String m = titleStr.toLowerCase();
+        String endpoint = "/encrypt";
+        String op = "encrypt";
+        if (m.contains("rsa")) endpoint = "/rsa-encrypt";
+        if (m.contains("pgp")) endpoint = "/pgp-encrypt";
+        if (m.contains("caesar") || m.contains("rot13")) { endpoint = "/caesar"; op = "caesar"; }
+        return "curl -sS -X POST https://ultimate-crypto-python.onrender.com" + endpoint + " \\\n"
+            + "  -H \"Content-Type: application/json\" \\\n"
+            + "  -H \"X-API-KEY: " + (LoginScreen.SESSION_TOKEN.isEmpty() ? "YOUR_API_KEY" : LoginScreen.SESSION_TOKEN) + "\" \\\n"
+            + "  -d '{\"text\": " + org.json.JSONObject.quote(input.isEmpty() ? "HELLO WORLD" : input)
+            + ", \"operation\": \"" + op + "\", \"key\": \"\"}'";
+    }
+
+    private static String pyStr(String s) {
+        return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
+    }
+
+    private void copyToClipboard(String text) {
+        var clip = javafx.scene.input.Clipboard.getSystemClipboard();
+        clip.setContent(java.util.Map.of(javafx.scene.input.DataFormat.PLAIN_TEXT, text));
+        addLog("[TOOLKIT] Copied to clipboard.");
+        academy.notifyOnce("TOOLKIT", "COPIED", "Snippet copied to clipboard.");
+    }
+
+    /** Modal dialog showing a generated snippet with a COPY button. */
+    private void showExportDialog(String script) {
+        javafx.stage.Stage dlg = new javafx.stage.Stage();
+        dlg.initOwner((javafx.stage.Stage) getScene().getWindow());
+        dlg.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        dlg.setTitle("Export Python Port");
+        TextArea ta = new TextArea(script);
+        ta.setEditable(false);
+        ta.setPrefSize(620, 460);
+        ta.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #58a6ff;"
+            + " -fx-font-family: 'DejaVu Sans Mono', 'Courier New'; -fx-font-size: 12px; -fx-border-color: #30363d;");
+        Button copy = AcademyUi.button("\uD83D\uDCCB COPY", "#1f6feb", "#ffffff");
+        copy.setOnAction(e -> { copyToClipboard(script); dlg.close(); });
+        Button close = AcademyUi.button("CLOSE", "#21262d", AcademyUi.LIGHT);
+        close.setOnAction(e -> dlg.close());
+        HBox bar = new HBox(10, copy, close);
+        bar.setAlignment(Pos.CENTER);
+        VBox root = new VBox(10, ta, bar);
+        root.setPadding(new Insets(14));
+        root.setStyle(BG_DARK);
+        javafx.scene.Scene sc = new javafx.scene.Scene(root, 640, 520);
+        dlg.setScene(sc);
+        dlg.showAndWait();
     }
 
     // --- MODULE VIEWS ---
@@ -2429,9 +2569,11 @@ public class Dashboard extends BorderPane {
             return box;
         }
         int from = Math.max(0, gens.size() - 6);
+        java.util.List<javafx.scene.Node> genCards = new java.util.ArrayList<>();
         for (int i = from; i < gens.size(); i++) {
-            box.getChildren().add(buildGeneratedCard(gens.get(i)));
+            genCards.add(buildGeneratedCard(gens.get(i)));
         }
+        box.getChildren().add(wrapCards(genCards, 740));
         if (gens.size() > 6) {
             box.getChildren().add(AcademyUi.caption(
                 "+" + (gens.size() - 6) + " more in your vault (persisted across sessions).", 11));
@@ -2552,6 +2694,19 @@ public class Dashboard extends BorderPane {
         return n;
     }
 
+    /** Responsive grid: wraps cards into rows that fill the full available width (kills right-side dead space). */
+    private javafx.scene.Node wrapCards(java.util.List<javafx.scene.Node> cards, double cellWidth) {
+        FlowPane pane = new FlowPane(14, 14);
+        pane.setHgap(14);
+        pane.setVgap(14);
+        pane.setPadding(new Insets(2));
+        for (javafx.scene.Node c : cards) {
+            if (c instanceof Region r) r.setPrefWidth(cellWidth);
+            pane.getChildren().add(c);
+        }
+        return pane;
+    }
+
     private void showCertificates() {
         academyActive = true;
         VBox main = new VBox(16);
@@ -2567,26 +2722,19 @@ public class Dashboard extends BorderPane {
 
         main.getChildren().addAll(backBtn, title, sub);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(14);
-        grid.setVgap(14);
-        int col = 0, row = 0;
+        java.util.List<javafx.scene.Node> certCards = new java.util.ArrayList<>();
         for (String[] c : ALL_CERTS) {
             boolean earned = completedChallenges >= Integer.parseInt(c[3]);
-            grid.add(buildCertCard(c[0], c[1], c[2], earned), col, row);
-            col++;
-            if (col >= 2) { col = 0; row++; }
+            certCards.add(buildCertCard(c[0], c[1], c[2], earned));
         }
         for (String f : CERT_FAMILIES) {
             boolean earned = hasDoneFamily(f);
-            grid.add(buildCertCard(
+            certCards.add(buildCertCard(
                 AcademyService.familyName(f).toUpperCase(),
                 AcademyService.familyName(f),
-                "Master the " + AcademyService.familyName(f), earned), col, row);
-            col++;
-            if (col >= 2) { col = 0; row++; }
+                "Master the " + AcademyService.familyName(f), earned));
         }
-        main.getChildren().add(grid);
+        main.getChildren().add(wrapCards(certCards, 380));
 
         Label courseLab = AcademyUi.neon("\uD83C\uDFE6 COURSE CERTIFICATES \u2014 one per track, granted at 80%+", AcademyUi.GOLD, 15);
         main.getChildren().add(courseLab);
@@ -4103,14 +4251,43 @@ public class Dashboard extends BorderPane {
         });
         encBtn.setOnAction(e -> mentorSay(chat, "Mentor", academy.encourage()));
 
-        HBox row1 = new HBox(8);
-        row1.setAlignment(Pos.CENTER_LEFT);
-        row1.getChildren().addAll(topicBox, teachBtn, algoBtn, quizBtn, hintBtn);
-        HBox row2 = new HBox(8);
-        row2.setAlignment(Pos.CENTER_LEFT);
-        row2.getChildren().addAll(mistakeBtn, recBtn, weakBtn, encBtn);
+        FlowPane btnRow = new FlowPane(8, 8);
+        btnRow.setAlignment(Pos.CENTER_LEFT);
+        btnRow.getChildren().addAll(topicBox, teachBtn, algoBtn, quizBtn, hintBtn, mistakeBtn, recBtn, weakBtn, encBtn);
 
-        main.getChildren().addAll(chat, row1, row2, quizBox);
+        // --- CHAT INPUT (ask the mentor anything) ---
+        TextField askField = new TextField();
+        askField.setPromptText("Ask the mentor anything... (try \"why is AES hard?\" or \"teach me RSA\")");
+        askField.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #e6edf3;"
+            + " -fx-border-color: #30363d; -fx-prompt-text-fill: #484f58;");
+        HBox.setHgrow(askField, javafx.scene.layout.Priority.ALWAYS);
+        Button sendBtn = AcademyUi.button("\u27A1 SEND", "#8957e5", "#ffffff");
+        sendBtn.setOnAction(e -> mentorAsk(chat, askField.getText()));
+        askField.setOnAction(e -> mentorAsk(chat, askField.getText()));
+        HBox askRow = new HBox(10, askField, sendBtn);
+        askRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label chipLab = AcademyUi.caption("QUICK ASKS:", 10);
+        chipLab.setStyle("-fx-text-fill: #8b949e; -fx-font-weight: bold;");
+        FlowPane chips = new FlowPane(8, 8);
+        chips.setAlignment(Pos.CENTER_LEFT);
+        String[][] chipData = {
+            {"\uD83D\uDCDA Teach me AES", "teach me aes"},
+            {"\uD83D\uDD10 Why is RSA hard?", "why is rsa secure"},
+            {"\uD83D\uDD22 What is a hash?", "what is a hash"},
+            {"\uD83D\uDD2E How does steganography hide data?", "how does steganography work"},
+            {"\uD83D\uDCA1 Explain my mistakes", "explain my mistakes"},
+            {"\uD83D\uDCAA Encourage me", "encourage me"},
+            {"\uD83E\uDDED Recommend next lesson", "recommend a lesson"},
+            {"\uD83D\uDC79 How do brute force attacks work?", "how does brute force work"}
+        };
+        for (String[] ch : chipData) {
+            Button chip = AcademyUi.button(ch[0], "#21262d", AcademyUi.LIGHT);
+            chip.setOnAction(e -> { askField.setText(ch[1]); mentorAsk(chat, ch[1]); });
+            chips.getChildren().add(chip);
+        }
+
+        main.getChildren().addAll(chat, btnRow, askRow, chipLab, chips, quizBox);
 
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
@@ -4128,6 +4305,64 @@ public class Dashboard extends BorderPane {
         return "\uD83E\uDD16 AI MENTOR ONLINE. I have read your solve history and your weak spots. "
             + "Ask me to TEACH A CONCEPT, EXPLAIN AN ALGORITHM, GENERATE A QUIZ, EXPLAIN MY MISTAKES, "
             + "TRACK MY WEAKNESSES, RECOMMEND NEXT LESSON or just ENCOURAGE ME.";
+    }
+
+    /** Keyword-router: answers free-form questions from the mentor's existing knowledge banks. */
+    private void mentorAsk(TextArea chat, String raw) {
+        if (raw == null || raw.trim().isEmpty()) return;
+        String q = raw.trim().toLowerCase();
+        if (q.contains("quiz") || q.equals("test me")) {
+            mentorSay(chat, "Quiz", "Open the CRYPTO LAB \u2192 GENERATE A QUIZ above, or hit the \uD83C\uDFAF GENERATE A QUIZ button for a fresh one.");
+        } else if (q.contains("encourag") || q.equals("motivate me")) {
+            mentorSay(chat, "Mentor", academy.encourage());
+        } else if (q.contains("mistake") || q.contains("weak") || q.contains("wrong")) {
+            var weak = academy.getWeakFamilies();
+            if (weak.isEmpty()) {
+                mentorSay(chat, "Mistake report", "No wrong answers recorded yet. Every solve you crack teaches me where to focus next.");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (String[] w : weak) {
+                    sb.append("\u2022 ").append(w[0]).append(" (").append(w[1]).append(" misses)\n  ")
+                        .append(academy.explainMistake(w[2])).append("\n");
+                }
+                mentorSay(chat, "Mistake report", sb.toString());
+            }
+        } else if (q.contains("recommend") || q.contains("next lesson") || q.contains("what should i do")) {
+            mentorSay(chat, "Recommendation", academy.recommendNextLesson());
+        } else if (q.contains("brute") || q.contains("dictionary") || q.contains("crack")) {
+            mentorSay(chat, "Attacks", "Brute force tries every key until the text makes sense (e.g. all 25 Caesar shifts). "
+                + "Dictionary attacks hash every word in a list and compare against the target digest. "
+                + "Open ATTACK SIMULATOR in the sidebar and LAUNCH the labs to watch both unfold live.");
+        } else if (q.contains("stego")) {
+            mentorSay(chat, "Steganography", "The LSB method hides message bits in the least-significant bits of image pixels: "
+                + "for each pixel, one bit of the message overwrites the lowest bit of a color channel. "
+                + "Invisible to the eye, recoverable by anyone who knows to read the LSBs.");
+        } else if (q.contains("hash") || q.contains("digest")) {
+            mentorSay(chat, "Hashing", "A hash maps any input to a fixed-size digest (MD5=128-bit, SHA-1=160-bit, SHA-256=256-bit). "
+                + "It is one-way and avalanche-sensitive: flip one bit and half the digest changes. "
+                + "Crack a SHA-256 hash in the ATTACK SIMULATOR with the Dictionary Attack lab.");
+        } else if (q.contains("rsa") || q.contains("public key") || q.contains("private key")) {
+            mentorSay(chat, "RSA", academy.teachConcept("RSA"));
+        } else if (q.contains("aes") || q.contains("symmetric")) {
+            mentorSay(chat, "AES", academy.teachConcept("AES"));
+        } else if (q.contains("caesar") || q.contains("shift")) {
+            mentorSay(chat, "Caesar", academy.teachConcept("Caesar"));
+        } else if (q.contains("xor")) {
+            mentorSay(chat, "XOR", academy.teachConcept("XOR"));
+        } else if (q.contains("vigenere")) {
+            mentorSay(chat, "Vigenere", academy.teachConcept("Vigenere"));
+        } else if (q.contains("base64")) {
+            mentorSay(chat, "Base64", "Base64 packs 3 bytes into 4 characters from A-Z a-z 0-9 + /. "
+                + "It is an encoding, not encryption \u2014 anyone can decode it. "
+                + "Open the CRYPTO LAB \u2192 Base64 Encoding to watch it expand byte by byte.");
+        } else if (q.contains("hello") || q.contains("hi ") || q.equals("hi")) {
+            mentorSay(chat, "Mentor", "Hello, operator. I track " + academy.getGenerated().size()
+                + " generated challenges and " + academy.getWeakFamilies().size()
+                + " weak families right now. Ask me a concept, or hit a QUICK ASK chip.");
+        } else {
+            String topic = q.contains(" ") ? q.substring(0, Math.min(24, q.length())) : q;
+            mentorSay(chat, "Mentor", "Here is what I know on \"" + topic + "\":\n" + academy.teachConcept(topic));
+        }
     }
 
     private void renderMentorQuiz(TextArea chat, VBox quizBox) {
@@ -4222,16 +4457,11 @@ public class Dashboard extends BorderPane {
             {"base32", "\uD83D\uDDC3", "Base32 Encoding", "A-Z and 2-7, five bits per char."}
         };
 
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(12);
-        int col = 0, row = 0;
+        java.util.List<javafx.scene.Node> labCards = new java.util.ArrayList<>();
         for (String[] l : labs) {
-            grid.add(buildLabCard(l[0], l[1], l[2], l[3]), col, row);
-            col++;
-            if (col >= 4) { col = 0; row++; }
+            labCards.add(buildLabCard(l[0], l[1], l[2], l[3]));
         }
-        main.getChildren().add(grid);
+        main.getChildren().add(wrapCards(labCards, 250));
 
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
@@ -5388,18 +5618,15 @@ public class Dashboard extends BorderPane {
             {"mitm", "\uD83D\uDD28", "MITM", "Intercept Alice and Bob's key exchange."},
             {"rainbow", "\uD83C\uDF08", "Rainbow Tables", "Precomputed chains crack passwords in milliseconds."},
             {"pwd", "\uD83D\uDD11", "Password Cracking", "Estimate crack time at real GPU hash rates."},
-            {"collision", "\uD83D\uDCA5", "Collision Demo", "Birthday attack on truncated hashes."}
+            {"collision", "\uD83D\uDCA5", "Collision Demo", "Birthday attack on truncated hashes."},
+            {"hashcrack", "\u26A1", "Hash Cracking Lab", "Dictionary + PIN brute force against MD5 and SHA-1."},
+            {"duel", "\u2694\uFE0F", "Red vs Blue Team", "Watch the attacker probe and the defender parry, turn by turn."}
         };
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(12);
-        int col = 0, row = 0;
+        java.util.List<javafx.scene.Node> attackCards = new java.util.ArrayList<>();
         for (String[] a : attacks) {
-            grid.add(buildAttackCard(a[0], a[1], a[2], a[3]), col, row);
-            col++;
-            if (col >= 4) { col = 0; row++; }
+            attackCards.add(buildAttackCard(a[0], a[1], a[2], a[3]));
         }
-        main.getChildren().add(grid);
+        main.getChildren().add(wrapCards(attackCards, 250));
 
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
@@ -5480,6 +5707,8 @@ public class Dashboard extends BorderPane {
             case "rainbow" -> "chain = [p0, R(h(p0)), R(h(R(h(p0))))...]\nlookup: reduce target hash -> walk chain -> hit";
             case "pwd" -> "for charset in [...]\n  time = keyspace / gpu_rate\n  if time < 1yr: cracked";
             case "collision" -> "seen = {}\nfor i in 0..:\n  h = truncate(hash(i), b)\n  if h in seen: collision found";
+            case "hashcrack" -> "for word in wordlist:\n  if md5(word) == target: return word\nfor pin in 0000..9999:\n  if sha1(pin) == target: return pin";
+            case "duel" -> "attacker.probe(); defender.patch()\nturn: attack -> parry -> counter\nscoreboard: hits vs mitigations";
             default -> "run attack";
         };
     }
@@ -5496,6 +5725,8 @@ public class Dashboard extends BorderPane {
             case "rainbow" -> "VaultKeeper";
             case "pwd" -> "P@ssw0rd!";
             case "collision" -> "24";
+            case "hashcrack" -> "1234";
+            case "duel" -> "red-vs-blue";
             default -> "";
         };
     }
@@ -5512,6 +5743,8 @@ public class Dashboard extends BorderPane {
             case "rainbow" -> simulateRainbow(input, box, out);
             case "pwd" -> simulatePwdCrack(input, box, out);
             case "collision" -> simulateCollision(input, box, out);
+            case "hashcrack" -> simulateHashCrack(input, box, out);
+            case "duel" -> simulateDuel(input, box, out);
         }
     }
 
@@ -5842,6 +6075,292 @@ public class Dashboard extends BorderPane {
         } else {
             addStep(box, "No collision within 2,000,000 candidates.", "#f85149");
             out.setText("No collision found in range \u2014 reduce the bit width to see the birthday effect sooner.");
+        }
+    }
+
+    private static String digestHex(String alg, String s) {
+        try {
+            byte[] d = MessageDigest.getInstance(alg).digest(s.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private void simulateHashCrack(String input, VBox box, Label out) {
+        String secret = input.trim().isEmpty() ? "1234" : input.trim();
+        String md5 = digestHex("MD5", secret);
+        String sha1 = digestHex("SHA-1", secret);
+        addStep(box, "\u26A1 HASH CRACKING LAB \u2014 target \"" + secret + "\"", "#f85149");
+        addStep(box, "MD5  = " + md5, "#c9d1d9");
+        addStep(box, "SHA-1 = " + sha1, "#c9d1d9");
+        addSep(box);
+
+        addStep(box, "\u25B6 PASS 1 \u2014 dictionary (MD5)", "#f85149");
+        long t0 = System.nanoTime();
+        String dictHit = null;
+        for (int i = 0; i < COMMON_WORDS.length; i++) {
+            String h = digestHex("MD5", COMMON_WORDS[i]);
+            if (i % 5 == 0) addStep(box, String.format("  [%02d] %-14s -> %s", i, COMMON_WORDS[i], h.substring(0, 16) + "\u2026"), "#484f58");
+            if (h.equals(md5)) { dictHit = COMMON_WORDS[i]; break; }
+        }
+        if (dictHit != null) {
+            addStep(box, "\uD83D\uDCA5 DICTIONARY HIT: MD5(\"" + dictHit + "\") == target ("
+                + (System.nanoTime() - t0) / 1_000_000 + "ms)", "#39FF14");
+            out.setText("Cracked via MD5 dictionary in " + (System.nanoTime() - t0) / 1_000_000 + "ms \u2014 the secret was in the word list.");
+            return;
+        }
+        addStep(box, "  No dictionary match for MD5.", "#8b949e");
+        addSep(box);
+
+        addStep(box, "\u25B6 PASS 2 \u2014 dictionary (SHA-1)", "#f85149");
+        t0 = System.nanoTime();
+        dictHit = null;
+        for (String w : COMMON_WORDS) {
+            if (digestHex("SHA-1", w).equals(sha1)) { dictHit = w; break; }
+        }
+        if (dictHit != null) {
+            addStep(box, "\uD83D\uDCA5 DICTIONARY HIT: SHA-1(\"" + dictHit + "\") == target ("
+                + (System.nanoTime() - t0) / 1_000_000 + "ms)", "#39FF14");
+            out.setText("Cracked via SHA-1 dictionary in " + (System.nanoTime() - t0) / 1_000_000 + "ms.");
+            return;
+        }
+        addStep(box, "  No dictionary match for SHA-1.", "#8b949e");
+        addSep(box);
+
+        addStep(box, "\u25B6 PASS 3 \u2014 numeric PIN brute force 0000-9999 (SHA-1)", "#f85149");
+        t0 = System.nanoTime();
+        String pin = null;
+        for (int i = 0; i <= 9999; i++) {
+            String p = String.format("%04d", i);
+            if (i % 2000 == 0) addStep(box, String.format("  %04d...", i), "#484f58");
+            if (digestHex("SHA-1", p).equals(sha1)) { pin = p; break; }
+        }
+        addSep(box);
+        if (pin != null) {
+            addStep(box, "\uD83D\uDCA5 PIN CRACKED: \"" + pin + "\" after " + Integer.parseInt(pin) + " guesses ("
+                + (System.nanoTime() - t0) / 1_000_000 + "ms)", "#39FF14");
+            out.setText("SHA-1 PIN brute force recovered \"" + pin + "\" in " + (System.nanoTime() - t0) / 1_000_000 + "ms. "
+                + "Four digits are trivially weak \u2014 use 16+ random chars.");
+        } else {
+            addStep(box, "Not in dictionary or PIN range. Try a longer secret.", "#f85149");
+            out.setText("Target survives dictionary + PIN brute force. Good secret.");
+        }
+    }
+
+    private void simulateDuel(String input, VBox box, Label out) {
+        String[][] rounds = {
+            {"RED \uD83D\uDC79", "Scans the perimeter \u2014 nmap sweep finds port 22 (SSH) open.", "BLUE \uD83D\uDD6D\uFE0F", "SIEM flags the sweep; IPS adds the source to a blocklist.", "PARRIED"},
+            {"RED \uD83D\uDC79", "Launches a dictionary attack on the SSH password.", "BLUE \uD83D\uDD6D\uFE0F", "fail2ban bans after 3 misses; rate limiting slows the rest to a crawl.", "PARRIED"},
+            {"RED \uD83D\uDC79", "Probes the login form with SQL injection payloads.", "BLUE \uD83D\uDD6D\uFE0F", "WAF drops the payloads; the team ships parameterized queries.", "PARRIED"},
+            {"RED \uD83D\uDC79", "Phishes a support agent with a forged password-reset link.", "BLUE \uD83D\uDD6D\uFE0F", "MFA blocks the stolen credential; training drills the agent on link hygiene.", "PARRIED"},
+            {"RED \uD83D\uDC79", "Amplifies a UDP flood to knock the login service offline.", "BLUE \uD83D\uDD6D\uFE0F", "CDN absorbs the burst; auto-scaling rides out the spike without an outage.", "PARRIED"}
+        };
+        addStep(box, "\u2694\uFE0F RED TEAM vs BLUE TEAM \u2014 5-round cyber duel", "#f85149");
+        addStep(box, "Goal: attacker lands a hit, defender keeps the fortress upright.", "#8b949e");
+        addSep(box);
+        int redHits = 0, blueParries = 0;
+        for (String[] r : rounds) {
+            addStep(box, r[0] + "  " + r[1], "#f85149");
+            addStep(box, r[2] + "  " + r[3], "#58a6ff");
+            if ("PARRIED".equals(r[4])) blueParries++; else redHits++;
+            addStep(box, "  \u2014 verdict: " + r[4], "#FFD700");
+            addSep(box);
+        }
+        addStep(box, "\uD83C\uDFC6 FINAL SCORE \u2014 RED HITS: " + redHits + " | BLUE PARRYS: " + blueParries, "#39FF14");
+        addStep(box, "Lesson: layered defense (rate limits, WAF, MFA, CDN) turns every attack into a parry.", "#c9d1d9");
+        out.setText("Red landed " + redHits + " hit(s); Blue parried " + blueParries + "/" + rounds.length
+            + ". Defense-in-depth wins the duel.");
+    }
+
+    // ============================================================
+    // CODE SANDBOX \u2014 mini crypto interpreter
+    // ============================================================
+
+    private void showCodeSandbox() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(14);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO DASHBOARD", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDD27\uFE0F CRYPTO CODE SANDBOX", AcademyUi.BLUE, 22);
+        Label sub = AcademyUi.caption(
+            "A tiny safe interpreter for crypto primitives. Type commands, hit RUN, watch the output. # starts a comment.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        TextArea code = new TextArea(
+            "# hello world\n"
+            + "print \"hello world\"\n"
+            + "# classic primitives\n"
+            + "caesar \"ATTACK AT DAWN\" 3\n"
+            + "rot13 \"synt\"\n"
+            + "atbash \"GSV\"\n"
+            + "xor \"HELLO\" \"KEY\"\n"
+            + "# digests\n"
+            + "md5 \"password\"\n"
+            + "sha1 \"password\"\n"
+            + "sha256 \"password\"\n"
+            + "# encodings\n"
+            + "base64 \"ATTACK AT DAWN\"\n"
+            + "hex \"A\"\n"
+            + "bin \"A\"");
+        code.setPrefRowCount(14);
+        code.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #58a6ff;"
+            + " -fx-font-family: 'DejaVu Sans Mono', 'Courier New'; -fx-font-size: 12px; -fx-border-color: #30363d;");
+
+        TextArea out = new TextArea();
+        out.setEditable(false);
+        out.setWrapText(true);
+        out.setPrefRowCount(14);
+        out.setStyle("-fx-control-inner-background: #010409; -fx-text-fill: #39FF14;"
+            + " -fx-font-family: 'DejaVu Sans Mono', 'Courier New'; -fx-font-size: 12px; -fx-border-color: #30363d;");
+
+        Button runBtn = AcademyUi.button("\u25B6 RUN", "#1f6feb", "#ffffff");
+        Button clearBtn = AcademyUi.button("\uD83D\uDDD1 CLEAR OUTPUT", "#21262d", AcademyUi.LIGHT);
+        runBtn.setOnAction(e -> runSandbox(code.getText(), out));
+        clearBtn.setOnAction(e -> out.clear());
+        HBox actions = new HBox(10, runBtn, clearBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        Label hint = AcademyUi.caption("Commands: print, caesar \"text\" n, rot13, atbash, reverse, upper, lower, len, "
+            + "xor \"text\" \"key\", base64 [-d], hex [-d], bin, md5, sha1, sha256. Strings are quoted.", 11);
+        hint.setWrapText(true);
+
+        main.getChildren().addAll(new Label("SANDBOX SCRIPT:"), code, actions, new Label("OUTPUT:"), out, hint);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+    }
+
+    private void runSandbox(String script, TextArea out) {
+        out.clear();
+        String[] lines = script.split("\n");
+        for (String line : lines) {
+            String t = line.trim();
+            if (t.isEmpty() || t.startsWith("#")) continue;
+            String r = sandboxEval(t);
+            out.appendText("> " + t + "\n" + r + "\n\n");
+        }
+    }
+
+    private static String sandboxUnquote(String s) {
+        if (s == null) return "";
+        s = s.trim();
+        if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+            s = s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
+    private String sandboxEval(String line) {
+        int sp = line.indexOf(' ');
+        String cmd = (sp < 0 ? line : line.substring(0, sp)).trim().toLowerCase();
+        String rest = sp < 0 ? "" : line.substring(sp + 1).trim();
+        try {
+            switch (cmd) {
+                case "print":
+                    return sandboxUnquote(rest);
+                case "upper":
+                    return sandboxUnquote(rest).toUpperCase();
+                case "lower":
+                    return sandboxUnquote(rest).toLowerCase();
+                case "reverse":
+                    return new StringBuilder(sandboxUnquote(rest)).reverse().toString();
+                case "len":
+                    return String.valueOf(sandboxUnquote(rest).length()) + " chars";
+                case "md5":
+                    return digestHex("MD5", sandboxUnquote(rest));
+                case "sha1":
+                    return digestHex("SHA-1", sandboxUnquote(rest));
+                case "sha256":
+                    return AcademyService.sha256Hex(sandboxUnquote(rest));
+                case "rot13": {
+                    StringBuilder sb = new StringBuilder();
+                    for (char c : sandboxUnquote(rest).toCharArray()) {
+                        if (c >= 'a' && c <= 'z') sb.append((char) ('a' + (c - 'a' + 13) % 26));
+                        else if (c >= 'A' && c <= 'Z') sb.append((char) ('A' + (c - 'A' + 13) % 26));
+                        else sb.append(c);
+                    }
+                    return sb.toString();
+                }
+                case "atbash": {
+                    StringBuilder sb = new StringBuilder();
+                    for (char c : sandboxUnquote(rest).toCharArray()) {
+                        if (c >= 'a' && c <= 'z') sb.append((char) ('z' - (c - 'a')));
+                        else if (c >= 'A' && c <= 'Z') sb.append((char) ('Z' - (c - 'A')));
+                        else sb.append(c);
+                    }
+                    return sb.toString();
+                }
+                case "caesar": {
+                    String[] parts = rest.split(" ", 2);
+                    if (parts.length < 2) return "usage: caesar \"text\" shift";
+                    String text = sandboxUnquote(parts[0]);
+                    int shift = Integer.parseInt(parts[1].trim()) % 26;
+                    StringBuilder sb = new StringBuilder();
+                    for (char c : text.toCharArray()) {
+                        if (c >= 'a' && c <= 'z') sb.append((char) ('a' + (c - 'a' + shift + 26) % 26));
+                        else if (c >= 'A' && c <= 'Z') sb.append((char) ('A' + (c - 'A' + shift + 26) % 26));
+                        else sb.append(c);
+                    }
+                    return sb.toString();
+                }
+                case "xor": {
+                    String[] parts = rest.split(" ", 2);
+                    if (parts.length < 2) return "usage: xor \"text\" \"key\"";
+                    String text = sandboxUnquote(parts[0]);
+                    String key = sandboxUnquote(parts[1]);
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < text.length(); i++) {
+                        sb.append((char) (text.charAt(i) ^ key.charAt(i % key.length())));
+                    }
+                    return sb.toString();
+                }
+                case "base64": {
+                    String arg = sandboxUnquote(rest);
+                    if (arg.startsWith("-d")) {
+                        return new String(java.util.Base64.getDecoder().decode(arg.substring(2).trim()),
+                            StandardCharsets.UTF_8);
+                    }
+                    return java.util.Base64.getEncoder().encodeToString(arg.getBytes(StandardCharsets.UTF_8));
+                }
+                case "hex": {
+                    String arg = sandboxUnquote(rest);
+                    if (arg.startsWith("-d")) {
+                        String h = arg.substring(2).trim();
+                        byte[] b = new byte[h.length() / 2];
+                        for (int i = 0; i < b.length; i++) b[i] = (byte) Integer.parseInt(h.substring(i * 2, i * 2 + 2), 16);
+                        return new String(b, StandardCharsets.UTF_8);
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    for (byte b : arg.getBytes(StandardCharsets.UTF_8)) sb.append(String.format("%02X ", b));
+                    return sb.toString().trim();
+                }
+                case "bin": {
+                    StringBuilder sb = new StringBuilder();
+                    for (byte b : sandboxUnquote(rest).getBytes(StandardCharsets.UTF_8)) {
+                        sb.append(String.format("%08d ", Integer.parseInt(Integer.toBinaryString(b & 0xff))));
+                    }
+                    return sb.toString().trim();
+                }
+                case "help":
+                    return "Commands: print, caesar \"t\" n, rot13, atbash, reverse, upper, lower, len, "
+                        + "xor \"t\" \"k\", base64 [-d], hex [-d], bin, md5, sha1, sha256. # comments.";
+                default:
+                    return "ERROR: unknown command \"" + cmd + "\" \u2014 type help";
+            }
+        } catch (Exception ex) {
+            return "ERROR: " + ex.getMessage();
         }
     }
 
@@ -10368,6 +10887,7 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
             createMenuBtn("\uD83D\uDCC5 DAILY CHALLENGES", e -> showDailyChallenges()),
             createMenuBtn("\uD83E\uDDEA CYBER RANGE", e -> showCyberRange()),
             createMenuBtn("\uD83E\uDDEC ML SECURITY", e -> showMlSecurity()),
+            createMenuBtn("\uD83D\uDD27\uFE0F CODE SANDBOX", e -> showCodeSandbox()),
             createMenuBtn("\uD83C\uDFC6 GLOBAL LEADERBOARD", e -> showGlobalLeaderboard())
         );
 
