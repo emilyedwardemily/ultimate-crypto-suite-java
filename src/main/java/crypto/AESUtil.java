@@ -75,7 +75,7 @@ public class AESUtil {
         if (password == null || password.isEmpty()) throw new Exception("Security Key is missing!");
 
         try {
-            byte[] combined = Base64.getDecoder().decode(encryptedData);
+            byte[] combined = Base64.getDecoder().decode(encryptedData.replaceAll("\\s+", ""));
             
             if (combined.length < IV_SIZE) throw new Exception("Data is corrupted or too short!");
 

@@ -9,6 +9,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.List;
@@ -29,6 +30,8 @@ import app.ApiClient;
 import app.ApiException;
 import app.DatabaseManager;
 import app.LicenseManager;
+import crypto.AESUtil;
+import crypto.RSAUtil;
 import crypto.XORUtil;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
@@ -91,6 +94,7 @@ public class Dashboard extends BorderPane {
     private String operatorID;
     private File selectedImageFile; 
     private TableView<JSONObject> auditTable;
+    private KeyPair rsaKeys;
 
     private static int totalXP = 0;
     private static int completedChallenges = 0;
@@ -217,7 +221,7 @@ public class Dashboard extends BorderPane {
         seedBootNotifications();
 
         setStyle("-fx-background-color: #050505; -fx-border-color: #39FF14; -fx-border-width: 0.5;"); 
-        setLeft(createSidebar());
+        setLeft(createSidebarPane());
         showAESModule(); 
         
         addLog("DEEP DEFENSE: V20.4 OBSIDIAN KERNEL LOADED.");
@@ -473,17 +477,77 @@ public class Dashboard extends BorderPane {
     }
 
     private void showRSAModule() {
-        setupLayout("RSA-4096 ASYMMETRIC GATE", "Generate Public/Private keys...");
+        setupLayout("RSA-2048 ASYMMETRIC GATE", "Generate Public/Private keys...");
         VBox main = (VBox) getCenter();
         HBox hb = new HBox(10);
         Button gen = new Button("GENERATE KEYPAIR");
         Button enc = new Button("RSA ENCRYPT");
+        Button dec = new Button("RSA DECRYPT");
         gen.setStyle(BTN_PURPLE);
         enc.setStyle(BTN_BLUE);
-        gen.setOnAction(e -> executePythonService("/rsa-keygen", "[RSA] Initiating..."));
-        enc.setOnAction(e -> executePythonService("/rsa-encrypt", "[RSA] Applying Cipher..."));
-        hb.getChildren().addAll(gen, enc);
+        dec.setStyle(BTN_PURPLE);
+        gen.setOnAction(e -> runRsaKeygen());
+        enc.setOnAction(e -> runRsaEncrypt());
+        dec.setOnAction(e -> runRsaDecrypt());
+        hb.getChildren().addAll(gen, enc, dec);
         main.getChildren().add(9, hb);
+    }
+
+    private void runRsaKeygen() {
+        new Thread(() -> {
+            try {
+                rsaKeys = RSAUtil.generateKeyPair();
+                String pub = RSAUtil.publicKeyToString(rsaKeys.getPublic());
+                String priv = RSAUtil.privateKeyToString(rsaKeys.getPrivate());
+                Platform.runLater(() -> {
+                    outputArea.setText("PUBLIC KEY:\n" + pub + "\n\nPRIVATE KEY:\n" + priv);
+                    addLog("[RSA] 2048-bit keypair generated locally (OAEP-SHA256).");
+                });
+                sendAuditLog("RSA_KEYGEN", "RSA");
+            } catch (Exception ex) {
+                Platform.runLater(() -> outputArea.setText("🛑 Error: RSA key generation failed: " + ex.getMessage()));
+            }
+        }).start();
+    }
+
+    private void runRsaEncrypt() {
+        if (rsaKeys == null) {
+            outputArea.setText("🛑 Error: Generate a keypair first (GENERATE KEYPAIR).");
+            return;
+        }
+        String plain = inputArea.getText();
+        if (plain.isEmpty()) {
+            outputArea.setText("🛑 Error: Enter plaintext to encrypt.");
+            return;
+        }
+        try {
+            String cipher = RSAUtil.encrypt(plain, rsaKeys.getPublic());
+            outputArea.setText(cipher);
+            addLog("[RSA] Encryption done locally (OAEP-SHA256).");
+            sendAuditLog("RSA_ENCRYPT", "RSA");
+        } catch (Exception ex) {
+            outputArea.setText("🛑 Error: RSA encryption failed: " + ex.getMessage());
+        }
+    }
+
+    private void runRsaDecrypt() {
+        if (rsaKeys == null) {
+            outputArea.setText("🛑 Error: Generate a keypair first (GENERATE KEYPAIR).");
+            return;
+        }
+        String cipher = inputArea.getText();
+        if (cipher.isEmpty()) {
+            outputArea.setText("🛑 Error: Enter the ciphertext to decrypt.");
+            return;
+        }
+        try {
+            String plain = RSAUtil.decrypt(cipher, rsaKeys.getPrivate());
+            outputArea.setText(plain);
+            addLog("[RSA] Decryption done locally (OAEP-SHA256).");
+            sendAuditLog("RSA_DECRYPT", "RSA");
+        } catch (Exception ex) {
+            outputArea.setText("🛑 Error: RSA decryption failed. Ciphertext or key mismatch.");
+        }
     }
 
     private void showXORModule() {
@@ -5126,34 +5190,28 @@ public class Dashboard extends BorderPane {
         try {
             Platform.runLater(() -> addLog(encrypt ? "[JAVA] Initiating XOR + AES Layering..." : "[JAVA] Reversing Hybrid Layers..."));
 
-            String processed = encrypt ? XORUtil.encrypt(inputData, securityKey) : inputData;
-
-            JSONObject p = new JSONObject();
-            p.put("data", processed);
-            p.put("key", securityKey);
-            p.put("ts", java.time.Instant.now().getEpochSecond());
-
-            String res = callSecurePython(encrypt ? "/encrypt" : "/decrypt", p);
-
-            if (res != null && !res.isEmpty()) {
-                JSONObject resJson = new JSONObject(res);
-                String pythonResult = resJson.optString(JSON_RESULT, "");
-
-                if (!pythonResult.isEmpty()) {
-                    String finalOutput = encrypt ? pythonResult : XORUtil.decrypt(pythonResult, securityKey);
-                    Platform.runLater(() -> {
-                        outputArea.setText(finalOutput);
-                        addLog("[SUCCESS] " + (encrypt ? "Encryption" : "Decryption") + " Finalized.");
-                    });
-                }
+            if (encrypt) {
+                String xorLayer = XORUtil.encrypt(inputData, securityKey);
+                String cipher = AESUtil.encrypt(xorLayer, securityKey);
+                Platform.runLater(() -> {
+                    outputArea.setText(cipher);
+                    addLog("[SUCCESS] Hybrid XOR + AES-256-GCM Encryption Finalized (local engine).");
+                });
+            } else {
+                String aesOut = AESUtil.decrypt(inputData, securityKey);
+                String plain = XORUtil.decrypt(aesOut, securityKey);
+                Platform.runLater(() -> {
+                    outputArea.setText(plain);
+                    addLog("[SUCCESS] Hybrid Decryption Finalized (local engine).");
+                });
             }
 
             sendAuditLog(encrypt ? "AES_ENCRYPT" : "AES_DECRYPT", "AES_HYBRID");
 
         } catch (Exception e) {
             Platform.runLater(() -> {
-                addLog("[CRITICAL] Server Delay: Render is still warming up.");
-                outputArea.setText("🌐 SERVER WAKING UP: Please wait 10 seconds and try again.");
+                addLog("[ERROR] " + (encrypt ? "Encryption" : "Decryption") + " failed: " + e.getMessage());
+                outputArea.setText("🛑 Error: " + e.getMessage());
             });
         }
     }
@@ -6470,21 +6528,33 @@ public class Dashboard extends BorderPane {
         Label title = AcademyUi.neon("\uD83D\uDCCA PROFESSIONAL ADMIN ANALYTICS", AcademyUi.RED, 22);
         AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.RED, 0.3));
         Label sub = AcademyUi.caption(
-            "Platform-wide telemetry: users, challenges, retention, countries, categories and heatmaps.", 12);
-        main.getChildren().addAll(backBtn, title, sub);
+            "Platform-wide telemetry: users, challenges, encryptions, payments, system health and live leaderboards.", 12);
 
-        HBox tiles = new HBox(12);
+        Label statusBadge = new Label("\u23F3 CHECKING BACKEND...");
+        statusBadge.setStyle("-fx-background-color: #161b22; -fx-text-fill: #8b949e; -fx-padding: 6 14 6 14; -fx-background-radius: 12; -fx-font-size: 12px; -fx-font-weight: bold;");
+        Button refreshBtn = AcademyUi.button("\uD83D\uDD04 REFRESH LIVE DATA", "#238636", "#ffffff");
+        refreshBtn.setMaxWidth(Double.MAX_VALUE);
+        refreshBtn.setPrefHeight(40);
+        HBox topBar = new HBox(12);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.getChildren().addAll(statusBadge, refreshBtn);
+        main.getChildren().addAll(backBtn, title, sub, topBar);
+
+        HBox tilesRow1 = new HBox(12);
         VBox totalUsersTile = AcademyUi.statTile("\uD83D\uDC64", "\u2014", "TOTAL USERS", AcademyUi.BLUE);
         VBox dailyActiveTile = AcademyUi.statTile("\uD83D\uDDFF\uFE0F", "\u2014", "DAILY ACTIVE", AcademyUi.GREEN);
-        VBox newTodayTile = AcademyUi.statTile("\uD83C\uDD95", "\u2014", "NEW TODAY", AcademyUi.GOLD);
-        VBox retentionTile = AcademyUi.statTile("\uD83D\uDD04", "\u2014", "RETENTION", AcademyUi.PURPLE);
-        tiles.getChildren().add(totalUsersTile);
-        tiles.getChildren().add(dailyActiveTile);
-        tiles.getChildren().add(newTodayTile);
-        tiles.getChildren().add(retentionTile);
-        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDFAF", String.format("%.0f%%", academy.getSuccessRate()), "AVG SCORE", AcademyUi.ORANGE));
-        tiles.getChildren().add(AcademyUi.statTile("\u23F1\uFE0F", String.format("%.1f s", Math.max(5.0, academy.getPersonalBestMs() / 1000.0)), "AVG SOLVE TIME", AcademyUi.RED));
-        main.getChildren().add(tiles);
+        VBox encryptionsTile = AcademyUi.statTile("\uD83D\uDD12", "\u2014", "ENCRYPTIONS", AcademyUi.GOLD);
+        VBox auditLogsTile = AcademyUi.statTile("\uD83D\uDDC2", "\u2014", "AUDIT LOGS", AcademyUi.PURPLE);
+        tilesRow1.getChildren().addAll(totalUsersTile, dailyActiveTile, encryptionsTile, auditLogsTile);
+        main.getChildren().add(tilesRow1);
+
+        HBox tilesRow2 = new HBox(12);
+        VBox paymentsTile = AcademyUi.statTile("\uD83D\uDCB3", "\u2014", "PAYMENTS", AcademyUi.GREEN);
+        VBox subscriptionsTile = AcademyUi.statTile("\uD83D\uDCC8", "\u2014", "SUBSCRIPTIONS", AcademyUi.BLUE);
+        VBox uptimeTile = AcademyUi.statTile("\u23F1\uFE0F", "\u2014", "UPTIME", AcademyUi.RED);
+        VBox challengesTile = AcademyUi.statTile("\uD83C\uDFAF", "\u2014", "CHALLENGES", AcademyUi.ORANGE);
+        tilesRow2.getChildren().addAll(paymentsTile, subscriptionsTile, uptimeTile, challengesTile);
+        main.getChildren().add(tilesRow2);
 
         GridPane charts = new GridPane();
         charts.setHgap(16);
@@ -6558,7 +6628,11 @@ public class Dashboard extends BorderPane {
         scroll.setPrefViewportHeight(720);
         setCenter(scroll);
 
-        refreshLiveAnalytics(totalUsersTile, dailyActiveTile, newTodayTile, retentionTile, lb);
+        refreshBtn.setOnAction(e ->
+            refreshLiveAnalytics(totalUsersTile, dailyActiveTile, encryptionsTile, auditLogsTile,
+                paymentsTile, subscriptionsTile, uptimeTile, challengesTile, statusBadge, lb));
+        refreshLiveAnalytics(totalUsersTile, dailyActiveTile, encryptionsTile, auditLogsTile,
+            paymentsTile, subscriptionsTile, uptimeTile, challengesTile, statusBadge, lb);
     }
 
     private javafx.scene.Node failRow(String name, int pct) {
@@ -7439,10 +7513,30 @@ public class Dashboard extends BorderPane {
 
     /**
      * Hubadilisha takwimu za Admin Analytics kwa data halisi kutoka
-     * Python backend (/dashboard/stats) na leaderboard ya CTF (/leaderboard).
+     * Python backend (/health, /dashboard/stats) na leaderboard ya CTF (/leaderboard).
      * Kama backend haipatikani, inabaki kwenye maadili ya ndani.
      */
-    private void refreshLiveAnalytics(VBox totalUsersTile, VBox dailyActiveTile, VBox newTodayTile, VBox retentionTile, VBox leaderboardCard) {
+    private void refreshLiveAnalytics(VBox totalUsersTile, VBox dailyActiveTile, VBox encryptionsTile, VBox auditLogsTile,
+                                      VBox paymentsTile, VBox subscriptionsTile, VBox uptimeTile, VBox challengesTile,
+                                      Label statusBadge, VBox leaderboardCard) {
+        new Thread(() -> {
+            try {
+                String health = callSecurePythonGet("/health");
+                JSONObject hj = new JSONObject(health);
+                String dbStatus = hj.optString("database", "disconnected");
+                String ver = hj.optString("version", "20.4.0");
+                Platform.runLater(() -> {
+                    statusBadge.setText("\u25CF BACKEND ONLINE \u00B7 v" + ver + " \u00B7 DB " + dbStatus.toUpperCase());
+                    statusBadge.setStyle("-fx-background-color: #0d3b1f; -fx-text-fill: #39FF14; -fx-padding: 6 14 6 14; -fx-background-radius: 12; -fx-font-size: 12px; -fx-font-weight: bold;");
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    statusBadge.setText("\u25CF BACKEND OFFLINE");
+                    statusBadge.setStyle("-fx-background-color: #3d0d0d; -fx-text-fill: #f85149; -fx-padding: 6 14 6 14; -fx-background-radius: 12; -fx-font-size: 12px; -fx-font-weight: bold;");
+                });
+            }
+        }).start();
+
         new Thread(() -> {
             try {
                 String res = callSecurePythonGet("/dashboard/stats");
@@ -7451,11 +7545,19 @@ public class Dashboard extends BorderPane {
                 String active = json.optString("activeSessions", "\u2014");
                 String encryptions = json.optString("totalEncryptions", "\u2014");
                 String auditLogs = json.optString("totalAuditLogs", "\u2014");
+                String payments = json.optString("totalPayments", "\u2014");
+                String subs = json.optString("activeSubscriptions", "\u2014");
+                String uptime = json.optString("uptime", "\u2014");
+                String challenges = json.optString("ctfChallengesSolved", "\u2014");
                 Platform.runLater(() -> {
                     ((Label) totalUsersTile.getChildren().get(1)).setText(formatNum(totalUsers));
                     ((Label) dailyActiveTile.getChildren().get(1)).setText(formatNum(active));
-                    ((Label) newTodayTile.getChildren().get(1)).setText(formatNum(encryptions) + " ops");
-                    ((Label) retentionTile.getChildren().get(1)).setText(auditLogs + " logs");
+                    ((Label) encryptionsTile.getChildren().get(1)).setText(formatNum(encryptions));
+                    ((Label) auditLogsTile.getChildren().get(1)).setText(formatNum(auditLogs));
+                    ((Label) paymentsTile.getChildren().get(1)).setText(formatNum(payments));
+                    ((Label) subscriptionsTile.getChildren().get(1)).setText(formatNum(subs));
+                    ((Label) uptimeTile.getChildren().get(1)).setText(uptime);
+                    ((Label) challengesTile.getChildren().get(1)).setText(formatNum(challenges));
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> addLog("[ANALYTICS] Live stats unavailable (backend offline)."));
@@ -10253,10 +10355,81 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         sidebar.getChildren().addAll(sep, adminPanelBtn);
     }
 
+        // ======================= ADVANCED TOOLS =======================
+        Separator advSep = new Separator();
+        advSep.setStyle("-fx-background-color: #30363d;");
+        Label advHeader = new Label("⚡ ADVANCED TOOLS");
+        advHeader.setStyle("-fx-text-fill: #58a6ff; -fx-font-size: 10px; -fx-font-weight: bold; -fx-letter-spacing: 1px;");
+        sidebar.getChildren().addAll(advSep, advHeader,
+            createMenuBtn("\uD83D\uDD13 BLOCKCHAIN", e -> showBlockchain()),
+            createMenuBtn("\uD83D\uDD2C QUANTUM", e -> showQuantum()),
+            createMenuBtn("\uD83E\uDDE0 ALGO PLAYGROUND", e -> showAlgorithmPlayground("caesar")),
+            createMenuBtn("\uD83C\uDFAF MISSIONS", e -> showMissions()),
+            createMenuBtn("\uD83D\uDCC5 DAILY CHALLENGES", e -> showDailyChallenges()),
+            createMenuBtn("\uD83E\uDDEA CYBER RANGE", e -> showCyberRange()),
+            createMenuBtn("\uD83E\uDDEC ML SECURITY", e -> showMlSecurity()),
+            createMenuBtn("\uD83C\uDFC6 GLOBAL LEADERBOARD", e -> showGlobalLeaderboard())
+        );
+
     return sidebar;
 }
 
-// 1. Method ya kutuma OTP kwenye Email ya mteja
+    /** Sidebar yenye scroll + logout iliyobandikwa chini (hujaonekana hapo awali). */
+    private javafx.scene.Node createSidebarPane() {
+        ScrollPane scroll = new ScrollPane(createSidebar());
+        scroll.setFitToWidth(true);
+        scroll.setFitToHeight(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setStyle("-fx-background: #010409; -fx-background-color: #010409; -fx-border-color: #30363d; -fx-border-width: 0 1 0 0;");
+
+        VBox logoutBar = new VBox(8);
+        logoutBar.setPadding(new Insets(10));
+        logoutBar.setStyle("-fx-background-color: #010409; -fx-border-color: #30363d; -fx-border-width: 1 0 0 0;");
+
+        Label sessionTag = new Label("👤 " + LoginScreen.USERNAME + "  [" + LoginScreen.USER_ROLE + "]");
+        sessionTag.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 11px; -fx-font-weight: bold;");
+        sessionTag.setMaxWidth(Double.MAX_VALUE);
+        sessionTag.setAlignment(Pos.CENTER);
+
+        Button logoutBtn = new Button("\uD83D\uDEAA LOGOUT");
+        logoutBtn.setMaxWidth(Double.MAX_VALUE);
+        logoutBtn.setPrefHeight(40);
+        logoutBtn.setStyle("-fx-background-color: #f85149; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 8; -fx-font-size: 13px;");
+        logoutBtn.setOnAction(e -> performLogout());
+
+        logoutBar.getChildren().addAll(sessionTag, logoutBtn);
+
+        VBox sideRoot = new VBox();
+        sideRoot.setStyle("-fx-background-color: #010409;");
+        sideRoot.setPrefWidth(240);
+        VBox.setVgrow(scroll, javafx.scene.layout.Priority.ALWAYS);
+        sideRoot.getChildren().addAll(scroll, logoutBar);
+        return sideRoot;
+    }
+
+    /** Hufuta kikao na kurudi kwenye Login Screen. */
+    private void performLogout() {
+        try {
+            if (academyTimer != null) academyTimer.stop();
+            stopMissionClock();
+            stopChallengeClock();
+            flushPracticeTime();
+            if (academy != null) academy.save();
+            if (elite != null) elite.save();
+            LoginScreen.SESSION_TOKEN = "";
+            LoginScreen.USERNAME = "";
+            LoginScreen.USER_ROLE = "FREE";
+            javafx.stage.Stage st = (javafx.stage.Stage) getScene().getWindow();
+            st.setTitle("UC-Suite Pro | Secure Gateway");
+            st.getScene().setRoot(new LoginScreen(st));
+            addLog("[LOGOUT] Session terminated. Returning to secure gateway.");
+        } catch (Exception ex) {
+            addLog("[LOGOUT] Failed to end session: " + ex.getMessage());
+        }
+    }
+
+    // 1. Method ya kutuma OTP kwenye Email ya mteja
     private void handleSendEmailOTP() {
         addLog("[WAIT] Dispatching secure token to email...");
         new Thread(() -> {
