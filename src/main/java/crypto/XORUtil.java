@@ -48,8 +48,8 @@ public class XORUtil {
         }
 
         try {
-            // 1. Decode kutoka Base64 kwanza
-            byte[] encryptedBytes = Base64.getDecoder().decode(base64Data);
+            // 1. Decode kutoka Base64 kwanza (ondoa whitespace/newlines zilizoingia wakati wa kunakili)
+            byte[] encryptedBytes = Base64.getDecoder().decode(base64Data.replaceAll("\\s+", ""));
             byte[] kBytes = key.getBytes(StandardCharsets.UTF_8);
             byte[] res = new byte[encryptedBytes.length];
 

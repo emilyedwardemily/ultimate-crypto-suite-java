@@ -61,7 +61,7 @@ public class RSAUtil {
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT);
             
         cipher.init(Cipher.DECRYPT_MODE, privateKey, oaepParams);
-        byte[] decodedBytes = Base64.getDecoder().decode(encryptedData);
+        byte[] decodedBytes = Base64.getDecoder().decode(encryptedData.replaceAll("\\s+", ""));
         byte[] decryptedBytes = cipher.doFinal(decodedBytes);
         return new String(decryptedBytes, StandardCharsets.UTF_8);
     }
@@ -76,10 +76,17 @@ public class RSAUtil {
     }
 
     /**
+     * Inabadilisha Private Key kwenda String (PKCS8) kwa ajili ya kuonyesha/kuhifadhi.
+     */
+    public static String privateKeyToString(PrivateKey privKey) {
+        return Base64.getEncoder().encodeToString(privKey.getEncoded());
+    }
+
+    /**
      * Inabadilisha String ya Base64 kurudi kuwa PublicKey object.
      */
     public static PublicKey stringToPublicKey(String base64Key) throws Exception {
-        byte[] keyBytes = Base64.getDecoder().decode(base64Key);
+        byte[] keyBytes = Base64.getDecoder().decode(base64Key.replaceAll("\\s+", ""));
         X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
         KeyFactory kf = KeyFactory.getInstance("RSA");
         return kf.generatePublic(spec);
