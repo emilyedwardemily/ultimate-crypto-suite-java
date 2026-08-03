@@ -1,5 +1,9 @@
 package academy;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.itextpdf.text.BaseColor;
 import com.itextpdf.text.Chunk;
 import com.itextpdf.text.Document;
@@ -13,17 +17,59 @@ import com.itextpdf.text.pdf.PdfWriter;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.Random;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Professional PDF certificate generator for the Fortress Academy.
- * Renders a deterministic QR-style matrix (seeded by the verification id)
+ * Renders a real scannable QR code (ZXing) that links straight to the
+ * Render verification endpoint, signed with HMAC-SHA256 so forgeries fail,
  * plus the full metadata set: verification id, issue date, student, course,
  * score, instructor and status.
  */
 public final class CertificateGenerator {
 
+    private static final String SIGNING_SECRET = "Emily_Crypto_Secure_2026_KIU";
+    private static final String VERIFY_BASE = "https://ultimate-crypto-python.onrender.com/verify-cert";
+
     private CertificateGenerator() { }
+
+    /** HMAC-SHA256 of the verification id, hex-encoded. The backend recomputes this to authenticate the QR. */
+    public static String signatureFor(String verificationId) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(SIGNING_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] raw = mac.doFinal(verificationId.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : raw) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return "invalid";
+        }
+    }
+
+    /** The full verification URL encoded inside the QR code. */
+    public static String verificationUrl(String verificationId) {
+        return VERIFY_BASE + "?vid=" + verificationId + "&sig=" + signatureFor(verificationId);
+    }
+
+    /** Renders a real QR BitMatrix (dark cells) as filled rectangles. */
+    private static void drawQr(PdfContentByte cb, BitMatrix matrix, float x, float y, float size) {
+        int cells = matrix.getWidth();
+        float cell = size / cells;
+        cb.setColorFill(new BaseColor(0x11, 0x11, 0x18));
+        for (int row = 0; row < cells; row++) {
+            for (int col = 0; col < cells; col++) {
+                if (matrix.get(col, row)) {
+                    cb.rectangle(x + col * cell, y - row * cell, cell, cell);
+                }
+            }
+        }
+        cb.fill();
+    }
 
     public static void generate(String courseName, String studentName, String verificationId,
                                 int score, String instructor, String issueDate, String status,
@@ -90,29 +136,21 @@ public final class CertificateGenerator {
         pScore.setAlignment(Element.ALIGN_CENTER);
         doc.add(pScore);
 
-        // QR-style matrix (deterministic from verification id)
-        Random r = new Random(verificationId.hashCode());
-        int cells = 21;
-        float qrSize = 74f;
-        float qrX = 46f;
-        float qrY = h - 130f;
-        cb.setColorFill(dark);
-        for (int row = 0; row < cells; row++) {
-            for (int col = 0; col < cells; col++) {
-                boolean inFinder = (row < 7 && col < 7) || (row < 7 && col >= cells - 7) || (row >= cells - 7 && col < 7);
-                boolean on;
-                if (inFinder) {
-                    on = row % 2 == 0 || col % 2 == 0;
-                } else {
-                    on = r.nextBoolean();
-                }
-                if (on) {
-                    cb.rectangle(qrX + col * (qrSize / cells), qrY - row * (qrSize / cells),
-                        qrSize / cells, qrSize / cells);
-                }
-            }
+        // Real scannable QR -> Render verification endpoint (HMAC-signed)
+        try {
+            QRCodeWriter qw = new QRCodeWriter();
+            Map<EncodeHintType, Object> hints = new HashMap<>();
+            hints.put(EncodeHintType.MARGIN, 1);
+            BitMatrix matrix = qw.encode(verificationUrl(verificationId), BarcodeFormat.QR_CODE, 0, 0, hints);
+            float qrSize = 74f;
+            float qrX = 46f;
+            float qrY = h - 130f;
+            drawQr(cb, matrix, qrX, qrY, qrSize);
+        } catch (Exception ex) {
+            cb.setColorFill(dark);
+            cb.rectangle(46, h - 204, 74, 74);
+            cb.fill();
         }
-        cb.fill();
 
         Font metaFont = FontFactory.getFont(FontFactory.HELVETICA, 12, new BaseColor(0x33, 0x33, 0x33));
         Font labelFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, accent);
