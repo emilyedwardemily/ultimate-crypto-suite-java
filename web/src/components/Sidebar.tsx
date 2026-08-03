@@ -9,6 +9,8 @@ import {
   User,
   Gamepad2,
   Key,
+  ScrollText,
+  Lock,
   X,
 } from "lucide-react";
 
@@ -18,6 +20,8 @@ const navItems = [
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/playground", label: "Playground", icon: Gamepad2 },
+  { href: "/vault", label: "Secure Vault", icon: Lock },
+  { href: "/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/api-keys", label: "API Keys", icon: Key },
 ];
 

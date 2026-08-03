@@ -60,12 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, name: string) => {
-      const res = await apiRegister({ email, password, name });
+      const res = await apiRegister({ email, password, username: name });
+      const username = res.data.user?.username || name;
       const u: User = {
         email,
-        name,
+        name: username,
         token: res.data.token,
-        operatorId: res.data.operatorId || email,
+        operatorId: res.data.user?.username || email,
       };
       localStorage.setItem("uc_user", JSON.stringify(u));
       setUser(u);
