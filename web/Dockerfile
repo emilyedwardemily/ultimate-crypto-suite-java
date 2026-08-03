@@ -11,6 +11,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ARG NEXT_PUBLIC_PYTHON_URL=https://ultimate-crypto-python.onrender.com
+ARG NEXT_PUBLIC_NODE_URL=https://ultimate-crypto-node-gateway.onrender.com
+ARG NEXT_PUBLIC_API_KEY=Emily_Crypto_Secure_2026_KIU
+ENV NEXT_PUBLIC_PYTHON_URL=$NEXT_PUBLIC_PYTHON_URL
+ENV NEXT_PUBLIC_NODE_URL=$NEXT_PUBLIC_NODE_URL
+ENV NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

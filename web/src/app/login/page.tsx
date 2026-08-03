@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Shield, Mail, Lock, KeyRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -115,6 +116,12 @@ export default function LoginPage() {
             >
               {loading ? "Sending OTP..." : "Send OTP"}
             </button>
+            <p className="text-center text-sm text-crypto-text-muted">
+              New here?{" "}
+              <Link href="/register" className="text-crypto-accent hover:underline">
+                Create an account
+              </Link>
+            </p>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp} className="space-y-4">

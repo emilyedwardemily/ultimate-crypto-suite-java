@@ -87,6 +87,10 @@ jobs:
     defaults:
       run:
         working-directory: /home/emily/Desktop/UltimateCryptoSuite/web
+    env:
+      NEXT_PUBLIC_PYTHON_URL: https://ultimate-crypto-python.onrender.com
+      NEXT_PUBLIC_NODE_URL: https://ultimate-crypto-node-gateway.onrender.com
+      NEXT_PUBLIC_API_KEY: Emily_Crypto_Secure_2026_KIU
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

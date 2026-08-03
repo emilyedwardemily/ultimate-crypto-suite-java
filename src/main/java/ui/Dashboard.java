@@ -17,12 +17,14 @@ import org.json.JSONArray;
 // --- JSON & COLLECTIONS IMPORTS ---
 import org.json.JSONObject;
 
+import academy.AcademyFx;
 import academy.AcademyService;
 import academy.AcademyService.GlobalPosition;
 import academy.AcademyService.Standing;
 import academy.AcademyUi;
 import academy.CertificateGenerator;
 import academy.Challenge;
+import academy.EliteService;
 import app.ApiClient;
 import app.ApiException;
 import app.DatabaseManager;
@@ -50,6 +52,8 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -97,6 +101,7 @@ public class Dashboard extends BorderPane {
 
     // --- FORTRESS ACADEMY v2 (progress service + navigation tracking) ---
     private final AcademyService academy;
+    private final EliteService elite;
     private boolean academyActive = false;
     private int practiceTick = 0;
     private AnimationTimer academyTimer;
@@ -106,6 +111,14 @@ public class Dashboard extends BorderPane {
     private boolean suppressBadgeAnimations = true;
     private final java.util.ArrayDeque<String> badgeAnimQueue = new java.util.ArrayDeque<>();
     private boolean badgeAnimActive = false;
+
+    // --- SETTINGS / THEME (item 23) ---
+    private static String ACCENT = AcademyUi.GREEN;
+    private static boolean DARK_MODE = true;
+
+    // --- SEARCH index (item 22), built lazily + cached ---
+    private List<SearchRow> searchIndex;
+    private long searchIndexBuildMs;
 
     // --- MULTIPLAYER (item 17) ---
     private int pvpRounds = 3;
@@ -191,6 +204,8 @@ public class Dashboard extends BorderPane {
         // Fortress Academy v2: load persisted progress and restore legacy statics
         this.academy = new AcademyService(this.operatorID);
         academy.load();
+        this.elite = new EliteService(academy);
+        elite.load();
         for (java.util.Map.Entry<String, Integer> e : academy.getSolved().entrySet()) {
             leaderboard.put(operatorID + "_" + e.getKey(), e.getValue());
         }
@@ -198,6 +213,8 @@ public class Dashboard extends BorderPane {
         completedChallenges = academy.getSolvedCount();
         computeBadges();
         startAcademyTimer();
+        applyTheme();
+        seedBootNotifications();
 
         setStyle("-fx-background-color: #050505; -fx-border-color: #39FF14; -fx-border-width: 0.5;"); 
         setLeft(createSidebar());
@@ -206,9 +223,36 @@ public class Dashboard extends BorderPane {
         addLog("DEEP DEFENSE: V20.4 OBSIDIAN KERNEL LOADED.");
         addLog("AUTH STATUS: " + operatorID + " ATTACHED.");
         addLog("[ACADEMY] Fortress profile restored: " + totalXP + " XP, " + completedChallenges + " challenges.");
+        AcademyFx.splash(this, "ULTIMATE CRYPTO SUITE", "OBSIDIAN KERNEL \u2022 FORTRESS ACADEMY ONLINE");
         // Kurekodi boot kwenye Atlas
         sendAuditLog("SYSTEM_BOOT", "CORE_KERNEL");
         suppressBadgeAnimations = false;
+
+        // Every page switch fades in smoothly (gated by the animations setting).
+        centerProperty().addListener((o, a, b) -> AcademyFx.fadeIn(b, 320));
+    }
+
+    /** Applies persisted theme + accent from Settings and syncs the animation master switch. */
+    private void applyTheme() {
+        DARK_MODE = !academy.getSetting("theme", "dark").equalsIgnoreCase("light");
+        ACCENT = academy.getSetting("accent", AcademyUi.GREEN);
+        if (DARK_MODE) {
+            setStyle("-fx-background-color: #050505; -fx-border-color: #39FF14; -fx-border-width: 0.5;");
+        } else {
+            setStyle("-fx-background-color: #e8edf4; -fx-border-color: " + ACCENT + "; -fx-border-width: 0.5;");
+        }
+        AcademyUi.ANIMATIONS = academy.settingOn("animations");
+        AcademyFx.soundOn = academy.settingOn("sound");
+    }
+
+    /** Seeds the always-relevant system notifications once per session. */
+    private void seedBootNotifications() {
+        AcademyService.Mission daily = academy.getMission("DAILY");
+        if (daily != null && !daily.done) {
+            academy.notifyOnce("DAILY", "Daily challenge available",
+                "\"" + daily.challenge.descr + "\" is waiting \u2014 +" + daily.challenge.xp + " XP on tap.");
+        }
+        academy.notifyOnce("SYSTEM", "Fortress Academy online", "All modules ready. Check the Search tab to jump anywhere.");
     }
 
     /**
@@ -1653,6 +1697,12 @@ public class Dashboard extends BorderPane {
                 if (!before.contains(b)) playBadgeUnlockAnimation(b);
             }
         }
+        for (String b : achievedBadges) {
+            if (!before.contains(b) && ALL_BADGES.containsKey(b)) {
+                academy.notifyOnce("ACHIEVEMENT", "Achievement unlocked: " + ALL_BADGES.get(b)[1],
+                    ALL_BADGES.get(b)[0] + " " + ALL_BADGES.get(b)[1] + " badge earned.");
+            }
+        }
     }
     private boolean hasDoneAllFamily(String... families) {
         for (ChallengeData ch : getChallenges()) {
@@ -2365,6 +2415,7 @@ public class Dashboard extends BorderPane {
                     academy.onSolve(cid, cxp);
                     academy.recordSolveTime(cid, System.currentTimeMillis() - t0);
                     computeBadges();
+                    academy.notifyOnce("XP", "XP EARNED", "+" + cxp + " XP \u2014 " + ch.title + " cracked.");
                     sendAuditLog("GEN_" + cid.toUpperCase(), "ACADEMY");
                     addLog("[ACADEMY] +" + cxp + "XP \u2014 generated cipher cracked!");
                     showAcademyDashboard();
@@ -2479,6 +2530,10 @@ public class Dashboard extends BorderPane {
         courseBox.setStyle("-fx-background-color: #0d1117; -fx-padding: 14; -fx-border-color: #30363d; -fx-border-radius: 8;");
         for (AcademyService.Category c : academy.getCategories()) {
             String status = academy.certificateStatus(c);
+            if (status.equals("GRANTED")) {
+                academy.notifyOnce("CERTIFICATE", "Certificate ready: " + c.name,
+                    "Your " + c.name + " certificate (score " + String.format("%.0f%%", c.completionPercent) + ") is ready to download.");
+            }
             HBox courseRow = new HBox(12);
             courseRow.setAlignment(Pos.CENTER_LEFT);
             Label cName = AcademyUi.text(c.name, 13);
@@ -3200,6 +3255,7 @@ public class Dashboard extends BorderPane {
                         academy.onSolve(fid, fxp);
                         academy.recordSolveTime(fid, System.currentTimeMillis() - t0);
                         computeBadges();
+                        academy.notifyOnce("XP", "XP EARNED", "+" + fxp + " XP \u2014 " + ch.title + " cracked.");
                         sendAuditLog("CTF_" + fid.toUpperCase(), "ACADEMY");
                         addLog("[CTF] +" + fxp + "XP \u2014 " + ch.title + " cracked!");
                         showLearningModule();
@@ -5787,6 +5843,12 @@ public class Dashboard extends BorderPane {
                 computeBadges();
                 addLog("[CAREER] Promoted to " + AcademyService.CAREER_RANKS[promoted][1] + ".");
                 showCareerMode();
+                AcademyFx.playSound("win");
+                AcademyFx.confetti(this, AcademyUi.GOLD, AcademyUi.PURPLE);
+                AcademyFx.popup(this, "PROMOTION UNLOCKED",
+                    "Rank advanced to " + AcademyService.CAREER_RANKS[promoted][1]
+                        + ". The bonus XP and coins are already banked \u2014 keep climbing the ladder.",
+                    AcademyUi.GOLD, null);
             }
         });
         curCard.getChildren().add(claimBtn);
@@ -5941,6 +6003,8 @@ public class Dashboard extends BorderPane {
         pvpRound = 0;
         pvpRounds = 3;
         pvpActive = true;
+        academy.notifyOnce("INVITE", "Challenge invitation", opponent + " accepted your battle request \u2014 " + room + ".");
+        academy.notifyOnce("FRIEND", "Friend request", opponent + " added you as a friend.");
         nextPvpRound();
     }
 
@@ -6122,6 +6186,18 @@ public class Dashboard extends BorderPane {
         main.getChildren().addAll(trophy, verdict, scoreLab, rewardLab, btns);
         AcademyUi.glow(main, javafx.scene.paint.Color.web(win ? AcademyUi.GOLD : AcademyUi.RED, 0.3));
         setCenter(main);
+        int pvpXp = win ? 80 + pvpRounds * 20 : 0;
+        AcademyFx.playSound(win ? "win" : tie ? "tie" : "lose");
+        if (win) {
+            AcademyFx.confetti(this, AcademyUi.GOLD, AcademyUi.GREEN, AcademyUi.BLUE);
+            AcademyFx.glowPulse(trophy, AcademyUi.GOLD);
+            AcademyFx.floatUp(this, "+" + pvpXp + " XP", -1, 190, AcademyUi.GOLD);
+            AcademyFx.toast(this, "VICTORY \u2014 +" + pvpXp + " XP and +" + (25 + pvpRounds * 5) + " coins banked.", AcademyUi.GOLD);
+        } else if (tie) {
+            AcademyFx.sparkles(this, AcademyUi.BLUE, 28);
+        } else {
+            AcademyFx.glowPulse(trophy, AcademyUi.RED);
+        }
     }
 
     // ============================================================
@@ -6143,6 +6219,7 @@ public class Dashboard extends BorderPane {
         AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GOLD, 0.3));
         Label sub = AcademyUi.caption(
             "Weekly Cups \u2022 Monthly Cups \u2022 Season Championships \u2014 climb the bracket and collect XP, badges, coins and certificates.", 12);
+        academy.notifyOnce("TOURNAMENT", "Tournament reminder", "Weekly Cup closes tonight \u2014 top 3 take XP + coins.");
         main.getChildren().addAll(backBtn, title, sub);
 
         HBox rewards = new HBox(12);
@@ -6362,6 +6439,14 @@ public class Dashboard extends BorderPane {
         btns.setAlignment(Pos.CENTER);
         main.getChildren().addAll(trophy, verdict, scoreLab, rewardLab, btns);
         setCenter(main);
+        AcademyFx.playSound(first ? "win" : placement <= 3 ? "tie" : "lose");
+        if (first || placement <= 3) {
+            AcademyFx.confetti(this, AcademyUi.GOLD, AcademyUi.PURPLE, AcademyUi.BLUE);
+            AcademyFx.glowPulse(trophy, first ? AcademyUi.GOLD : AcademyUi.BLUE);
+            AcademyFx.floatUp(this, "+" + xp + " XP", -1, 190, AcademyUi.GOLD);
+        } else {
+            AcademyFx.glowPulse(trophy, AcademyUi.RED);
+        }
     }
 
     // ============================================================
@@ -6389,10 +6474,14 @@ public class Dashboard extends BorderPane {
         main.getChildren().addAll(backBtn, title, sub);
 
         HBox tiles = new HBox(12);
-        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDC64", "12,482", "TOTAL USERS", AcademyUi.BLUE));
-        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDDFF\uFE0F", "1,204", "DAILY ACTIVE", AcademyUi.GREEN));
-        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDD95", "186", "NEW TODAY", AcademyUi.GOLD));
-        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDD04", "68%", "RETENTION", AcademyUi.PURPLE));
+        VBox totalUsersTile = AcademyUi.statTile("\uD83D\uDC64", "\u2014", "TOTAL USERS", AcademyUi.BLUE);
+        VBox dailyActiveTile = AcademyUi.statTile("\uD83D\uDDFF\uFE0F", "\u2014", "DAILY ACTIVE", AcademyUi.GREEN);
+        VBox newTodayTile = AcademyUi.statTile("\uD83C\uDD95", "\u2014", "NEW TODAY", AcademyUi.GOLD);
+        VBox retentionTile = AcademyUi.statTile("\uD83D\uDD04", "\u2014", "RETENTION", AcademyUi.PURPLE);
+        tiles.getChildren().add(totalUsersTile);
+        tiles.getChildren().add(dailyActiveTile);
+        tiles.getChildren().add(newTodayTile);
+        tiles.getChildren().add(retentionTile);
         tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDFAF", String.format("%.0f%%", academy.getSuccessRate()), "AVG SCORE", AcademyUi.ORANGE));
         tiles.getChildren().add(AcademyUi.statTile("\u23F1\uFE0F", String.format("%.1f s", Math.max(5.0, academy.getPersonalBestMs() / 1000.0)), "AVG SOLVE TIME", AcademyUi.RED));
         main.getChildren().add(tiles);
@@ -6468,6 +6557,8 @@ public class Dashboard extends BorderPane {
         scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
         scroll.setPrefViewportHeight(720);
         setCenter(scroll);
+
+        refreshLiveAnalytics(totalUsersTile, dailyActiveTile, newTodayTile, retentionTile, lb);
     }
 
     private javafx.scene.Node failRow(String name, int pct) {
@@ -6559,9 +6650,3538 @@ public class Dashboard extends BorderPane {
         return cv;
     }
 
+    // =================================================================
+    // 21. NOTIFICATIONS
+    // =================================================================
+
+    private void showNotifications() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDD14 NOTIFICATIONS", ACCENT, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(ACCENT, 0.3));
+        Label sub = AcademyUi.caption("Achievement unlocks, friend requests, challenge invitations, tournament reminders, certificates, daily challenges and XP earned.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        int unread = academy.unreadCount();
+        java.util.List<AcademyService.Notif> notifs = academy.getNotifications();
+
+        HBox top = new HBox(14);
+        top.getChildren().add(AcademyUi.statTile("\uD83D\uDD14", unread + "", "UNREAD", ACCENT));
+        top.getChildren().add(AcademyUi.statTile("\uD83D\uDCC1", notifs.size() + "", "TOTAL", AcademyUi.BLUE));
+        top.getChildren().add(AcademyUi.spacer());
+        Button markAll = AcademyUi.button("MARK ALL READ", "#238636", "#ffffff");
+        markAll.setOnAction(e -> {
+            academy.markAllNotificationsRead();
+            addLog("[NOTIFICATIONS] All marked read.");
+            showNotifications();
+        });
+        top.getChildren().add(markAll);
+        main.getChildren().add(top);
+
+        VBox list = new VBox(10);
+        if (notifs.isEmpty()) {
+            list.getChildren().add(AcademyUi.caption("No notifications yet. Solve challenges, win matches and earn certificates to fill this feed.", 12));
+        } else {
+            for (AcademyService.Notif n : notifs) list.getChildren().add(notifCard(n));
+        }
+        main.getChildren().add(list);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private javafx.scene.Node notifCard(AcademyService.Notif n) {
+        String icon = switch (n.type) {
+            case "ACHIEVEMENT" -> "\uD83C\uDFC6";
+            case "XP" -> "\u26A1";
+            case "CERTIFICATE" -> "\uD83D\uDCC4";
+            case "DAILY" -> "\uD83D\uDCC5";
+            case "FRIEND" -> "\uD83D\uDC65";
+            case "INVITE" -> "\uD83E\uDD1D";
+            case "TOURNAMENT" -> "\uD83D\uDCE3";
+            default -> "\uD83D\uDD14";
+        };
+        VBox card = n.read ? AcademyUi.card() : AcademyUi.cardAccent(ACCENT);
+        HBox row = new HBox(14);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label iconLab = new Label(icon);
+        iconLab.setStyle("-fx-font-size: 24px;");
+        VBox body = new VBox(3);
+        Label t = AcademyUi.text(n.title, 13);
+        t.setStyle(t.getStyle() + (n.read ? "" : "; -fx-font-weight: bold;"));
+        Label d = AcademyUi.caption(n.detail, 11);
+        Label time = AcademyUi.caption(java.time.Instant.ofEpochMilli(n.ts)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("MMM d HH:mm")), 10);
+        body.getChildren().addAll(t, d, time);
+        row.getChildren().addAll(iconLab, body, AcademyUi.spacer());
+        Label dot = new Label(n.read ? "\u25CB" : "\u25C9");
+        dot.setStyle("-fx-text-fill: " + (n.read ? AcademyUi.DIM : ACCENT) + "; -fx-font-size: 18px;");
+        row.getChildren().add(dot);
+        card.getChildren().add(row);
+        if (!n.read) {
+            card.setOnMouseClicked(e -> {
+                n.read = true;
+                academy.save();
+                showNotifications();
+            });
+        }
+        return card;
+    }
+
+    // =================================================================
+    // 22. SEARCH
+    // =================================================================
+
+    private static class SearchRow {
+        final String type;
+        final String title;
+        final String subtitle;
+        final String accent;
+        final Runnable action;
+        SearchRow(String type, String title, String subtitle, String accent, Runnable action) {
+            this.type = type; this.title = title; this.subtitle = subtitle; this.accent = accent; this.action = action;
+        }
+    }
+
+    private void showSearch() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDD0E GLOBAL SEARCH", ACCENT, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(ACCENT, 0.3));
+        Label sub = AcademyUi.caption("Find challenges, lessons, algorithms, users, badges and certificates in one place.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        if (searchIndex == null) {
+            searchIndex = buildSearchIndex();
+            addLog("[SEARCH] Index built: " + searchIndex.size() + " entries in " + searchIndexBuildMs + " ms.");
+        }
+
+        TextField query = new TextField();
+        query.setPromptText("Type to search challenges, lessons, algorithms, users, badges, certificates...");
+        query.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: white; -fx-border-color: " + ACCENT + "; -fx-background-radius: 8; -fx-pref-width: 900; -fx-font-size: 14px;");
+        main.getChildren().add(query);
+
+        final String[] FILTERS = {"ALL", "CHALLENGE", "LESSON", "ALGORITHM", "USER", "BADGE", "CERTIFICATE"};
+        Label infoLab = AcademyUi.caption("", 11);
+        VBox results = new VBox(10);
+        HBox chips = new HBox(8);
+        ToggleGroup group = new ToggleGroup();
+        final String[] filter = {"ALL"};
+        for (String f : FILTERS) {
+            ToggleButton chip = new ToggleButton(f);
+            chip.setToggleGroup(group);
+            chip.setSelected(f.equals("ALL"));
+            chip.setStyle("-fx-background-color: #161b22; -fx-text-fill: #8b949e; -fx-border-color: #30363d; -fx-border-radius: 20; -fx-background-radius: 20; -fx-cursor: hand;");
+            chip.setOnAction(e -> { filter[0] = f; renderSearchResults(query.getText(), filter[0], results, infoLab); });
+            chips.getChildren().add(chip);
+        }
+        main.getChildren().add(chips);
+
+        main.getChildren().add(infoLab);
+
+        main.getChildren().add(results);
+
+        query.setOnAction(e -> renderSearchResults(query.getText(), filter[0], results, infoLab));
+        query.textProperty().addListener((obs, old, val) -> renderSearchResults(val, filter[0], results, infoLab));
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private void renderSearchResults(String rawQuery, String filter, VBox results, Label infoLab) {
+        results.getChildren().clear();
+        String q = rawQuery == null ? "" : rawQuery.trim().toLowerCase();
+        java.util.List<SearchRow> matches = new java.util.ArrayList<>();
+        for (SearchRow r : searchIndex) {
+            if (!filter.equals("ALL") && !r.type.equals(filter)) continue;
+            if (q.isEmpty()
+                || r.title.toLowerCase().contains(q)
+                || r.subtitle.toLowerCase().contains(q)
+                || r.type.toLowerCase().contains(q)) {
+                matches.add(r);
+            }
+        }
+        infoLab.setText(matches.size() + " result" + (matches.size() == 1 ? "" : "s")
+            + (searchIndex != null ? "  \u2022  index " + searchIndex.size() + " entries (built in " + searchIndexBuildMs + " ms)" : ""));
+        if (matches.isEmpty()) {
+            results.getChildren().add(AcademyUi.caption("No matches for \"" + rawQuery + "\" in " + filter + ".", 12));
+            return;
+        }
+        int limit = q.isEmpty() ? 40 : matches.size();
+        for (int i = 0; i < Math.min(limit, matches.size()); i++) {
+            results.getChildren().add(searchRowCard(matches.get(i)));
+        }
+        if (matches.size() > limit) {
+            results.getChildren().add(AcademyUi.caption("... and " + (matches.size() - limit) + " more. Type to narrow.", 11));
+        }
+    }
+
+    private javafx.scene.Node searchRowCard(SearchRow r) {
+        VBox card = AcademyUi.cardAccent(r.accent);
+        HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label typeLab = AcademyUi.pill(r.type, r.accent);
+        VBox body = new VBox(3);
+        Label t = AcademyUi.text(r.title, 13);
+        Label s = AcademyUi.caption(r.subtitle, 11);
+        body.getChildren().addAll(t, s);
+        row.getChildren().addAll(typeLab, body, AcademyUi.spacer());
+        Label go = new Label("\u279C");
+        go.setStyle("-fx-text-fill: " + r.accent + "; -fx-font-size: 16px; -fx-font-weight: bold;");
+        row.getChildren().add(go);
+        card.getChildren().add(row);
+        card.setCursor(javafx.scene.Cursor.HAND);
+        card.setOnMouseClicked(e -> { if (r.action != null) r.action.run(); });
+        return card;
+    }
+
+    private List<SearchRow> buildSearchIndex() {
+        long t0 = System.currentTimeMillis();
+        List<SearchRow> idx = new java.util.ArrayList<>();
+        for (ChallengeData ch : getChallenges()) {
+            boolean done = isChallengeDone(ch.id);
+            idx.add(new SearchRow("CHALLENGE", ch.title,
+                "[" + ch.diff + "] " + AcademyService.familyName(ch.family) + " \u2022 " + ch.xp + " XP" + (done ? " \u2022 \u2705 done" : ""),
+                diffColor(ch.diff), () -> solveFromSearch(ch)));
+        }
+        for (Challenge ch : academy.getGenerated()) {
+            boolean done = academy.getSolved().containsKey(ch.id);
+            idx.add(new SearchRow("CHALLENGE", ch.title,
+                "[GEN " + ch.diff + "] " + AcademyService.familyName(ch.family) + " \u2022 " + ch.xp + " XP" + (done ? " \u2022 \u2705 done" : ""),
+                diffColor(ch.diff), () -> solveGeneratedFromSearch(ch)));
+        }
+        for (AcademyService.Category c : academy.getCategories()) {
+            idx.add(new SearchRow("LESSON", c.name,
+                "Lesson track \u2022 " + c.difficulty + " \u2022 " + c.completedLessons + "/" + c.totalLessons + " lessons \u2022 " + String.format("%.0f%%", c.completionPercent),
+                AcademyUi.BLUE, () -> showLearningModule()));
+        }
+        String[][] algos = {
+            {"AES", "Advanced Encryption Standard \u2014 symmetric block cipher"}, {"RSA", "Public-key cryptography"},
+            {"XOR", "Bitwise one-time pad"}, {"Caesar", "Classical shift cipher"}, {"Playfair", "Digraph substitution"},
+            {"Hill", "Matrix-based polygraphic cipher"}, {"Transposition", "Columnar permutation cipher"},
+            {"Steganography", "Hide data in plain sight"}, {"SHA-256", "Hash / integrity"},
+            {"Shamir", "Secret splitting"}, {"DHKE", "Diffie-Hellman key exchange"},
+            {"Frequency Analysis", "Break substitution ciphers"}, {"Brute Force", "Exhaustive key search"},
+            {"Rainbow Tables", "Hash preimage lookup"}, {"Vigen\u00E8re", "Polyalphabetic cipher"}
+        };
+        for (String[] a : algos) {
+            idx.add(new SearchRow("ALGORITHM", a[0], a[1], AcademyUi.PURPLE, () -> showCryptoLab()));
+        }
+        for (Standing s : academy.getGlobalStandings(15)) {
+            idx.add(new SearchRow("USER", s.avatar + " " + s.name,
+                "Level " + s.level + " \u2022 " + s.xp + " XP \u2022 " + s.badges + " badges" + (s.me ? " \u2022 (you)" : ""),
+                s.me ? AcademyUi.GREEN : AcademyUi.ORANGE, () -> showGlobalLeaderboard()));
+        }
+        for (java.util.Map.Entry<String, String[]> e : ALL_BADGES.entrySet()) {
+            boolean earned = achievedBadges.contains(e.getKey());
+            idx.add(new SearchRow("BADGE", e.getValue()[0] + " " + e.getValue()[1],
+                earned ? "Earned" : "Locked", earned ? AcademyUi.GOLD : AcademyUi.DIM, () -> showProfile()));
+        }
+        for (AcademyService.Category c : academy.getCategories()) {
+            String status = academy.certificateStatus(c);
+            idx.add(new SearchRow("CERTIFICATE", c.name + " Certificate",
+                "Track certificate \u2022 " + status, status.equals("GRANTED") ? AcademyUi.GOLD : AcademyUi.DIM, () -> showCertificates()));
+        }
+        searchIndexBuildMs = System.currentTimeMillis() - t0;
+        return idx;
+    }
+
+    private void solveFromSearch(ChallengeData ch) {
+        if (isChallengeDone(ch.id)) {
+            TextInputDialog dlg = new TextInputDialog();
+            dlg.setTitle(ch.title);
+            dlg.setHeaderText("\u2705 Already solved \u2014 " + ch.descr);
+            dlg.setContentText("This challenge is complete. Close to continue.");
+            dlg.showAndWait();
+            return;
+        }
+        TextInputDialog dlg = new TextInputDialog();
+        dlg.setTitle("Solve: " + ch.title);
+        dlg.setHeaderText(ch.descr + "\n\n\uD83D\uDC8B Hint: " + ch.hint);
+        dlg.setContentText("Enter flag (case-insensitive):");
+        dlg.getEditor().setPromptText("UC{...}");
+        java.util.Optional<String> res = dlg.showAndWait();
+        if (res.isPresent() && res.get().trim().equalsIgnoreCase(ch.flag)) {
+            leaderboard.put(operatorID + "_" + ch.id, ch.xp);
+            totalXP += ch.xp;
+            completedChallenges++;
+            academy.onSolve(ch.id, ch.xp);
+            computeBadges();
+            academy.notifyOnce("XP", "XP EARNED", "+" + ch.xp + " XP \u2014 " + ch.title + " cracked.");
+            addLog("[SEARCH] \u2705 " + ch.title + " solved from search \u2014 +" + ch.xp + " XP.");
+            AcademyFx.playSound("xp");
+            AcademyFx.toast(this, "+" + ch.xp + " XP \u2014 " + ch.title + " cracked.", AcademyUi.GREEN);
+            showSearch();
+        } else if (res.isPresent()) {
+            academy.recordAttempt(false);
+            academy.recordWrongFamily(ch.family);
+            addLog("[SEARCH] \u274C Wrong flag for " + ch.title + ".");
+        }
+    }
+
+    private void solveGeneratedFromSearch(Challenge ch) {
+        if (academy.getSolved().containsKey(ch.id)) {
+            TextInputDialog dlg = new TextInputDialog();
+            dlg.setTitle(ch.title);
+            dlg.setHeaderText("\u2705 Already solved \u2014 " + ch.descr);
+            dlg.setContentText("This challenge is complete. Close to continue.");
+            dlg.showAndWait();
+            return;
+        }
+        TextInputDialog dlg = new TextInputDialog();
+        dlg.setTitle("Solve: " + ch.title);
+        dlg.setHeaderText(ch.descr + "\n\n\uD83D\uDC8B Hint: " + ch.hint);
+        dlg.setContentText("Enter flag (case-insensitive):");
+        dlg.getEditor().setPromptText("UC{...}");
+        java.util.Optional<String> res = dlg.showAndWait();
+        if (res.isPresent() && res.get().trim().equalsIgnoreCase(ch.flag)) {
+            academy.onSolve(ch.id, ch.xp);
+            computeBadges();
+            academy.notifyOnce("XP", "XP EARNED", "+" + ch.xp + " XP \u2014 " + ch.title + " cracked.");
+            addLog("[SEARCH] \u2705 Generated challenge solved \u2014 +" + ch.xp + " XP.");
+            AcademyFx.playSound("xp");
+            AcademyFx.toast(this, "+" + ch.xp + " XP \u2014 " + ch.title + " cracked.", AcademyUi.GREEN);
+            showSearch();
+        } else if (res.isPresent()) {
+            academy.recordAttempt(false);
+            academy.recordWrongFamily(ch.family);
+            addLog("[SEARCH] \u274C Wrong flag for " + ch.title + ".");
+        }
+    }
+
+    // =================================================================
+    // 23. SETTINGS
+    // =================================================================
+
+    private void showSettings() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\u2699\uFE0F SETTINGS", ACCENT, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(ACCENT, 0.3));
+        Label sub = AcademyUi.caption("Theme, accent colors, animations, sound, language, security and privacy. Settings persist to your profile file.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        // ----- Appearance -----
+        VBox appearance = AcademyUi.cardAccent(ACCENT);
+        appearance.getChildren().add(AcademyUi.section("\uD83C\uDFA8 APPEARANCE", ACCENT));
+
+        HBox themeRow = new HBox(10);
+        themeRow.setAlignment(Pos.CENTER_LEFT);
+        themeRow.getChildren().add(AcademyUi.text("Theme", 13));
+        ComboBox<String> themeBox = new ComboBox<>();
+        themeBox.getItems().addAll("Dark Mode", "Light Mode");
+        themeBox.setValue(academy.getSetting("theme", "dark").equalsIgnoreCase("light") ? "Light Mode" : "Dark Mode");
+        themeBox.setOnAction(e -> {
+            academy.setSetting("theme", themeBox.getValue().equals("Dark Mode") ? "dark" : "light");
+            applyTheme();
+            addLog("[SETTINGS] Theme \u2192 " + themeBox.getValue() + ".");
+        });
+        themeRow.getChildren().add(themeBox);
+        appearance.getChildren().add(themeRow);
+
+        HBox accentRow = new HBox(10);
+        accentRow.setAlignment(Pos.CENTER_LEFT);
+        accentRow.getChildren().add(AcademyUi.text("Accent color", 13));
+        String[] accents = {AcademyUi.GREEN, AcademyUi.BLUE, AcademyUi.PURPLE, AcademyUi.GOLD, AcademyUi.ORANGE, AcademyUi.RED};
+        for (String a : accents) {
+            Button swatch = new Button();
+            swatch.setPrefSize(30, 30);
+            swatch.setStyle("-fx-background-color: " + a + "; -fx-background-radius: 15; -fx-cursor: hand;"
+                + (a.equalsIgnoreCase(ACCENT) ? " -fx-border-color: white; -fx-border-width: 2; -fx-border-radius: 15;" : ""));
+            swatch.setOnAction(e -> {
+                academy.setSetting("accent", a);
+                applyTheme();
+                addLog("[SETTINGS] Accent \u2192 " + a + ".");
+                showSettings();
+            });
+            accentRow.getChildren().add(swatch);
+        }
+        appearance.getChildren().add(accentRow);
+
+        HBox animRow = new HBox(10);
+        animRow.setAlignment(Pos.CENTER_LEFT);
+        animRow.getChildren().add(AcademyUi.text("Animations", 13));
+        animRow.getChildren().add(settingToggle("animations"));
+        appearance.getChildren().add(animRow);
+
+        HBox soundRow = new HBox(10);
+        soundRow.setAlignment(Pos.CENTER_LEFT);
+        soundRow.getChildren().add(AcademyUi.text("Sound", 13));
+        soundRow.getChildren().add(settingToggle("sound"));
+        Button soundTest = AcademyUi.button("\uD83D\uDD0A TEST", "#30363d", AcademyUi.LIGHT);
+        soundTest.setOnAction(e -> {
+            try { java.awt.Toolkit.getDefaultToolkit().beep(); } catch (Throwable ignored) { }
+        });
+        soundRow.getChildren().add(soundTest);
+        appearance.getChildren().add(soundRow);
+        main.getChildren().add(appearance);
+
+        // ----- Language -----
+        VBox langCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        langCard.getChildren().add(AcademyUi.section("\uD83C\uDDF0\uD83C\uDDF7 LANGUAGE", AcademyUi.BLUE));
+        HBox langRow = new HBox(10);
+        langRow.setAlignment(Pos.CENTER_LEFT);
+        langRow.getChildren().add(AcademyUi.text("Interface language", 13));
+        ComboBox<String> langBox = new ComboBox<>();
+        langBox.getItems().addAll("English", "Kiswahili", "Fran\u00E7ais", "Espa\u00F1ol", "Deutsch", "\u65E5\u672C\u8A9E");
+        langBox.setValue(academy.getSetting("language", "English"));
+        langBox.setOnAction(e -> {
+            academy.setSetting("language", langBox.getValue());
+            addLog("[SETTINGS] Language \u2192 " + langBox.getValue() + ".");
+        });
+        langRow.getChildren().add(langBox);
+        langCard.getChildren().add(langRow);
+        main.getChildren().add(langCard);
+
+        // ----- Security -----
+        VBox secCard = AcademyUi.cardAccent(AcademyUi.RED);
+        secCard.getChildren().add(AcademyUi.section("\uD83D\uDD12 SECURITY", AcademyUi.RED));
+        secCard.getChildren().add(toggleRow("Cheat prevention", "Gates XP edits to awardXp() only", "cheatPrevention"));
+        secCard.getChildren().add(toggleRow("Encrypted profiles", "AES-encrypted backups for your save file", "profileEncryption"));
+        secCard.getChildren().add(toggleRow("Challenge validation", "Flags validated against UC{...} pattern", "challengeValidation"));
+        secCard.getChildren().add(toggleRow("Anti-tampering", "SHA-256 integrity signature on the profile", "antitamper"));
+        Button openSec = AcademyUi.button("OPEN SECURITY CENTER \u2192", "#f85149", "#ffffff");
+        openSec.setOnAction(e -> showSecurity());
+        secCard.getChildren().add(openSec);
+        main.getChildren().add(secCard);
+
+        // ----- Privacy -----
+        VBox privCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        privCard.getChildren().add(AcademyUi.section("\uD83D\uDD75\uFE0F PRIVACY", AcademyUi.PURPLE));
+        privCard.getChildren().add(toggleRow("Save activity history", "Records recent solves and practice", "activityHistory"));
+        privCard.getChildren().add(toggleRow("Store solve telemetry", "Tracks fastest solve times", "telemetry"));
+        privCard.getChildren().add(toggleRow("Share on leaderboard", "Appears in global standings", "leaderboardShare"));
+        main.getChildren().add(privCard);
+
+        main.getChildren().add(AcademyUi.caption("Settings are stored per-operator at ~/.ucsuite/academy_profile.json and re-applied on launch.", 11));
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private ToggleButton settingToggle(String key) {
+        ToggleButton tb = new ToggleButton(academy.settingOn(key) ? "ON" : "OFF");
+        tb.setSelected(academy.settingOn(key));
+        styleSettingToggle(tb);
+        tb.setOnAction(e -> {
+            academy.setSetting(key, tb.isSelected() ? "on" : "off");
+            tb.setText(tb.isSelected() ? "ON" : "OFF");
+            styleSettingToggle(tb);
+            if (key.equals("animations")) AcademyUi.ANIMATIONS = tb.isSelected();
+            addLog("[SETTINGS] " + key + " = " + (tb.isSelected() ? "ON" : "OFF") + ".");
+        });
+        return tb;
+    }
+
+    private void styleSettingToggle(ToggleButton tb) {
+        boolean on = tb.isSelected();
+        String bg = on ? "#238636" : "#30363d";
+        tb.setStyle("-fx-background-color: " + bg + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 12; -fx-background-insets: 0; -fx-cursor: hand;");
+    }
+
+    private HBox toggleRow(String label, String descr, String key) {
+        HBox row = new HBox(10);
+        row.setAlignment(Pos.CENTER_LEFT);
+        VBox body = new VBox(2);
+        body.getChildren().add(AcademyUi.text(label, 13));
+        body.getChildren().add(AcademyUi.caption(descr, 11));
+        row.getChildren().addAll(body, AcademyUi.spacer(), settingToggle(key));
+        return row;
+    }
+
+    // =================================================================
+    // 24. SECURITY
+    // =================================================================
+
+    private void showSecurity() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\uD83D\uDD12 SECURITY CENTER", AcademyUi.RED, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.RED, 0.3));
+        Label sub = AcademyUi.caption("Cheat prevention, XP-edit guards, secure save files, encrypted profiles, challenge validation, anti-tampering and secure database communication.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        boolean signed = academy.isProfileSigned();
+        boolean intact = academy.isProfileIntegrityOk();
+        String sigTxt = !signed ? "UNSIGNED" : (intact ? "VALID" : "TAMPERED");
+        String sigCol = !signed ? AcademyUi.ORANGE : (intact ? AcademyUi.GREEN : AcademyUi.RED);
+        int scan = academy.lastScanPassed();
+
+        HBox tiles = new HBox(14);
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDD0F", sigTxt, "PROFILE SIGNATURE", sigCol));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83E\uDDEA", scan < 0 ? "\u2014" : (scan == 1 ? "PASS" : "FAIL"), "INTEGRITY SCAN", scan == 1 ? AcademyUi.GREEN : AcademyUi.RED));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDEE1\uFE0F", academy.settingOn("cheatPrevention") ? "ON" : "OFF", "CHEAT PREVENTION", academy.settingOn("cheatPrevention") ? AcademyUi.GREEN : AcademyUi.RED));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDD10", academy.settingOn("profileEncryption") ? "ON" : "OFF", "ENCRYPTED SAVES", academy.settingOn("profileEncryption") ? AcademyUi.GREEN : AcademyUi.ORANGE));
+        main.getChildren().add(tiles);
+
+        // ----- Anti-tampering -----
+        VBox antiCard = AcademyUi.cardAccent(AcademyUi.RED);
+        antiCard.getChildren().add(AcademyUi.section("\uD83D\uDD12 ANTI-TAMPERING", AcademyUi.RED));
+        antiCard.getChildren().add(AcademyUi.text("Profile file: " + System.getProperty("user.home") + "/.ucsuite/academy_profile.json", 12));
+        VBox report = new VBox(8);
+        antiCard.getChildren().add(report);
+        Button scanBtn = AcademyUi.button("\uD83D\uDD0D RUN INTEGRITY SCAN", "#f85149", "#ffffff");
+        scanBtn.setOnAction(e -> {
+            java.util.List<AcademyService.ScanResult> res = academy.integrityScan();
+            report.getChildren().clear();
+            int passed = 0;
+            for (AcademyService.ScanResult r : res) {
+                report.getChildren().add(scanRow(r));
+                if (r.ok) passed++;
+            }
+            report.getChildren().add(AcademyUi.text((passed == res.size() ? "\u2705 ALL " : "\u274C ") + passed + "/" + res.size() + " checks passed.", 12));
+            addLog("[SECURITY] Integrity scan: " + passed + "/" + res.size() + " passed.");
+            sendAuditLog("INTEGRITY_SCAN", "SECURITY");
+        });
+        antiCard.getChildren().add(scanBtn);
+        Button resignBtn = AcademyUi.button("\u270F\uFE0F RE-SIGN PROFILE", "#30363d", AcademyUi.LIGHT);
+        resignBtn.setOnAction(e -> {
+            academy.save();
+            addLog("[SECURITY] Profile re-signed with a fresh integrity signature.");
+        });
+        antiCard.getChildren().add(resignBtn);
+        main.getChildren().add(antiCard);
+
+        // ----- Encrypted backups -----
+        VBox backupCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        backupCard.getChildren().add(AcademyUi.section("\uD83D\uDD10 ENCRYPTED BACKUPS", AcademyUi.PURPLE));
+        PasswordField pass = new PasswordField();
+        pass.setPromptText("Backup password");
+        pass.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: white; -fx-border-color: #30363d;");
+        backupCard.getChildren().add(pass);
+        Label backupLab = AcademyUi.caption("", 11);
+        HBox bbt = new HBox(10);
+        Button createBak = AcademyUi.button("\uD83D\uDCC1 CREATE BACKUP", "#238636", "#ffffff");
+        createBak.setOnAction(e -> {
+            String path = academy.createEncryptedBackup(pass.getText());
+            if (path != null) {
+                backupLab.setText("\u2705 AES-encrypted backup written to " + path);
+                addLog("[SECURITY] Encrypted backup created.");
+                sendAuditLog("BACKUP_CREATED", "SECURITY");
+            } else {
+                backupLab.setText("\u274C Backup failed.");
+            }
+        });
+        Button restoreBak = AcademyUi.button("\u21BA RESTORE BACKUP", "#8957e5", "#ffffff");
+        restoreBak.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Select encrypted backup (.ucb)");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("UC-Suite backup", "*.ucb"));
+            File f = fc.showOpenDialog(null);
+            if (f != null) {
+                boolean ok = academy.restoreEncryptedBackup(f.getAbsolutePath(), pass.getText());
+                backupLab.setText(ok ? "\u2705 Profile restored from backup." : "\u274C Restore failed \u2014 wrong password or wrong operator.");
+                addLog("[SECURITY] Restore " + (ok ? "succeeded." : "failed."));
+                sendAuditLog("BACKUP_RESTORED", "SECURITY");
+            }
+        });
+        bbt.getChildren().addAll(createBak, restoreBak);
+        backupCard.getChildren().addAll(bbt, backupLab);
+        main.getChildren().add(backupCard);
+
+        // ----- Protection toggles -----
+        VBox protCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        protCard.getChildren().add(AcademyUi.section("\uD83D\uDEE1\uFE0F PROTECTIONS", AcademyUi.BLUE));
+        protCard.getChildren().add(toggleRow("Cheat prevention", "XP can only increase through awardXp(); manual edits are flagged", "cheatPrevention"));
+        protCard.getChildren().add(toggleRow("Encrypted profiles", "Enable AES-encrypted backup snapshots", "profileEncryption"));
+        protCard.getChildren().add(toggleRow("Challenge validation", "Reject flags that do not match UC{...} and known challenge IDs", "challengeValidation"));
+        protCard.getChildren().add(toggleRow("Anti-tampering", "Recompute the SHA-256 signature on every load", "antitamper"));
+        main.getChildren().add(protCard);
+
+        // ----- Secure DB communication -----
+        VBox dbCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+        dbCard.getChildren().add(AcademyUi.section("\uD83D\uDCE1 SECURE DATABASE COMMUNICATION", AcademyUi.GREEN));
+        String[][] checks = {
+            {"HTTPS transport", "All backend traffic uses TLS to ultimate-crypto-*.onrender.com"},
+            {"X-API-KEY header", "Every request carries the secret API key"},
+            {"Session tokens", "Login issues a SESSION_TOKEN consumed by the gateway"},
+            {"No plaintext secrets on disk", "Credentials are never written to local files"},
+            {"AES-256 backups", "Save-file snapshots are encrypted before touching disk"}
+        };
+        for (String[] c : checks) {
+            HBox row = new HBox(10);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label okLab = new Label("\u2705");
+            okLab.setStyle("-fx-text-fill: " + AcademyUi.GREEN + "; -fx-font-size: 14px;");
+            row.getChildren().add(okLab);
+            VBox body = new VBox(2);
+            body.getChildren().add(AcademyUi.text(c[0], 13));
+            body.getChildren().add(AcademyUi.caption(c[1], 11));
+            row.getChildren().add(body);
+            dbCard.getChildren().add(row);
+        }
+        main.getChildren().add(dbCard);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    private HBox scanRow(AcademyService.ScanResult r) {
+        HBox row = new HBox(10);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label okLab = new Label(r.ok ? "\u2705" : "\u274C");
+        okLab.setStyle("-fx-text-fill: " + (r.ok ? AcademyUi.GREEN : AcademyUi.RED) + "; -fx-font-size: 14px;");
+        VBox body = new VBox(2);
+        body.getChildren().add(AcademyUi.text(r.check, 12));
+        body.getChildren().add(AcademyUi.caption(r.detail, 11));
+        row.getChildren().addAll(okLab, body);
+        return row;
+    }
+
+    // =================================================================
+    // 25. PERFORMANCE
+    // =================================================================
+
+    private void showPerformance() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+
+        Label title = AcademyUi.neon("\u26A1 PERFORMANCE", AcademyUi.BLUE, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.BLUE, 0.3));
+        Label sub = AcademyUi.caption("Fast loading, lazy loading, caching, memory optimization, smooth animations and thread-safe operations.", 12);
+        main.getChildren().addAll(backBtn, title, sub);
+
+        long used = academy.usedMemoryBytes();
+        long max = academy.maxMemoryBytes();
+        HBox tiles = new HBox(14);
+        tiles.getChildren().add(AcademyUi.statTile("\uD83E\uDDE0", (used / 1048576) + " / " + (max / 1048576) + " MB", "HEAP MEMORY", AcademyUi.GREEN));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDDC4\uFE0F", academy.getCacheSize() + "", "CACHE ENTRIES", AcademyUi.BLUE));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDFAF", academy.getCacheHits() + "", "CACHE HITS", AcademyUi.GOLD));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83C\uDF1F", academy.getCacheMisses() + "", "CACHE MISSES", AcademyUi.ORANGE));
+        tiles.getChildren().add(AcademyUi.statTile("\uD83D\uDD12", academy.getCachedChallenges() + "", "CHALLENGES CACHED", AcademyUi.PURPLE));
+        main.getChildren().add(tiles);
+
+        // ----- Toggles -----
+        VBox optCard = AcademyUi.cardAccent(AcademyUi.BLUE);
+        optCard.getChildren().add(AcademyUi.section("\u2699\uFE0F OPTIMIZATIONS", AcademyUi.BLUE));
+        optCard.getChildren().add(toggleRow("Caching", "Standings cached with a 30s TTL", "caching"));
+        optCard.getChildren().add(toggleRow("Lazy loading", "Heavy pages build their data on demand", "lazyLoading"));
+        optCard.getChildren().add(toggleRow("Smooth animations", "Fade/rise entrance animations", "animations"));
+        optCard.getChildren().add(toggleRow("Thread-safe ops", "Background workers update the UI via Platform.runLater", "threadSafe"));
+        main.getChildren().add(optCard);
+
+        // ----- Benchmark -----
+        VBox benchCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        benchCard.getChildren().add(AcademyUi.section("\u23F1\uFE0F BENCHMARKS", AcademyUi.GOLD));
+        VBox benchOut = new VBox(8);
+        Button benchBtn = AcademyUi.button("\u23F1\uFE0F RUN BENCHMARK", "#FFD700", "#000000");
+        benchBtn.setOnAction(e -> {
+            benchOut.getChildren().clear();
+            long t1 = System.nanoTime();
+            List<SearchRow> idx = buildSearchIndex();
+            long ms1 = (System.nanoTime() - t1) / 1_000_000;
+            searchIndex = idx;
+            long t2 = System.nanoTime();
+            academy.getGlobalStandings(20);
+            academy.getGlobalStandings(20);
+            long ms2 = (System.nanoTime() - t2) / 1_000_000;
+            long t3 = System.nanoTime();
+            academy.getCategories();
+            long ms3 = (System.nanoTime() - t3) / 1_000_000;
+            benchOut.getChildren().add(AcademyUi.text("\uD83D\uDD0E Search index: " + idx.size() + " entries in " + ms1 + " ms", 12));
+            benchOut.getChildren().add(AcademyUi.text("\uD83C\uDFC6 Standings (cached x2): " + ms2 + " ms \u2014 " + academy.getCacheHits() + " hits / " + academy.getCacheMisses() + " misses", 12));
+            benchOut.getChildren().add(AcademyUi.text("\uD83D\uDCDA Categories: " + ms3 + " ms", 12));
+            addLog("[PERF] Benchmark complete.");
+        });
+        benchCard.getChildren().addAll(benchBtn, benchOut);
+        main.getChildren().add(benchCard);
+
+        // ----- Lazy loading demo -----
+        VBox lazyCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        lazyCard.getChildren().add(AcademyUi.section("\uD83C\uDFEC LAZY LOADING DEMO", AcademyUi.PURPLE));
+        lazyCard.getChildren().add(AcademyUi.caption("Leaderboard rows are fetched on a background thread so the UI never blocks.", 11));
+        ProgressBar prog = new ProgressBar(0);
+        prog.setPrefWidth(420);
+        Label lazyStatus = AcademyUi.caption("Idle.", 11);
+        VBox lazyRows = new VBox(6);
+        Button loadLazy = AcademyUi.button("\uD83D\uDEC1 LOAD LEADERBOARD (ASYNC)", "#8957e5", "#ffffff");
+        loadLazy.setOnAction(e -> {
+            prog.setProgress(0);
+            lazyRows.getChildren().clear();
+            lazyStatus.setText("Fetching on worker thread...");
+            javafx.concurrent.Task<java.util.List<Standing>> task = new javafx.concurrent.Task<>() {
+                @Override protected java.util.List<Standing> call() throws Exception {
+                    for (int i = 0; i <= 10; i++) { Thread.sleep(40); updateProgress(i, 10); }
+                    return academy.getGlobalStandings(20);
+                }
+            };
+            task.setOnSucceeded(ev -> {
+                java.util.List<Standing> rows = task.getValue();
+                lazyRows.getChildren().clear();
+                for (Standing s : rows) {
+                    HBox r = new HBox(10);
+                    r.setAlignment(Pos.CENTER_LEFT);
+                    Label rank = AcademyUi.neon("#" + s.rank, AcademyUi.GOLD, 13);
+                    Label name = AcademyUi.text(s.avatar + " " + s.name + (s.me ? " (you)" : ""), 12);
+                    Label xp = AcademyUi.caption(s.xp + " XP \u2022 Level " + s.level, 11);
+                    r.getChildren().addAll(rank, name, AcademyUi.spacer(), xp);
+                    lazyRows.getChildren().add(r);
+                }
+                lazyStatus.setText("Loaded " + rows.size() + " standings rows from cache (hits=" + academy.getCacheHits() + ").");
+                prog.setProgress(1);
+            });
+            task.setOnFailed(ev -> lazyStatus.setText("\u274C Load failed: " + task.getException()));
+            new Thread(task).start();
+        });
+        lazyCard.getChildren().addAll(loadLazy, prog, lazyStatus, lazyRows);
+        main.getChildren().add(lazyCard);
+
+        // ----- Cache management -----
+        HBox mgmt = new HBox(10);
+        Button clearCache = AcademyUi.button("\uD83D\uDDD1 CLEAR CACHES", "#da3633", "#ffffff");
+        clearCache.setOnAction(e -> {
+            academy.clearCaches();
+            addLog("[PERF] Caches cleared.");
+            showPerformance();
+        });
+        Button refreshMem = AcademyUi.button("\uD83D\uDD04 REFRESH MEMORY", "#30363d", AcademyUi.LIGHT);
+        refreshMem.setOnAction(e -> showPerformance());
+        mgmt.getChildren().addAll(clearCache, refreshMem);
+        main.getChildren().add(mgmt);
+
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        AcademyUi.animateIn(main);
+    }
+
+    // ============================================================
+    // FORTRESS ACADEMY ELITE EDITION (items 27-36)
+    // ============================================================
+
+    private String ask(String title, String header, String prompt) {
+        TextInputDialog dlg = new TextInputDialog(prompt);
+        dlg.setTitle(title);
+        dlg.setHeaderText(header);
+        return dlg.showAndWait().orElse(null);
+    }
+
+    private String levelColor(String level) {
+        switch (level) {
+            case "BEGINNER": return AcademyUi.GREEN;
+            case "INTERMEDIATE": return AcademyUi.BLUE;
+            case "ADVANCED": return AcademyUi.GOLD;
+            default: return AcademyUi.PURPLE;
+        }
+    }
+
+    private ScrollPane eliteScroll(VBox main) {
+        ScrollPane scroll = new ScrollPane(main);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #050505; -fx-border-color: #30363d;");
+        scroll.setPrefViewportHeight(720);
+        setCenter(scroll);
+        return scroll;
+    }
+
+    private static String formatNum(String s) {
+        try { return String.format("%,d", (long) Double.parseDouble(s)); }
+        catch (Exception e) { return s; }
+    }
+
+    /**
+     * Hubadilisha takwimu za Admin Analytics kwa data halisi kutoka
+     * Python backend (/dashboard/stats) na leaderboard ya CTF (/leaderboard).
+     * Kama backend haipatikani, inabaki kwenye maadili ya ndani.
+     */
+    private void refreshLiveAnalytics(VBox totalUsersTile, VBox dailyActiveTile, VBox newTodayTile, VBox retentionTile, VBox leaderboardCard) {
+        new Thread(() -> {
+            try {
+                String res = callSecurePythonGet("/dashboard/stats");
+                JSONObject json = new JSONObject(res);
+                String totalUsers = json.optString("totalUsers", "\u2014");
+                String active = json.optString("activeSessions", "\u2014");
+                String encryptions = json.optString("totalEncryptions", "\u2014");
+                String auditLogs = json.optString("totalAuditLogs", "\u2014");
+                Platform.runLater(() -> {
+                    ((Label) totalUsersTile.getChildren().get(1)).setText(formatNum(totalUsers));
+                    ((Label) dailyActiveTile.getChildren().get(1)).setText(formatNum(active));
+                    ((Label) newTodayTile.getChildren().get(1)).setText(formatNum(encryptions) + " ops");
+                    ((Label) retentionTile.getChildren().get(1)).setText(auditLogs + " logs");
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> addLog("[ANALYTICS] Live stats unavailable (backend offline)."));
+            }
+        }).start();
+
+        new Thread(() -> {
+            try {
+                String res = callSecurePythonGet("/leaderboard");
+                JSONObject json = new JSONObject(res);
+                JSONArray entries = json.optJSONArray("entries");
+                if (entries == null || entries.length() == 0) return;
+                Platform.runLater(() -> {
+                    while (leaderboardCard.getChildren().size() > 1) {
+                        leaderboardCard.getChildren().remove(leaderboardCard.getChildren().size() - 1);
+                    }
+                    int n = Math.min(entries.length(), 6);
+                    for (int i = 0; i < n; i++) {
+                        JSONObject e = entries.getJSONObject(i);
+                        int rank = e.optInt("rank", i + 1);
+                        String name = e.optString("username", "operator");
+                        long xp = e.optLong("xp", 0);
+                        Label l = new Label(String.format("#%d  %s %-20s %d XP",
+                            rank, "\uD83D\uDEE1\uFE0F", truncate(name, 20), xp));
+                        l.setStyle("-fx-text-fill: #c9d1d9; -fx-font-size: 11px; -fx-font-family: 'Courier New';");
+                        leaderboardCard.getChildren().add(l);
+                    }
+                });
+            } catch (Exception e) {
+                // Backend offline - weka simulated standings za ndani
+            }
+        }).start();
+    }
+
+    private void eliteHeader(VBox main, String icon, String title, String accent, String sub) {
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO ACADEMY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showAcademyDashboard());
+        Label t = AcademyUi.neon(icon + " " + title, accent, 22);
+        AcademyUi.glow(t, javafx.scene.paint.Color.web(accent, 0.3));
+        Label s = AcademyUi.caption(sub, 12);
+        main.getChildren().addAll(backBtn, t, s);
+    }
+
+    private void runInlineQuiz(VBox main, String header, String accent, String finishLabel,
+                               java.util.List<String> questions, java.util.List<String[]> options,
+                               java.util.function.Consumer<java.util.List<Integer>> onFinish) {
+        VBox card = AcademyUi.cardAccent(accent);
+        card.getChildren().add(AcademyUi.section(header, accent));
+        Label qLab = AcademyUi.text("", 14);
+        VBox opts = new VBox(8);
+        Button next = AcademyUi.button(finishLabel, accent, "#0d1117");
+        java.util.List<Integer> answers = new java.util.ArrayList<>();
+        java.util.List<ToggleButton> toggles = new java.util.ArrayList<>();
+        int[] idx = {0};
+        Runnable renderQ = () -> {
+            if (idx[0] >= questions.size()) { onFinish.accept(answers); return; }
+            qLab.setText("Q" + (idx[0] + 1) + "/" + questions.size() + ":  " + questions.get(idx[0]));
+            opts.getChildren().clear();
+            toggles.clear();
+            String[] qopts = options.get(idx[0]);
+            for (int o = 0; o < qopts.length; o++) {
+                ToggleButton tb = new ToggleButton(qopts[o]);
+                tb.setMaxWidth(Double.MAX_VALUE);
+                tb.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #c9d1d9; -fx-border-color: #30363d; -fx-border-radius: 8; -fx-background-radius: 8; -fx-cursor: hand;");
+                toggles.add(tb);
+                opts.getChildren().add(tb);
+            }
+            if (idx[0] < answers.size()) {
+                int sel = answers.get(idx[0]);
+                if (sel >= 0 && sel < toggles.size()) toggles.get(sel).setSelected(true);
+            }
+        };
+        next.setOnAction(e -> {
+            int chosen = -1;
+            for (int i = 0; i < toggles.size(); i++) {
+                if (toggles.get(i).isSelected()) { chosen = i; break; }
+            }
+            if (idx[0] < answers.size()) answers.set(idx[0], chosen); else answers.add(chosen);
+            idx[0]++;
+            renderQ.run();
+        });
+        card.getChildren().addAll(qLab, opts, next);
+        main.getChildren().add(card);
+        renderQ.run();
+    }
+
+    // -------- 27. LEARNING PATH ENGINE --------
+    private double pathPct(EliteService.LearningPath p, EliteService.PathProgress pr) {
+        int total = p.lessons.size() + p.labs.size() + p.ctfs.size() + p.projects.size() + 1;
+        return Math.min(100, Math.round(pr.totalItems() * 100.0 / Math.max(1, total)));
+    }
+
+    private void showLearningPaths() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCD6", "LEARNING PATH ENGINE", AcademyUi.GOLD,
+            "Structured paths with lessons, labs, CTFs, projects, a final exam and a certificate.");
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        int col = 0, row = 0;
+        for (EliteService.LearningPath p : elite.paths()) {
+            grid.add(buildPathCard(p), col, row);
+            col++;
+            if (col > 2) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private javafx.scene.Node buildPathCard(EliteService.LearningPath p) {
+        boolean canStart = elite.canStart(p.id);
+        boolean completed = elite.isPathCompleted(p.id);
+        EliteService.PathProgress pr = elite.progress(p.id);
+        VBox card = AcademyUi.cardAccent(canStart || completed ? AcademyUi.GOLD : "#30363d");
+        card.setPrefWidth(360);
+        card.getChildren().add(AcademyUi.section(p.icon + " " + p.title, AcademyUi.GOLD));
+        card.getChildren().add(AcademyUi.pill(p.level, levelColor(p.level)));
+        HBox meta = new HBox(8);
+        meta.getChildren().add(AcademyUi.pill("\u23F1 " + p.estHours + "h", AcademyUi.DIM));
+        meta.getChildren().add(AcademyUi.pill("PREREQ: " + (p.prereqs.isEmpty() ? "NONE" : String.join(", ", p.prereqs)), AcademyUi.ORANGE));
+        card.getChildren().add(meta);
+        card.getChildren().add(AcademyUi.caption(p.descr, 12));
+        ProgressBar bar = new ProgressBar(pathPct(p, pr) / 100.0);
+        bar.setPrefWidth(Double.MAX_VALUE);
+        bar.setStyle("-fx-accent: #FFD700; -fx-pref-height: 8;");
+        card.getChildren().addAll(bar, AcademyUi.caption("PROGRESS " + pathPct(p, pr) + "%", 11));
+        Button open = AcademyUi.button(completed ? "COMPLETED \u2705" : "OPEN PATH", canStart || completed ? "#1f6feb" : "#30363d", "#ffffff");
+        open.setOnAction(e -> showLearningPathDetail(p.id));
+        card.getChildren().add(open);
+        return card;
+    }
+
+    private void showLearningPathDetail(String pathId) {
+        EliteService.LearningPath p = elite.path(pathId);
+        if (p == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO PATHS", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showLearningPaths());
+        Label title = AcademyUi.neon(p.icon + " " + p.title, AcademyUi.GOLD, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GOLD, 0.3));
+        EliteService.PathProgress pr = elite.progress(pathId);
+        main.getChildren().addAll(backBtn, title, AcademyUi.caption(p.descr, 12));
+
+        VBox lessonsCard = AcademyUi.card();
+        lessonsCard.getChildren().add(AcademyUi.section("\uD83D\uDCDA LESSONS (" + pr.lessonsDone + "/" + p.lessons.size() + ")", AcademyUi.GREEN));
+        for (int i = 0; i < p.lessons.size(); i++) {
+            final int step = i;
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text((i < pr.lessonsDone ? "\u2705 " : "\u26AA ") + p.lessons.get(i), 13));
+            if (i < pr.lessonsDone) {
+                row.getChildren().add(AcademyUi.pill("DONE", AcademyUi.GREEN));
+            } else {
+                Button b = AcademyUi.button("COMPLETE +15 XP", "#238636", "#ffffff");
+                b.setOnAction(e -> { elite.completeLesson(pathId, step); showLearningPathDetail(pathId); });
+                row.getChildren().add(b);
+            }
+            lessonsCard.getChildren().add(row);
+        }
+        main.getChildren().add(lessonsCard);
+
+        VBox labsCard = AcademyUi.card();
+        labsCard.getChildren().add(AcademyUi.section("\uD83D\uDD2C LABS (" + pr.labsDone + "/" + p.labs.size() + ")", AcademyUi.BLUE));
+        for (int i = 0; i < p.labs.size(); i++) {
+            final int step = i;
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text((i < pr.labsDone ? "\u2705 " : "\u26AA ") + p.labs.get(i), 13));
+            if (i < pr.labsDone) {
+                row.getChildren().add(AcademyUi.pill("DONE", AcademyUi.GREEN));
+            } else {
+                Button b = AcademyUi.button("COMPLETE +30 XP", "#1f6feb", "#ffffff");
+                b.setOnAction(e -> { elite.completeLab(pathId, step); showLearningPathDetail(pathId); });
+                row.getChildren().add(b);
+            }
+            labsCard.getChildren().add(row);
+        }
+        main.getChildren().add(labsCard);
+
+        VBox ctfsCard = AcademyUi.card();
+        ctfsCard.getChildren().add(AcademyUi.section("\uD83C\uDFAF CTF (" + pr.ctfsDone + "/" + p.ctfs.size() + ")", AcademyUi.GOLD));
+        for (int i = 0; i < p.ctfs.size(); i++) {
+            final int step = i;
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text((i < pr.ctfsDone ? "\u2705 " : "\u26AA ") + p.ctfs.get(i), 13));
+            if (i < pr.ctfsDone) {
+                row.getChildren().add(AcademyUi.pill("DONE", AcademyUi.GREEN));
+            } else {
+                Button b = AcademyUi.button("COMPLETE +60 XP", "#F78166", "#0d1117");
+                b.setOnAction(e -> { elite.completeCtf(pathId, step); showLearningPathDetail(pathId); });
+                row.getChildren().add(b);
+            }
+            ctfsCard.getChildren().add(row);
+        }
+        main.getChildren().add(ctfsCard);
+
+        VBox projectsCard = AcademyUi.card();
+        projectsCard.getChildren().add(AcademyUi.section("\uD83D\uDEE0 PROJECTS (" + pr.projectsDone + "/" + p.projects.size() + ")", AcademyUi.PURPLE));
+        for (int i = 0; i < p.projects.size(); i++) {
+            final int step = i;
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text((i < pr.projectsDone ? "\u2705 " : "\u26AA ") + p.projects.get(i), 13));
+            if (i < pr.projectsDone) {
+                row.getChildren().add(AcademyUi.pill("DONE", AcademyUi.GREEN));
+            } else {
+                Button b = AcademyUi.button("COMPLETE +100 XP", "#8957e5", "#ffffff");
+                b.setOnAction(e -> { elite.completeProject(pathId, step); showLearningPathDetail(pathId); });
+                row.getChildren().add(b);
+            }
+            projectsCard.getChildren().add(row);
+        }
+        main.getChildren().add(projectsCard);
+
+        VBox examCard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        examCard.getChildren().add(AcademyUi.section("\uD83D\uDCCB FINAL EXAM", AcademyUi.PURPLE));
+        examCard.getChildren().add(AcademyUi.text("5 randomized questions \u2022 70% to pass \u2022 unlocks \"" + p.certTitle + "\" certificate.", 13));
+        if (pr.examScore >= 0) {
+            examCard.getChildren().add(AcademyUi.pill("SCORE " + pr.examScore + "%", pr.examScore >= 70 ? AcademyUi.GREEN : AcademyUi.RED));
+        }
+        Button take = AcademyUi.button("TAKE EXAM", "#8957e5", "#ffffff");
+        take.setOnAction(e -> {
+            java.util.List<String> qs = new java.util.ArrayList<>();
+            java.util.List<String[]> opts = new java.util.ArrayList<>();
+            for (EliteService.ExamQuestion eq : elite.pathExamQuestions(pathId)) {
+                qs.add(eq.prompt);
+                opts.add(eq.options);
+            }
+            runInlineQuiz(main, "PATH EXAM - " + p.title, AcademyUi.PURPLE, "SUBMIT EXAM", qs, opts,
+                answers -> {
+                    int score = elite.takePathExam(pathId, answers);
+                    AcademyFx.toast(this, "Final exam scored " + score + "%", score >= 70 ? AcademyUi.GREEN : AcademyUi.RED);
+                    showLearningPathDetail(pathId);
+                });
+        });
+        examCard.getChildren().add(take);
+        main.getChildren().add(examCard);
+
+        if (elite.isPathCompleted(pathId)) {
+            VBox cert = AcademyUi.cardAccent(AcademyUi.GOLD);
+            cert.getChildren().add(AcademyUi.section("\uD83C\uDFC5 CERTIFICATE", AcademyUi.GOLD));
+            cert.getChildren().add(AcademyUi.text(p.certTitle + " unlocked.", 13));
+            main.getChildren().add(cert);
+        }
+
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 28. CYBER RANGE --------
+    private void showCyberRange() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDFE5", "CYBER RANGE", AcademyUi.BLUE,
+            "Simulated production environments. Complete each step to stop the incident and clear the range.");
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        int col = 0, row = 0;
+        for (EliteService.RangeEnv r : elite.ranges()) {
+            grid.add(buildRangeCard(r), col, row);
+            col++;
+            if (col > 2) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private javafx.scene.Node buildRangeCard(EliteService.RangeEnv r) {
+        int done = elite.rangeStepsDone(r.id);
+        boolean cleared = elite.isRangeDone(r.id);
+        VBox card = AcademyUi.cardAccent(cleared ? AcademyUi.GREEN : AcademyUi.BLUE);
+        card.setPrefWidth(360);
+        card.getChildren().add(AcademyUi.section(r.icon + " " + r.name, AcademyUi.BLUE));
+        card.getChildren().add(AcademyUi.pill(r.threat + " THREAT", levelColor(r.threat)));
+        card.getChildren().add(AcademyUi.caption(r.steps.get(0).prompt, 12));
+        ProgressBar bar = new ProgressBar(done * 1.0 / r.steps.size());
+        bar.setPrefWidth(Double.MAX_VALUE);
+        bar.setStyle("-fx-accent: #58a6ff; -fx-pref-height: 8;");
+        card.getChildren().addAll(bar, AcademyUi.caption(done + "/" + r.steps.size() + " STEPS", 11));
+        Button open = AcademyUi.button(cleared ? "CLEARED \uD83D\uDE4C" : "ENTER RANGE", "#1f6feb", "#ffffff");
+        open.setOnAction(e -> showRangeDetail(r.id));
+        card.getChildren().add(open);
+        return card;
+    }
+
+    private void showRangeDetail(String rangeId) {
+        EliteService.RangeEnv r = elite.range(rangeId);
+        if (r == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO RANGES", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showCyberRange());
+        Label title = AcademyUi.neon(r.icon + " " + r.name, AcademyUi.BLUE, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.BLUE, 0.3));
+        main.getChildren().addAll(backBtn, title, AcademyUi.pill(r.threat + " THREAT LEVEL", levelColor(r.threat)));
+        int done = elite.rangeStepsDone(rangeId);
+        for (int i = 0; i < r.steps.size(); i++) {
+            final int step = i;
+            EliteService.RangeStep s = r.steps.get(i);
+            VBox card = AcademyUi.card();
+            if (i < done) {
+                card.getChildren().add(AcademyUi.section("\u2705 STEP " + (i + 1) + " - CLEARED", AcademyUi.GREEN));
+                card.getChildren().add(AcademyUi.caption(s.prompt, 12));
+            } else {
+                card.getChildren().add(AcademyUi.section("STEP " + (i + 1) + " - " + s.prompt, AcademyUi.BLUE));
+                card.getChildren().add(AcademyUi.text("\u2753 " + s.question, 13));
+                Button solve = AcademyUi.button("SOLVE +" + s.xp + " XP", "#1f6feb", "#ffffff");
+                solve.setOnAction(e -> {
+                    String ans = ask("Cyber Range", s.question, "");
+                    if (ans != null && elite.solveRangeStep(rangeId, step, ans)) {
+                        AcademyFx.playSound("xp");
+                        AcademyFx.toast(this, "Step cleared +" + s.xp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "Incorrect. Try again.", AcademyUi.RED);
+                    }
+                    showRangeDetail(rangeId);
+                });
+                card.getChildren().add(solve);
+            }
+            main.getChildren().add(card);
+        }
+        if (elite.isRangeDone(rangeId)) {
+            VBox clearedCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+            clearedCard.getChildren().add(AcademyUi.section("\uD83C\uDFC6 RANGE CLEARED +60 COINS", AcademyUi.GREEN));
+            main.getChildren().add(clearedCard);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 29. MISSION MODE --------
+    private void showMissions() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCCC", "MISSION MODE", AcademyUi.GREEN,
+            "Full operational missions: analyze traffic, recover keys, decrypt files, identify the attacker and file your incident report.");
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        int col = 0, row = 0;
+        for (EliteService.EliteMission m : elite.missions()) {
+            grid.add(buildMissionCard(m), col, row);
+            col++;
+            if (col > 1) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private javafx.scene.Node buildMissionCard(EliteService.EliteMission m) {
+        boolean done = elite.isMissionDone(m.id);
+        VBox card = AcademyUi.cardAccent(done ? AcademyUi.GREEN : AcademyUi.GOLD);
+        card.setPrefWidth(560);
+        card.getChildren().add(AcademyUi.section("\uD83D\uDCCC " + m.title, AcademyUi.GOLD));
+        card.getChildren().add(AcademyUi.caption(m.brief, 12));
+        card.getChildren().add(AcademyUi.pill(m.coins + " COINS \u2022 " + m.xpReward + " XP \u2022 BADGE: " + m.badge, AcademyUi.GOLD));
+        int od = elite.missionObjectivesDone(m.id);
+        ProgressBar bar = new ProgressBar(od * 1.0 / m.objectives.size());
+        bar.setPrefWidth(Double.MAX_VALUE);
+        bar.setStyle("-fx-accent: #39FF14; -fx-pref-height: 8;");
+        card.getChildren().addAll(bar, AcademyUi.caption(od + "/" + m.objectives.size() + " OBJECTIVES", 11));
+        Button open = AcademyUi.button(done ? "COMPLETED \uD83C\uDFC6" : "BRIEFING", "#1f6feb", "#ffffff");
+        open.setOnAction(e -> showMissionDetail(m.id));
+        card.getChildren().add(open);
+        return card;
+    }
+
+    private void showMissionDetail(String missionId) {
+        EliteService.EliteMission m = elite.mission(missionId);
+        if (m == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO MISSIONS", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showMissions());
+        Label title = AcademyUi.neon("\uD83D\uDCCC " + m.title, AcademyUi.GREEN, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.GREEN, 0.3));
+        main.getChildren().addAll(backBtn, title, AcademyUi.caption(m.brief, 12));
+        int done = elite.missionObjectivesDone(missionId);
+        for (int i = 0; i < m.objectives.size(); i++) {
+            final int step = i;
+            EliteService.MissionObjective o = m.objectives.get(i);
+            VBox card = AcademyUi.card();
+            if (i < done) {
+                card.getChildren().add(AcademyUi.section("\u2705 " + o.text, AcademyUi.GREEN));
+            } else {
+                card.getChildren().add(AcademyUi.section(o.text, AcademyUi.GOLD));
+                card.getChildren().add(AcademyUi.text("\u2753 " + o.question, 13));
+                Button solve = AcademyUi.button("SUBMIT EVIDENCE +" + o.xp + " XP", "#238636", "#ffffff");
+                solve.setOnAction(e -> {
+                    String ans = ask("Mission Evidence", o.question, "");
+                    if (ans != null && elite.solveMissionObjective(missionId, step, ans)) {
+                        AcademyFx.playSound("xp");
+                        AcademyFx.toast(this, "Objective complete +" + o.xp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "Evidence rejected. Try again.", AcademyUi.RED);
+                    }
+                    showMissionDetail(missionId);
+                });
+                card.getChildren().add(solve);
+            }
+            main.getChildren().add(card);
+        }
+        VBox reportCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        reportCard.getChildren().add(AcademyUi.section("\uD83D\uDCC4 INCIDENT REPORT", AcademyUi.GOLD));
+        TextArea report = new TextArea();
+        report.setPromptText("Write your incident report...");
+        report.setPrefRowCount(4);
+        report.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        reportCard.getChildren().add(report);
+        Button submitReport = AcademyUi.button("\uD83D\uDCE4 SUBMIT REPORT", "#1f6feb", "#ffffff");
+        submitReport.setOnAction(e -> {
+            if (report.getText() == null || report.getText().trim().isEmpty()) {
+                AcademyFx.toast(this, "Write a report first.", AcademyUi.RED);
+                return;
+            }
+            elite.submitMissionReport(missionId, report.getText().trim());
+            AcademyFx.toast(this, "Incident report filed.", AcademyUi.GOLD);
+            showMissionDetail(missionId);
+        });
+        reportCard.getChildren().add(submitReport);
+        main.getChildren().add(reportCard);
+        if (elite.isMissionDone(missionId)) {
+            VBox doneCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+            doneCard.getChildren().add(AcademyUi.section("\uD83C\uDFC6 MISSION COMPLETE - badge: " + m.badge, AcademyUi.GREEN));
+            main.getChildren().add(doneCard);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 30. STORY MODE --------
+    private void showStory() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCFA", "STORY MODE", AcademyUi.PURPLE,
+            "A narrative campaign across five episodes. Complete each episode to unlock the next.");
+        for (EliteService.StoryEpisode ep : elite.episodes()) {
+            boolean unlocked = elite.isEpisodeUnlocked(ep.id);
+            boolean done = elite.isEpisodeDone(ep.id);
+            VBox card = AcademyUi.cardAccent(done ? AcademyUi.GREEN : (unlocked ? AcademyUi.PURPLE : "#30363d"));
+            HBox head = new HBox(10);
+            head.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            head.getChildren().add(AcademyUi.section("EPISODE " + ep.part + " - " + ep.title, done ? AcademyUi.GREEN : (unlocked ? AcademyUi.PURPLE : AcademyUi.DIM)));
+            head.getChildren().add(AcademyUi.pill(unlocked ? (done ? "DONE" : "UNLOCKED") : "LOCKED", done ? AcademyUi.GREEN : (unlocked ? AcademyUi.PURPLE : AcademyUi.DIM)));
+            card.getChildren().add(head);
+            card.getChildren().add(AcademyUi.caption(ep.summary, 12));
+            if (unlocked) {
+                Button open = AcademyUi.button("PLAY EPISODE", "#8957e5", "#ffffff");
+                open.setOnAction(e -> showEpisodeDetail(ep.id));
+                card.getChildren().add(open);
+            }
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showEpisodeDetail(String epId) {
+        EliteService.StoryEpisode ep = elite.episode(epId);
+        if (ep == null) return;
+        int part = ep.part;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO STORY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showStory());
+        Label title = AcademyUi.neon("EPISODE " + part + " - " + ep.title, AcademyUi.PURPLE, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.PURPLE, 0.3));
+        main.getChildren().addAll(backBtn, title, AcademyUi.caption(ep.summary, 12));
+        int done = elite.storyScenesDone(epId);
+        for (int i = 0; i < ep.scenes.size(); i++) {
+            final int step = i;
+            EliteService.StoryScene sc = ep.scenes.get(i);
+            VBox card = AcademyUi.card();
+            if (i < done) {
+                card.getChildren().add(AcademyUi.section("\u2705 " + sc.title, AcademyUi.GREEN));
+                card.getChildren().add(AcademyUi.caption(sc.prompt, 12));
+            } else {
+                card.getChildren().add(AcademyUi.section(sc.title, AcademyUi.PURPLE));
+                card.getChildren().add(AcademyUi.caption(sc.prompt, 12));
+                card.getChildren().add(AcademyUi.text("\u2753 " + sc.question, 13));
+                Button solve = AcademyUi.button("SOLVE +" + sc.xp + " XP", "#8957e5", "#ffffff");
+                solve.setOnAction(e -> {
+                    String ans = ask("Story Scene", sc.question, "");
+                    if (ans != null && elite.solveStoryScene(epId, step, ans)) {
+                        AcademyFx.playSound("xp");
+                        AcademyFx.toast(this, "Scene cleared +" + sc.xp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "That's not it. Try again.", AcademyUi.RED);
+                    }
+                    showEpisodeDetail(epId);
+                });
+                card.getChildren().add(solve);
+            }
+            main.getChildren().add(card);
+        }
+        if (elite.isEpisodeDone(epId)) {
+            VBox doneCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+            doneCard.getChildren().add(AcademyUi.section("\uD83C\uDFC6 EPISODE COMPLETE - next episode unlocked", AcademyUi.GREEN));
+            main.getChildren().add(doneCard);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 31. TEAM MODE --------
+    private void showTeams() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83E\uDD1D", "TEAM MODE", AcademyUi.ORANGE,
+            "Create squads, share XP and progress, run team chat and tackle shared challenges.");
+        Button create = AcademyUi.button("+ CREATE TEAM", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String name = ask("Create Team", "Team name", "");
+            if (name == null || name.trim().isEmpty()) return;
+            String motto = ask("Create Team", "Motto", "Hack together. Grow together.");
+            EliteService.Team team = elite.createTeam(name.trim(), motto == null ? "" : motto);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Team created - " + team.id, AcademyUi.ORANGE);
+            showTeams();
+        });
+        main.getChildren().add(create);
+        if (elite.getTeams().isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No teams yet. Create one and invite your squad.", 13));
+        }
+        for (EliteService.Team t : elite.getTeams()) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.ORANGE);
+            card.getChildren().add(AcademyUi.section("\uD83E\uDD1D " + t.name, AcademyUi.ORANGE));
+            if (t.motto != null && !t.motto.isEmpty()) card.getChildren().add(AcademyUi.caption("\u201C" + t.motto + "\u201D", 12));
+            card.getChildren().add(AcademyUi.pill("SHARED XP " + t.sharedXp(), AcademyUi.GOLD));
+            VBox members = new VBox(4);
+            members.getChildren().add(AcademyUi.caption("MEMBERS", 11));
+            for (java.util.Map.Entry<String, Integer> m : t.members.entrySet()) {
+                members.getChildren().add(AcademyUi.text("  \u2022 " + m.getKey() + " - " + m.getValue() + " XP", 12));
+            }
+            card.getChildren().add(members);
+            Button invite = AcademyUi.button("+ INVITE", "#238636", "#ffffff");
+            invite.setOnAction(e -> {
+                String who = ask("Invite Member", "Member name", "");
+                if (who == null || who.trim().isEmpty()) return;
+                elite.inviteMember(t.id, who.trim());
+                AcademyFx.toast(this, who.trim() + " joined " + t.name, AcademyUi.GREEN);
+                showTeams();
+            });
+            Button post = AcademyUi.button("\uD83D\uDCAC POST", "#30363d", AcademyUi.LIGHT);
+            post.setOnAction(e -> {
+                String msg = ask("Team Chat", "Message to " + t.name, "");
+                if (msg == null || msg.trim().isEmpty()) return;
+                elite.teamPost(t.id, msg.trim());
+                showTeams();
+            });
+            card.getChildren().add(new HBox(10, invite, post));
+            VBox chat = new VBox(4);
+            chat.getChildren().add(AcademyUi.caption("CHAT", 11));
+            for (String line : t.chat) {
+                chat.getChildren().add(AcademyUi.text(line, 11));
+            }
+            card.getChildren().add(chat);
+            if (t.challengeTitle != null && !t.challengeTitle.isEmpty()) {
+                VBox ch = AcademyUi.card();
+                ch.getChildren().add(AcademyUi.section("\uD83C\uDFAF SHARED CHALLENGE: " + t.challengeTitle, AcademyUi.ORANGE));
+                ch.getChildren().add(AcademyUi.text(t.challengeDescr, 12));
+                Button solve = AcademyUi.button("SOLVE +" + t.challengeXp + " XP", "#238636", "#ffffff");
+                solve.setOnAction(e -> {
+                    String ans = ask("Team Challenge", t.challengeDescr, "");
+                    if (ans != null && elite.solveTeamChallenge(t.id, ans)) {
+                        AcademyFx.playSound("win");
+                        AcademyFx.toast(this, "Team challenge solved! +" + t.challengeXp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "Incorrect answer.", AcademyUi.RED);
+                    }
+                    showTeams();
+                });
+                ch.getChildren().add(solve);
+                card.getChildren().add(ch);
+            } else {
+                Button gen = AcademyUi.button("\uD83C\uDFAF GENERATE CHALLENGE", "#F78166", "#0d1117");
+                gen.setOnAction(e -> {
+                    elite.challengeTeam(t.id);
+                    AcademyFx.toast(this, "Challenge generated for " + t.name, AcademyUi.ORANGE);
+                    showTeams();
+                });
+                card.getChildren().add(gen);
+            }
+            if (t.certIssued) {
+                card.getChildren().add(AcademyUi.pill("\uD83C\uDFC5 TEAM CERTIFICATE EARNED", AcademyUi.GREEN));
+            }
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 32. MENTOR MODE --------
+    private void showMentor() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDC68\u200D\uD83C\uDFEB", "MENTOR MODE", AcademyUi.BLUE,
+            "Teach courses, assign challenges, track students and issue certificates.");
+        Button create = AcademyUi.button("+ CREATE COURSE", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String title = ask("Create Course", "Course title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String descr = ask("Create Course", "Description", "");
+            String list = ask("Create Course", "Students (comma separated)", "");
+            java.util.List<String> students = new java.util.ArrayList<>();
+            if (list != null) {
+                for (String s : list.split(",")) {
+                    if (!s.trim().isEmpty()) students.add(s.trim());
+                }
+            }
+            elite.createCourse(title.trim(), descr == null ? "" : descr, students);
+            AcademyFx.toast(this, "Course created", AcademyUi.BLUE);
+            showMentor();
+        });
+        main.getChildren().add(create);
+        if (elite.getCourses().isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No courses yet. Create one and add your students.", 13));
+        }
+        for (EliteService.Course c : elite.getCourses()) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.BLUE);
+            card.getChildren().add(AcademyUi.section("\uD83D\uDCDA " + c.title, AcademyUi.BLUE));
+            if (c.descr != null && !c.descr.isEmpty()) card.getChildren().add(AcademyUi.caption(c.descr, 12));
+            VBox students = new VBox(4);
+            students.getChildren().add(AcademyUi.caption("STUDENTS", 11));
+            for (String s : c.students) {
+                students.getChildren().add(AcademyUi.text("  \u2022 " + s, 12));
+            }
+            card.getChildren().add(students);
+            Button assign = AcademyUi.button("+ ASSIGN CHALLENGE", "#238636", "#ffffff");
+            assign.setOnAction(e -> {
+                String title = ask("Assign Challenge", "Challenge title", "");
+                if (title == null || title.trim().isEmpty()) return;
+                String descr = ask("Assign Challenge", "Description", "");
+                String answer = ask("Assign Challenge", "Answer", "");
+                String xpStr = ask("Assign Challenge", "XP", "50");
+                int xp = 50;
+                try { xp = Integer.parseInt(xpStr); } catch (Exception ex) { }
+                elite.assignChallenge(c.id, title.trim(), descr == null ? "" : descr, answer.trim(), xp);
+                AcademyFx.toast(this, "Challenge assigned to all students", AcademyUi.GREEN);
+                showMentor();
+            });
+            Button report = AcademyUi.button("\uD83D\uDCCA REPORT", "#30363d", AcademyUi.LIGHT);
+            report.setOnAction(e -> showMentorReport(c.id));
+            Button cert = AcademyUi.button("\uD83C\uDFC5 ISSUE CERT", "#8957e5", "#ffffff");
+            cert.setOnAction(e -> {
+                String who = ask("Issue Certificate", "Student name", "");
+                if (who == null || who.trim().isEmpty()) return;
+                if (elite.issueCertificate(c.id, who.trim()) != null) {
+                    AcademyFx.playSound("win");
+                    AcademyFx.toast(this, "Certificate issued to " + who.trim(), AcademyUi.GOLD);
+                } else {
+                    AcademyFx.toast(this, "Student not found in course.", AcademyUi.RED);
+                }
+                showMentor();
+            });
+            card.getChildren().add(new HBox(10, assign, report, cert));
+            VBox asg = new VBox(4);
+            asg.getChildren().add(AcademyUi.caption("ASSIGNMENTS", 11));
+            for (String a : c.assignments) asg.getChildren().add(AcademyUi.text("  \u2022 " + a, 11));
+            card.getChildren().add(asg);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showMentorReport(String courseId) {
+        EliteService.Course c = elite.getCourse(courseId);
+        if (c == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO COURSES", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showMentor());
+        Label title = AcademyUi.neon("REPORT - " + c.title, AcademyUi.BLUE, 20);
+        main.getChildren().addAll(backBtn, title);
+        TextArea ta = new TextArea(elite.mentorReport(courseId));
+        ta.setEditable(false);
+        ta.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        ta.setPrefRowCount(18);
+        main.getChildren().add(ta);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 33. UNIVERSITY MODE --------
+    private void showUniversity() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDF93", "UNIVERSITY MODE", AcademyUi.GREEN,
+            "Departments, classes, exams, assignments and semester leaderboards.");
+        Button create = AcademyUi.button("+ CREATE DEPARTMENT", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String name = ask("Create Department", "Department name", "");
+            if (name == null || name.trim().isEmpty()) return;
+            elite.createDepartment(name.trim());
+            AcademyFx.toast(this, "Department created", AcademyUi.GREEN);
+            showUniversity();
+        });
+        main.getChildren().add(create);
+        if (elite.getDepartments().isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No departments yet.", 13));
+        }
+        for (EliteService.Department d : elite.getDepartments()) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.GREEN);
+            card.getChildren().add(AcademyUi.section("\uD83C\uDF93 " + d.name, AcademyUi.GREEN));
+            for (String clazz : d.classNames) {
+                VBox clCard = AcademyUi.card();
+                clCard.getChildren().add(AcademyUi.section("\uD83C\uDFEB " + clazz, AcademyUi.GREEN));
+                VBox studs = new VBox(2);
+                java.util.List<String> studList = d.classStudents.get(clazz);
+                if (studList != null) {
+                    for (String s : studList) studs.getChildren().add(AcademyUi.text("  \u2022 " + s, 12));
+                }
+                clCard.getChildren().add(studs);
+                Button addStud = AcademyUi.button("+ STUDENT", "#238636", "#ffffff");
+                addStud.setOnAction(e -> {
+                    String who = ask("Add Student", "Student name", "");
+                    if (who == null || who.trim().isEmpty()) return;
+                    elite.addStudent(d.id, clazz, who.trim());
+                    showUniversity();
+                });
+                Button addAsg = AcademyUi.button("+ ASSIGNMENT", "#30363d", AcademyUi.LIGHT);
+                addAsg.setOnAction(e -> {
+                    String title = ask("Add Assignment", "Title", "");
+                    if (title == null || title.trim().isEmpty()) return;
+                    String due = ask("Add Assignment", "Due date", "Week 8");
+                    String marks = ask("Add Assignment", "Marks", "100");
+                    int m = 100;
+                    try { m = Integer.parseInt(marks); } catch (Exception ex) { }
+                    elite.addAssignment(d.id, clazz, title.trim(), due == null ? "" : due, m);
+                    showUniversity();
+                });
+                Button examBtn = AcademyUi.button("+ EXAM", "#F78166", "#0d1117");
+                examBtn.setOnAction(e -> {
+                    String title = ask("Create Exam", "Exam title", "");
+                    if (title == null || title.trim().isEmpty()) return;
+                    String marks = ask("Create Exam", "Marks", "100");
+                    int m = 100;
+                    try { m = Integer.parseInt(marks); } catch (Exception ex) { }
+                    elite.createUniExam(d.id, clazz, title.trim(), m);
+                    showUniversity();
+                });
+                clCard.getChildren().add(new HBox(10, addStud, addAsg, examBtn));
+                for (EliteService.UniExam ex : d.exams) {
+                    if (ex.className.equals(clazz)) {
+                        VBox exBox = new VBox(2);
+                        exBox.getChildren().add(AcademyUi.caption("  \u270D " + ex.title + " - " + ex.marks + " marks", 11));
+                        for (java.util.Map.Entry<String, Integer> se : ex.scores.entrySet()) {
+                            exBox.getChildren().add(AcademyUi.text("      " + se.getKey() + ": " + se.getValue(), 11));
+                        }
+                        Button rec = AcademyUi.button("RECORD SCORE", "#30363d", AcademyUi.LIGHT);
+                        rec.setOnAction(e -> {
+                            String who = ask("Record Score", "Student name", "");
+                            if (who == null || who.trim().isEmpty()) return;
+                            String sc = ask("Record Score", "Score", "0");
+                            int s = 0;
+                            try { s = Integer.parseInt(sc); } catch (Exception ex2) { }
+                            elite.recordUniExamScore(d.id, ex.id, who.trim(), s);
+                            showUniversity();
+                        });
+                        exBox.getChildren().add(rec);
+                        clCard.getChildren().add(exBox);
+                    }
+                }
+                clCard.getChildren().add(AcademyUi.caption("ASSIGNMENTS", 11));
+                for (String a : d.assignments) {
+                    if (a.startsWith("[" + clazz + "]")) clCard.getChildren().add(AcademyUi.text("  \u2022 " + a, 11));
+                }
+                card.getChildren().add(clCard);
+            }
+            Button semReport = AcademyUi.button("\uD83D\uDCCA SEMESTER REPORT", "#1f6feb", "#ffffff");
+            semReport.setOnAction(e -> {
+                String sem = ask("Semester Report", "Semester", "Semester 1");
+                showUniReport(d.id, sem == null ? "Semester 1" : sem);
+            });
+            Button leaderboard = AcademyUi.button("\uD83C\uDFC6 LEADERBOARD", "#8957e5", "#ffffff");
+            leaderboard.setOnAction(e -> showUniLeaderboard(d.id));
+            card.getChildren().add(new HBox(10, semReport, leaderboard));
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showUniReport(String deptId, String semester) {
+        EliteService.Department d = elite.getDepartment(deptId);
+        if (d == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO UNIVERSITY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showUniversity());
+        Label title = AcademyUi.neon("REPORT - " + d.name, AcademyUi.GREEN, 20);
+        main.getChildren().addAll(backBtn, title);
+        TextArea ta = new TextArea(elite.semesterReport(deptId, semester));
+        ta.setEditable(false);
+        ta.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        ta.setPrefRowCount(18);
+        main.getChildren().add(ta);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showUniLeaderboard(String deptId) {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO UNIVERSITY", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showUniversity());
+        Label title = AcademyUi.neon("\uD83C\uDFC6 DEPARTMENT LEADERBOARD", AcademyUi.GREEN, 20);
+        main.getChildren().addAll(backBtn, title);
+        VBox list = new VBox(8);
+        java.util.List<String[]> lb = elite.departmentLeaderboard(deptId);
+        if (lb.isEmpty()) {
+            list.getChildren().add(AcademyUi.caption("No exam scores recorded yet.", 13));
+        }
+        int rank = 1;
+        for (String[] row : lb) {
+            list.getChildren().add(AcademyUi.text("#" + rank + "  " + row[0] + "  -  " + row[1] + " exams  -  " + row[2] + " pts", 13));
+            rank++;
+        }
+        main.getChildren().add(list);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 34. COMPANY TRAINING MODE --------
+    private void showCompanyTraining() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDFED", "COMPANY TRAINING", AcademyUi.GOLD,
+            "Employee security awareness, compliance tracking, manager reports and analytics export.");
+        Button create = AcademyUi.button("+ REGISTER COMPANY", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String name = ask("Register Company", "Company name", "");
+            if (name == null || name.trim().isEmpty()) return;
+            elite.createCompany(name.trim());
+            AcademyFx.toast(this, "Company registered", AcademyUi.GOLD);
+            showCompanyTraining();
+        });
+        main.getChildren().add(create);
+        if (elite.getCompanies().isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No companies registered yet.", 13));
+        }
+        for (EliteService.Company co : elite.getCompanies()) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.GOLD);
+            card.getChildren().add(AcademyUi.section("\uD83C\uDFED " + co.name, AcademyUi.GOLD));
+            Button addEmp = AcademyUi.button("+ ADD EMPLOYEE", "#238636", "#ffffff");
+            addEmp.setOnAction(e -> {
+                String name = ask("Add Employee", "Employee name", "");
+                if (name == null || name.trim().isEmpty()) return;
+                String role = ask("Add Employee", "Role", "Staff");
+                elite.addEmployee(co.id, name.trim(), role == null ? "Staff" : role);
+                showCompanyTraining();
+            });
+            Button report = AcademyUi.button("\uD83D\uDCCA MANAGER REPORT", "#30363d", AcademyUi.LIGHT);
+            report.setOnAction(e -> showCompanyReport(co.id));
+            Button export = AcademyUi.button("\uD83D\uDCE4 EXPORT CSV", "#8957e5", "#ffffff");
+            export.setOnAction(e -> {
+                try {
+                    java.io.File f = elite.exportAnalytics(co.id);
+                    AcademyFx.toast(this, "Analytics exported to " + f.getPath(), AcademyUi.GREEN);
+                } catch (Exception ex) {
+                    AcademyFx.toast(this, "Export failed: " + ex.getMessage(), AcademyUi.RED);
+                }
+                showCompanyTraining();
+            });
+            card.getChildren().add(new HBox(10, addEmp, report, export));
+            for (EliteService.Employee emp : co.employees) {
+                VBox eCard = AcademyUi.card();
+                eCard.getChildren().add(AcademyUi.section("\uD83D\uDC64 " + emp.name + " - " + emp.role, AcademyUi.GOLD));
+                int mc = 0;
+                for (boolean done : emp.modules.values()) if (done) mc++;
+                int cc = 0;
+                for (boolean done : emp.compliance.values()) if (done) cc++;
+                eCard.getChildren().add(AcademyUi.pill("MODULES " + mc + "/" + emp.modules.size() + " \u2022 COMPLIANCE " + cc + "/" + emp.compliance.size(), AcademyUi.GOLD));
+                for (String mod : emp.modules.keySet()) {
+                    HBox row = new HBox(10);
+                    row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                    row.getChildren().add(AcademyUi.text((emp.modules.get(mod) ? "\u2705 " : "\u26AA ") + mod, 12));
+                    if (!emp.modules.get(mod)) {
+                        Button b = AcademyUi.button("COMPLETE +20 XP", "#238636", "#ffffff");
+                        b.setOnAction(e2 -> { elite.completeModule(co.id, emp.name, mod); showCompanyTraining(); });
+                        row.getChildren().add(b);
+                    }
+                    eCard.getChildren().add(row);
+                }
+                for (String ci : emp.compliance.keySet()) {
+                    HBox row = new HBox(10);
+                    row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                    row.getChildren().add(AcademyUi.text((emp.compliance.get(ci) ? "\u2705 " : "\u26AA ") + ci, 12));
+                    if (!emp.compliance.get(ci)) {
+                        Button b = AcademyUi.button("SIGN OFF", "#F78166", "#0d1117");
+                        b.setOnAction(e2 -> { elite.completeCompliance(co.id, emp.name, ci); showCompanyTraining(); });
+                        row.getChildren().add(b);
+                    }
+                    eCard.getChildren().add(row);
+                }
+                card.getChildren().add(eCard);
+            }
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showCompanyReport(String companyId) {
+        EliteService.Company co = elite.getCompany(companyId);
+        if (co == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO COMPANIES", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showCompanyTraining());
+        Label title = AcademyUi.neon("MANAGER REPORT - " + co.name, AcademyUi.GOLD, 20);
+        main.getChildren().addAll(backBtn, title);
+        TextArea ta = new TextArea(elite.managerReport(companyId));
+        ta.setEditable(false);
+        ta.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        ta.setPrefRowCount(18);
+        main.getChildren().add(ta);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 35. EXAM MODE --------
+    private void showExams() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDD52", "EXAM MODE", AcademyUi.RED,
+            "Timed proctored exams with random questions, auto grading and integrity checks.");
+        HBox start = new HBox(10);
+        ComboBox<String> count = new ComboBox<>();
+        count.getItems().addAll("5", "10", "15", "20", "24");
+        count.setValue("10");
+        Button go = AcademyUi.button("\u2705 START EXAM", "#da3633", "#ffffff");
+        go.setOnAction(e -> {
+            int n = 10;
+            try { n = Integer.parseInt(count.getValue()); } catch (Exception ex) { }
+            EliteService.Exam ex = elite.generateExam(n);
+            if (ex == null) {
+                AcademyFx.toast(this, "Exam in progress - finish it first.", AcademyUi.RED);
+                return;
+            }
+            showExamRun(ex.id);
+        });
+        start.getChildren().addAll(count, go);
+        main.getChildren().add(start);
+        VBox hist = new VBox(6);
+        hist.getChildren().add(AcademyUi.section("\uD83D\uDDC4 EXAM HISTORY", AcademyUi.RED));
+        for (EliteService.ExamResult r : elite.getExamResults()) {
+            String icon = r.integrityOk ? (r.pass ? "\u2705" : "\u274C") : "\u26A0";
+            hist.getChildren().add(AcademyUi.text(icon + "  " + r.examId + "  -  " + r.score + "%  -  " + (r.pass ? "PASS" : "FAIL") + (r.integrityOk ? "" : "  (INTEGRITY VIOLATION)"), 12));
+        }
+        main.getChildren().add(hist);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showExamRun(String examId) {
+        EliteService.Exam ex = elite.getExam(examId);
+        if (ex == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Label title = AcademyUi.neon("\uD83D\uDD52 EXAM " + examId, AcademyUi.RED, 20);
+        Label timerLab = AcademyUi.text("", 14);
+        AcademyUi.glow(timerLab, javafx.scene.paint.Color.web(AcademyUi.RED, 0.3));
+        main.getChildren().addAll(title, timerLab);
+        java.util.List<String> qs = new java.util.ArrayList<>();
+        java.util.List<String[]> opts = new java.util.ArrayList<>();
+        for (EliteService.ExamQuestion eq : ex.questions) {
+            qs.add(eq.prompt);
+            opts.add(eq.options);
+        }
+        long startedAt = System.currentTimeMillis();
+        AnimationTimer timer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                long elapsed = (System.currentTimeMillis() - startedAt) / 1000;
+                long remain = Math.max(0, ex.durationSec - elapsed);
+                timerLab.setText("TIME REMAINING: " + remain + "s");
+                if (remain <= 0) { stop(); }
+            }
+        };
+        timer.start();
+        java.util.concurrent.atomic.AtomicBoolean finished = new java.util.concurrent.atomic.AtomicBoolean(false);
+        runInlineQuiz(main, "PROCTORED EXAM - " + ex.questions.size() + " QUESTIONS", AcademyUi.RED, "SUBMIT EXAM", qs, opts,
+            answers -> {
+                if (finished.getAndSet(true)) return;
+                timer.stop();
+                EliteService.ExamResult res = elite.submitExam(examId, answers, startedAt);
+                AcademyFx.playSound(res.pass ? "win" : "lose");
+                AcademyFx.toast(this, "Score " + res.score + "% - " + (res.pass ? "PASS" : "FAIL"), res.pass ? AcademyUi.GREEN : AcademyUi.RED);
+                if (!res.integrityOk) AcademyFx.toast(this, "Integrity check failed.", AcademyUi.RED);
+                showExams();
+            });
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 36. LAB BUILDER --------
+    private void showLabBuilder() {
+        if (!LoginScreen.USER_ROLE.equals("ADMIN")) {
+            AcademyFx.toast(this, "LAB BUILDER is restricted to ADMIN.", AcademyUi.RED);
+            return;
+        }
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDEE0\uFE0F", "LAB BUILDER", AcademyUi.ORANGE,
+            "Design your own cipher, forensics, OSINT and reverse-engineering labs. No coding required.");
+        Button create = AcademyUi.button("+ CREATE LAB", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            ComboBox<String> typeBox = new ComboBox<>();
+            typeBox.getItems().addAll("CIPHER", "FORENSICS", "OSINT", "REVERSE");
+            typeBox.setValue("CIPHER");
+            String title = ask("Create Lab", "Lab title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String prompt = ask("Create Lab", "Scenario prompt", "");
+            String answer = ask("Create Lab", "Answer", "");
+            String xpStr = ask("Create Lab", "XP reward", "50");
+            int xp = 50;
+            try { xp = Integer.parseInt(xpStr); } catch (Exception ex) { }
+            String diff = ask("Create Lab", "Difficulty (LOW/MEDIUM/HIGH)", "MEDIUM");
+            EliteService.CustomLab lab = elite.createLab(typeBox.getValue(), title.trim(), prompt == null ? "" : prompt,
+                answer.trim(), xp, diff == null ? "MEDIUM" : diff.toUpperCase());
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Lab created - " + lab.id, AcademyUi.ORANGE);
+            showLabBuilder();
+        });
+        main.getChildren().add(create);
+        java.util.List<EliteService.CustomLab> labs = elite.getCustomLabs();
+        if (labs.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No custom labs yet. Build your first one.", 13));
+        }
+        for (EliteService.CustomLab lab : labs) {
+            VBox card = AcademyUi.cardAccent(lab.solved ? AcademyUi.GREEN : AcademyUi.ORANGE);
+            card.getChildren().add(AcademyUi.section(lab.type + " \u2022 " + lab.title, AcademyUi.ORANGE));
+            card.getChildren().add(AcademyUi.caption(lab.prompt, 12));
+            card.getChildren().add(AcademyUi.pill(lab.diff + " \u2022 +" + lab.xp + " XP", AcademyUi.ORANGE));
+            if (lab.solved) {
+                card.getChildren().add(AcademyUi.pill("\u2705 SOLVED", AcademyUi.GREEN));
+            } else {
+                Button solve = AcademyUi.button("SOLVE", "#238636", "#ffffff");
+                solve.setOnAction(e -> {
+                    String ans = ask("Custom Lab", lab.prompt, "");
+                    if (ans != null && elite.solveCustomLab(lab.id, ans)) {
+                        AcademyFx.playSound("win");
+                        AcademyFx.toast(this, "Lab solved +" + lab.xp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "Incorrect.", AcademyUi.RED);
+                    }
+                    showLabBuilder();
+                });
+                card.getChildren().add(solve);
+            }
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(e -> {
+                elite.deleteCustomLab(lab.id);
+                AcademyFx.toast(this, "Lab deleted", AcademyUi.LIGHT);
+                showLabBuilder();
+            });
+            card.getChildren().add(del);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 28. CUSTOM CTF BUILDER --------
+    private void showCtfBuilder() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDFAF", "CUSTOM CTF BUILDER", AcademyUi.ORANGE,
+            "Author your own challenges. Add flags, hints and attachments, then let operatives crack them.");
+        Button create = AcademyUi.button("+ CREATE CTF", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String title = ask("Create CTF", "Challenge title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            ComboBox<String> catBox = new ComboBox<>();
+            catBox.getItems().addAll(elite.ctfCategories());
+            catBox.setValue("Misc");
+            String cat = ask("Create CTF", "Category (CRYPTO/FORENSICS/REVERSING/WEB/OSINT/PWN/MISC)", "CRYPTO");
+            if (cat == null) return;
+            String diff = ask("Create CTF", "Difficulty (EASY/MEDIUM/HARD)", "MEDIUM");
+            String desc = ask("Create CTF", "Description / scenario", "");
+            String sol = ask("Create CTF", "Solution (visible to builder only)", "");
+            String xpStr = ask("Create CTF", "XP reward", "100");
+            int xp = 100;
+            try { xp = Integer.parseInt(xpStr); } catch (Exception ex) { }
+            String timerStr = ask("Create CTF", "Timer (seconds, 0 = none)", "0");
+            int timer = 0;
+            try { timer = Integer.parseInt(timerStr); } catch (Exception ex) { }
+            EliteService.CustomCtf ctf = elite.createCtf(title.trim(), cat, diff == null ? "MEDIUM" : diff,
+                desc == null ? "" : desc, sol == null ? "" : sol, xp, timer);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "CTF published - " + ctf.id, AcademyUi.ORANGE);
+            showCtfBuilder();
+        });
+        main.getChildren().add(create);
+        java.util.List<EliteService.CustomCtf> ctfs = elite.getCustomCtfs();
+        if (ctfs.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No custom CTFs yet. Publish your first challenge.", 13));
+        }
+        for (EliteService.CustomCtf c : ctfs) {
+            VBox card = AcademyUi.cardAccent(c.solved ? AcademyUi.GREEN : AcademyUi.ORANGE);
+            card.getChildren().add(AcademyUi.section(c.category + " \u2022 " + c.title, AcademyUi.ORANGE));
+            card.getChildren().add(AcademyUi.pill(c.difficulty + " \u2022 +" + c.xp + " XP" +
+                (c.timerSec > 0 ? " \u2022 " + c.timerSec + "s" : ""), AcademyUi.ORANGE));
+            if (!c.description.isEmpty()) card.getChildren().add(AcademyUi.caption(c.description, 12));
+            card.getChildren().add(AcademyUi.caption("Flags: " + c.flags.size() + " \u2022 Hints: " +
+                c.hints.size() + " \u2022 Attachments: " + c.attachments.size(), 11));
+            for (String f : c.flags) card.getChildren().add(AcademyUi.pill("\uD83D\uDEA9 " + f, AcademyUi.GOLD));
+            for (String h : c.hints) card.getChildren().add(AcademyUi.caption("\uD83D\uDCA1 HINT: " + h, 11));
+            for (String a : c.attachments) card.getChildren().add(AcademyUi.caption("\uD83D\uDCCE ATTACHMENT: " + a, 11));
+            HBox row = new HBox(8);
+            if (c.solved) {
+                row.getChildren().add(AcademyUi.pill("\u2705 SOLVED", AcademyUi.GREEN));
+            } else {
+                Button solve = AcademyUi.button("SOLVE", "#238636", "#ffffff");
+                solve.setOnAction(ev -> {
+                    String ans = ask("Custom CTF", "Submit flag for \"" + c.title + "\"", "");
+                    if (ans != null && elite.solveCtf(c.id, ans)) {
+                        AcademyFx.playSound("win");
+                        AcademyFx.toast(this, "CTF cracked +" + c.xp + " XP", AcademyUi.GREEN);
+                    } else if (ans != null) {
+                        AcademyFx.toast(this, "Wrong flag.", AcademyUi.RED);
+                    }
+                    showCtfBuilder();
+                });
+                row.getChildren().add(solve);
+            }
+            Button flag = AcademyUi.button("+ FLAG", "#8957e5", "#ffffff");
+            flag.setOnAction(ev -> {
+                String f = ask("Custom CTF", "Add a flag for \"" + c.title + "\"", "");
+                if (f != null && !f.trim().isEmpty()) elite.addCtfFlag(c.id, f);
+                showCtfBuilder();
+            });
+            Button hint = AcademyUi.button("+ HINT", "#8957e5", "#ffffff");
+            hint.setOnAction(ev -> {
+                String h = ask("Custom CTF", "Add a hint for \"" + c.title + "\"", "");
+                if (h != null && !h.trim().isEmpty()) elite.addCtfHint(c.id, h);
+                showCtfBuilder();
+            });
+            Button att = AcademyUi.button("+ ATTACHMENT", "#8957e5", "#ffffff");
+            att.setOnAction(ev -> {
+                String a = ask("Custom CTF", "Add an attachment note for \"" + c.title + "\"", "");
+                if (a != null && !a.trim().isEmpty()) elite.addCtfAttachment(c.id, a);
+                showCtfBuilder();
+            });
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> {
+                elite.deleteCtf(c.id);
+                AcademyFx.toast(this, "CTF deleted", AcademyUi.LIGHT);
+                showCtfBuilder();
+            });
+            row.getChildren().addAll(flag, hint, att, del);
+            card.getChildren().add(row);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 29. AI CURRICULUM ENGINE --------
+    private void showCurriculum() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83E\uDD16", "AI CURRICULUM ENGINE", AcademyUi.PURPLE,
+            "Adaptive training plan. The engine tracks topic mastery and builds your weakest skills first.");
+        VBox stats = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        stats.getChildren().add(AcademyUi.section("OVERALL READINESS", AcademyUi.PURPLE));
+        stats.getChildren().add(AcademyUi.caption("Average mastery: " +
+            (int) Math.round(elite.averageMastery()) + "%", 14));
+        stats.getChildren().add(AcademyUi.caption("Predicted completion: " +
+            elite.predictCompletionDays() + " days", 14));
+        main.getChildren().add(stats);
+
+        java.util.List<String[]> weak = elite.detectWeakTopics();
+        VBox weakCard = AcademyUi.card();
+        weakCard.getChildren().add(AcademyUi.section("\u26A0 WEAK TOPICS (BELOW 60%)", AcademyUi.RED));
+        if (weak.isEmpty()) {
+            weakCard.getChildren().add(AcademyUi.caption("None \u2014 all topics mastered!", 13));
+        }
+        for (String[] w : weak) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(w[0] + " \u2014 " + w[1] + "%", 13));
+            Button ok = AcademyUi.button("MARK CORRECT", "#238636", "#ffffff");
+            ok.setOnAction(ev -> {
+                elite.recordAnswer(w[0], true);
+                AcademyFx.toast(this, "Mastery updated", AcademyUi.GREEN);
+                showCurriculum();
+            });
+            Button miss = AcademyUi.button("MARK WRONG", "#da3633", "#ffffff");
+            miss.setOnAction(ev -> {
+                elite.recordAnswer(w[0], false);
+                AcademyFx.toast(this, "Mastery updated", AcademyUi.RED);
+                showCurriculum();
+            });
+            row.getChildren().addAll(ok, miss);
+            weakCard.getChildren().add(row);
+        }
+        main.getChildren().add(weakCard);
+
+        java.util.List<String> lessons = elite.recommendLessons();
+        VBox recCard = AcademyUi.card();
+        recCard.getChildren().add(AcademyUi.section("\uD83D\uDCC8 RECOMMENDED LESSONS", AcademyUi.BLUE));
+        for (String r : lessons) recCard.getChildren().add(AcademyUi.text("\u2022 " + r, 12));
+        if (lessons.isEmpty()) recCard.getChildren().add(AcademyUi.caption("No lessons needed right now.", 12));
+        recCard.getChildren().add(AcademyUi.section("\uD83D\uDD2C RECOMMENDED LABS", AcademyUi.BLUE));
+        for (String r : elite.recommendLabs()) recCard.getChildren().add(AcademyUi.text("\u2022 " + r, 12));
+        recCard.getChildren().add(AcademyUi.section("\uD83D\uDD04 REVISION PLAN", AcademyUi.BLUE));
+        for (String r : elite.recommendRevision()) recCard.getChildren().add(AcademyUi.text("\u2022 " + r, 12));
+        main.getChildren().add(recCard);
+
+        VBox topicCard = AcademyUi.card();
+        topicCard.getChildren().add(AcademyUi.section("\uD83D\uDCCD TOPIC MASTERY", AcademyUi.PURPLE));
+        for (String t : elite.curriculumTopics()) {
+            double m = elite.mastery(t);
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(t, 12));
+            ProgressBar bar = new ProgressBar(m / 100.0);
+            bar.setPrefWidth(220);
+            bar.setStyle("-fx-accent: " + (m >= 60 ? "#39FF14" : "#f85149") + "; -fx-pref-height: 6;");
+            row.getChildren().add(bar);
+            row.getChildren().add(AcademyUi.text((int) Math.round(m) + "%", 11));
+            topicCard.getChildren().add(row);
+        }
+        main.getChildren().add(topicCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 30. DIGITAL NOTEBOOK --------
+    private void showNotebook() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCDD", "DIGITAL NOTEBOOK", AcademyUi.GREEN,
+            "Capture notes, commands, code snippets, bookmarks and cheatsheets in your operative dossier.");
+        Button create = AcademyUi.button("+ NEW ENTRY", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String title = ask("Notebook", "Entry title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            ComboBox<String> kindBox = new ComboBox<>();
+            kindBox.getItems().addAll("NOTE", "SCREENSHOT", "CODE", "COMMAND", "BOOKMARK", "CHEATSHEET");
+            kindBox.setValue("NOTE");
+            String kind = ask("Notebook", "Kind (NOTE/CODE/COMMAND/CHEATSHEET)", "NOTE");
+            String body = ask("Notebook", "Entry body", "");
+            EliteService.NotebookEntry ne = elite.createNote(title.trim(),
+                kind == null ? "NOTE" : kind, body == null ? "" : body);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Saved - " + ne.id, AcademyUi.GREEN);
+            showNotebook();
+        });
+        main.getChildren().add(create);
+        Button exp = AcademyUi.button("EXPORT NOTEBOOK", "#F78166", "#0d1117");
+        exp.setOnAction(e -> {
+            TextArea ta = new TextArea(elite.notebookExport());
+            ta.setEditable(false);
+            ta.setPrefRowCount(20);
+            VBox dlg = new VBox(10);
+            dlg.setPadding(new Insets(12));
+            dlg.getChildren().addAll(AcademyUi.section("NOTEBOOK EXPORT", AcademyUi.GREEN), ta);
+            javafx.scene.control.Dialog<Void> d = new javafx.scene.control.Dialog<>();
+            d.setTitle("Notebook Export");
+            d.getDialogPane().setContent(dlg);
+            d.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
+            d.showAndWait();
+        });
+        main.getChildren().add(exp);
+        java.util.List<EliteService.NotebookEntry> entries = elite.getNotebookEntries();
+        if (entries.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("Notebook is empty. Start capturing intel.", 13));
+        }
+        for (EliteService.NotebookEntry ne : entries) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.GREEN);
+            card.getChildren().add(AcademyUi.section("[" + ne.kind + "] " + ne.title, AcademyUi.GREEN));
+            card.getChildren().add(AcademyUi.caption(ne.body, 12));
+            HBox row = new HBox(8);
+            Button edit = AcademyUi.button("EDIT", "#8957e5", "#ffffff");
+            edit.setOnAction(ev -> {
+                String nb = ask("Notebook", "Edit \"" + ne.title + "\"", ne.body);
+                if (nb != null) elite.editNote(ne.id, nb);
+                showNotebook();
+            });
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> {
+                elite.deleteNote(ne.id);
+                AcademyFx.toast(this, "Entry deleted", AcademyUi.LIGHT);
+                showNotebook();
+            });
+            row.getChildren().addAll(edit, del);
+            card.getChildren().add(row);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 31. PORTFOLIO --------
+    private void showPortfolio() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCAE", "PORTFOLIO", AcademyUi.GOLD,
+            "Showcase certifications, labs, CTFs and achievements. Auto-collect from your academy history.");
+        HBox actions = new HBox(8);
+        Button add = AcademyUi.button("+ ADD ITEM", "#1f6feb", "#ffffff");
+        add.setOnAction(e -> {
+            ComboBox<String> kindBox = new ComboBox<>();
+            kindBox.getItems().addAll("PROJECT", "LAB", "CERT", "ACHIEVEMENT");
+            kindBox.setValue("PROJECT");
+            String kind = ask("Portfolio", "Kind (PROJECT/LAB/CERT/ACHIEVEMENT)", "PROJECT");
+            String title = ask("Portfolio", "Title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String url = ask("Portfolio", "URL (optional)", "");
+            String notes = ask("Portfolio", "Notes (optional)", "");
+            elite.addPortfolioItem(kind == null ? "PROJECT" : kind, title.trim(), url, notes);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Portfolio updated", AcademyUi.GOLD);
+            showPortfolio();
+        });
+        Button auto = AcademyUi.button("\u2699 AUTO-COLLECT", "#238636", "#ffffff");
+        auto.setOnAction(e -> {
+            int n = elite.autoCollectPortfolio();
+            AcademyFx.toast(this, n + " items collected", AcademyUi.GREEN);
+            showPortfolio();
+        });
+        Button git = AcademyUi.button("SET GITHUB", "#8957e5", "#ffffff");
+        git.setOnAction(e -> {
+            String u = ask("Portfolio", "GitHub URL", elite.getGithubUrl());
+            if (u != null) elite.setGithubUrl(u);
+            showPortfolio();
+        });
+        Button lin = AcademyUi.button("SET LINKEDIN", "#8957e5", "#ffffff");
+        lin.setOnAction(e -> {
+            String u = ask("Portfolio", "LinkedIn URL", elite.getLinkedinUrl());
+            if (u != null) elite.setLinkedinUrl(u);
+            showPortfolio();
+        });
+        actions.getChildren().addAll(add, auto, git, lin);
+        main.getChildren().add(actions);
+
+        if (!elite.getGithubUrl().isEmpty()) main.getChildren().add(AcademyUi.pill("\uD83D\uDD17 " + elite.getGithubUrl(), AcademyUi.BLUE));
+        if (!elite.getLinkedinUrl().isEmpty()) main.getChildren().add(AcademyUi.pill("\uD83D\uDD17 " + elite.getLinkedinUrl(), AcademyUi.BLUE));
+
+        java.util.List<EliteService.PortfolioItem> items = elite.getPortfolioItems();
+        if (items.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("Portfolio empty. Add items or run auto-collect.", 13));
+        }
+        for (EliteService.PortfolioItem pi : items) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.GOLD);
+            card.getChildren().add(AcademyUi.section("[" + pi.kind + "] " + pi.title, AcademyUi.GOLD));
+            if (!pi.url.isEmpty()) card.getChildren().add(AcademyUi.caption(pi.url, 12));
+            if (!pi.notes.isEmpty()) card.getChildren().add(AcademyUi.caption(pi.notes, 11));
+            Button del = AcademyUi.button("REMOVE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> {
+                elite.deletePortfolioItem(pi.id);
+                AcademyFx.toast(this, "Item removed", AcademyUi.LIGHT);
+                showPortfolio();
+            });
+            card.getChildren().add(del);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 32. RESUME GENERATOR --------
+    private void showResume() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCDC", "RESUME GENERATOR", AcademyUi.BLUE,
+            "One-click CV built from live academy data: skills, certifications, badges and portfolio projects.");
+        HBox actions = new HBox(8);
+        Button gen = AcademyUi.button("\u26A1 REGENERATE", "#1f6feb", "#ffffff");
+        gen.setOnAction(e -> {
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Resume regenerated", AcademyUi.BLUE);
+            showResume();
+        });
+        Button md = AcademyUi.button("MARKDOWN", "#8957e5", "#ffffff");
+        md.setOnAction(e -> {
+            TextArea ta = new TextArea(elite.resumeMarkdown());
+            ta.setEditable(false);
+            ta.setPrefRowCount(24);
+            VBox dlg = new VBox(10);
+            dlg.setPadding(new Insets(12));
+            dlg.getChildren().addAll(AcademyUi.section("RESUME (MARKDOWN)", AcademyUi.BLUE), ta);
+            javafx.scene.control.Dialog<Void> d = new javafx.scene.control.Dialog<>();
+            d.setTitle("Resume");
+            d.getDialogPane().setContent(dlg);
+            d.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
+            d.showAndWait();
+        });
+        actions.getChildren().addAll(gen, md);
+        main.getChildren().add(actions);
+        TextArea preview = new TextArea(elite.generateResume());
+        preview.setEditable(false);
+        preview.setPrefRowCount(26);
+        preview.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        main.getChildren().add(preview);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 33. REPUTATION SYSTEM --------
+    private void showReputation() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\u2B50", "REPUTATION SYSTEM", AcademyUi.GOLD,
+            "Trust, reputation and community points earned through mentoring, contribution and cooperation.");
+        VBox scoreCard = AcademyUi.cardAccent(AcademyUi.GOLD);
+        scoreCard.getChildren().add(AcademyUi.section("OVERALL REPUTATION SCORE", AcademyUi.GOLD));
+        int score = elite.reputationScore();
+        ProgressBar bar = new ProgressBar(score / 1000.0);
+        bar.setPrefWidth(Double.MAX_VALUE);
+        bar.setStyle("-fx-accent: #FFD700; -fx-pref-height: 12;");
+        scoreCard.getChildren().addAll(bar,
+            AcademyUi.neon(String.valueOf(score) + " / 1000", AcademyUi.GOLD, 20));
+        main.getChildren().add(scoreCard);
+        VBox rowsCard = AcademyUi.card();
+        rowsCard.getChildren().add(AcademyUi.section("\uD83D\uDCCA BREAKDOWN", AcademyUi.GOLD));
+        for (String[] r : elite.reputationRows()) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(r[0], 13));
+            row.getChildren().add(AcademyUi.pill(r[1], AcademyUi.GOLD));
+            rowsCard.getChildren().add(row);
+        }
+        main.getChildren().add(rowsCard);
+        HBox rate = new HBox(8);
+        Button mentor = AcademyUi.button("RATE MENTOR", "#1f6feb", "#ffffff");
+        mentor.setOnAction(e -> {
+            String s = ask("Reputation", "Rate your mentor (1-5 stars)", "5");
+            try { elite.rateMentor(Integer.parseInt(s)); } catch (Exception ex) { }
+            showReputation();
+        });
+        Button contrib = AcademyUi.button("RATE CONTRIBUTOR", "#8957e5", "#ffffff");
+        contrib.setOnAction(e -> {
+            String s = ask("Reputation", "Rate a contributor (1-5 stars)", "5");
+            try { elite.rateContributor(Integer.parseInt(s)); } catch (Exception ex) { }
+            showReputation();
+        });
+        rate.getChildren().addAll(mentor, contrib);
+        main.getChildren().add(rate);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 34. COMMUNITY HUB --------
+    private void showCommunity() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDC65", "COMMUNITY HUB", AcademyUi.PURPLE,
+            "Boards, threads, writeups and reviews. Share knowledge and earn community points.");
+        HBox actions = new HBox(8);
+        Button newBoard = AcademyUi.button("+ NEW BOARD", "#1f6feb", "#ffffff");
+        newBoard.setOnAction(e -> {
+            String title = ask("Community", "Board title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String desc = ask("Community", "Board description", "");
+            EliteService.Board b = elite.createBoard(title.trim(), desc);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Board created - " + b.id, AcademyUi.PURPLE);
+            showCommunity();
+        });
+        Button newWrite = AcademyUi.button("\u270D NEW WRITEUP", "#F78166", "#0d1117");
+        newWrite.setOnAction(e -> {
+            String title = ask("Community", "Writeup title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String body = ask("Community", "Writeup body", "");
+            EliteService.Writeup w = elite.createWriteup(title.trim(), body);
+            AcademyFx.toast(this, "Writeup published - " + w.id, AcademyUi.ORANGE);
+            showCommunity();
+        });
+        actions.getChildren().addAll(newBoard, newWrite);
+        main.getChildren().add(actions);
+
+        VBox boardsCard = AcademyUi.card();
+        boardsCard.getChildren().add(AcademyUi.section("\uD83D\uDCCB BOARDS", AcademyUi.PURPLE));
+        java.util.List<EliteService.Board> boards = elite.getBoards();
+        if (boards.isEmpty()) {
+            boardsCard.getChildren().add(AcademyUi.caption("No boards yet. Start the conversation.", 12));
+        }
+        for (EliteService.Board b : boards) {
+            VBox bcard = AcademyUi.cardAccent(AcademyUi.PURPLE);
+            bcard.getChildren().add(AcademyUi.section(b.title, AcademyUi.PURPLE));
+            bcard.getChildren().add(AcademyUi.caption(b.descr, 12));
+            bcard.getChildren().add(AcademyUi.caption("Threads: " + b.threads.size(), 11));
+            Button open = AcademyUi.button("OPEN BOARD", "#8957e5", "#ffffff");
+            open.setOnAction(ev -> showBoardDetail(b.id));
+            bcard.getChildren().add(open);
+            boardsCard.getChildren().add(bcard);
+        }
+        main.getChildren().add(boardsCard);
+
+        VBox writeCard = AcademyUi.card();
+        writeCard.getChildren().add(AcademyUi.section("\uD83D\uDCDC WRITEUPS", AcademyUi.ORANGE));
+        java.util.List<EliteService.Writeup> writeups = elite.getWriteups();
+        if (writeups.isEmpty()) {
+            writeCard.getChildren().add(AcademyUi.caption("No writeups yet. Share your first solve.", 12));
+        }
+        for (EliteService.Writeup w : writeups) {
+            VBox wcard = AcademyUi.cardAccent(AcademyUi.ORANGE);
+            wcard.getChildren().add(AcademyUi.section(w.title + " \u2014 by " + w.author, AcademyUi.ORANGE));
+            wcard.getChildren().add(AcademyUi.caption(w.body, 12));
+            wcard.getChildren().add(AcademyUi.pill(w.score == 0 ? "not yet reviewed" : w.score + "\u2605", AcademyUi.GOLD));
+            for (String r : w.reviews) wcard.getChildren().add(AcademyUi.caption("\u2B50 " + r, 11));
+            for (String c : w.comments) wcard.getChildren().add(AcademyUi.caption("\uD83D\uDCAC " + c, 11));
+            HBox wrow = new HBox(8);
+            Button review = AcademyUi.button("REVIEW", "#FFD700", "#0d1117");
+            review.setOnAction(ev -> {
+                String stars = ask("Writeup", "Rate 1-5 stars", "5");
+                String note = ask("Writeup", "Review note", "");
+                try { elite.reviewWriteup(w.id, Integer.parseInt(stars), note); } catch (Exception ex) { }
+                showCommunity();
+            });
+            Button comment = AcademyUi.button("COMMENT", "#8957e5", "#ffffff");
+            comment.setOnAction(ev -> {
+                String note = ask("Writeup", "Your comment", "");
+                if (note != null) elite.commentWriteup(w.id, note);
+                showCommunity();
+            });
+            wrow.getChildren().addAll(review, comment);
+            wcard.getChildren().add(wrow);
+            writeCard.getChildren().add(wcard);
+        }
+        main.getChildren().add(writeCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    private void showBoardDetail(String boardId) {
+        EliteService.Board b = elite.getBoard(boardId);
+        if (b == null) return;
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        Button backBtn = AcademyUi.button("\u2B05 BACK TO HUB", "#30363d", AcademyUi.LIGHT);
+        backBtn.setOnAction(e -> showCommunity());
+        Label title = AcademyUi.neon("\uD83D\uDCCB " + b.title, AcademyUi.PURPLE, 22);
+        AcademyUi.glow(title, javafx.scene.paint.Color.web(AcademyUi.PURPLE, 0.3));
+        main.getChildren().addAll(backBtn, title, AcademyUi.caption(b.descr, 12));
+        Button post = AcademyUi.button("+ NEW THREAD", "#1f6feb", "#ffffff");
+        post.setOnAction(e -> {
+            String t = ask("Board", "Thread title", "");
+            if (t == null || t.trim().isEmpty()) return;
+            String body = ask("Board", "Thread body", "");
+            elite.postThread(boardId, t.trim(), body);
+            AcademyFx.toast(this, "Thread posted", AcademyUi.PURPLE);
+            showBoardDetail(boardId);
+        });
+        main.getChildren().add(post);
+        if (b.threads.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No threads yet on this board.", 13));
+        }
+        for (int i = 0; i < b.threads.size(); i++) {
+            final int idx = i;
+            EliteService.Thread th = b.threads.get(i);
+            VBox card = AcademyUi.cardAccent(AcademyUi.PURPLE);
+            card.getChildren().add(AcademyUi.section(th.title + " \u2014 by " + th.author, AcademyUi.PURPLE));
+            card.getChildren().add(AcademyUi.caption(th.body, 12));
+            card.getChildren().add(AcademyUi.pill("\uD83D\uDC4D " + th.likes, AcademyUi.GOLD));
+            for (String c : th.comments) card.getChildren().add(AcademyUi.caption("\uD83D\uDCAC " + c, 11));
+            HBox row = new HBox(8);
+            Button like = AcademyUi.button("LIKE", "#FFD700", "#0d1117");
+            like.setOnAction(ev -> {
+                elite.likeThread(boardId, idx);
+                showBoardDetail(boardId);
+            });
+            Button cmt = AcademyUi.button("COMMENT", "#8957e5", "#ffffff");
+            cmt.setOnAction(ev -> {
+                String note = ask("Thread", "Your comment", "");
+                if (note != null) elite.commentOnThread(boardId, idx, note);
+                showBoardDetail(boardId);
+            });
+            row.getChildren().addAll(like, cmt);
+            card.getChildren().add(row);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 35. PLUGIN SDK --------
+    private void showPlugin() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83E\uDDE9", "PLUGIN SDK", AcademyUi.GREEN,
+            "Register third-party cipher, challenge, algorithm and theme plugins. Loaded without touching core code.");
+        Button register = AcademyUi.button("+ REGISTER PLUGIN", "#1f6feb", "#ffffff");
+        register.setOnAction(e -> {
+            String name = ask("Plugin", "Plugin name", "");
+            if (name == null || name.trim().isEmpty()) return;
+            String author = ask("Plugin", "Author", LoginScreen.USERNAME);
+            String version = ask("Plugin", "Version", "1.0");
+            String kind = ask("Plugin", "Kind (CIPHER/CHALLENGE/ALGORITHM/THEME)", "CIPHER");
+            String desc = ask("Plugin", "Description", "");
+            String params = ask("Plugin", "Params (key=value;key=value)", "");
+            EliteService.Plugin p = elite.registerPlugin(name.trim(), author, version,
+                kind == null ? "CIPHER" : kind, desc, params);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Plugin registered - " + p.id, AcademyUi.GREEN);
+            showPlugin();
+        });
+        main.getChildren().add(register);
+        java.util.List<EliteService.Plugin> plugins = elite.getPlugins();
+        if (plugins.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No plugins registered yet.", 13));
+        }
+        for (EliteService.Plugin p : plugins) {
+            VBox card = AcademyUi.cardAccent(p.enabled ? AcademyUi.GREEN : "#30363d");
+            card.getChildren().add(AcademyUi.section(p.name + " v" + p.version + " \u2014 " + p.kind, p.enabled ? AcademyUi.GREEN : "#8b949e"));
+            card.getChildren().add(AcademyUi.caption("by " + p.author, 11));
+            if (!p.descr.isEmpty()) card.getChildren().add(AcademyUi.caption(p.descr, 12));
+            for (java.util.Map.Entry<String, String> kv : p.params.entrySet()) {
+                String val = kv.getKey().equalsIgnoreCase("flag") ? "\uD83D\uDEE1\uFE0F [protected]" : kv.getValue();
+                card.getChildren().add(AcademyUi.pill(kv.getKey() + "=" + val, AcademyUi.DIM));
+            }
+            HBox row = new HBox(8);
+            if (p.kind.equalsIgnoreCase("CHALLENGE") && p.enabled) {
+                Button solve = AcademyUi.button("SOLVE", "#238636", "#ffffff");
+                solve.setOnAction(ev -> {
+                    String flag = ask("Plugin", "Submit flag for \"" + p.name + "\"", "");
+                    if (flag != null && elite.solvePluginChallenge(p.id, flag)) {
+                        AcademyFx.playSound("win");
+                        AcademyFx.toast(this, "Challenge solved +50 XP", AcademyUi.GREEN);
+                    } else if (flag != null) {
+                        AcademyFx.toast(this, "Wrong flag.", AcademyUi.RED);
+                    }
+                    showPlugin();
+                });
+                row.getChildren().add(solve);
+            }
+            Button toggle = AcademyUi.button(p.enabled ? "DISABLE" : "ENABLE", p.enabled ? "#da3633" : "#238636", "#ffffff");
+            toggle.setOnAction(ev -> {
+                elite.togglePlugin(p.id);
+                showPlugin();
+            });
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> {
+                elite.deletePlugin(p.id);
+                AcademyFx.toast(this, "Plugin deleted", AcademyUi.LIGHT);
+                showPlugin();
+            });
+            row.getChildren().addAll(toggle, del);
+            card.getChildren().add(row);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 36. API SDK --------
+    private void showApiSdk() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDD27", "API SDK", AcademyUi.BLUE,
+            "REST API with Java & Python SDKs, API-key authentication and webhooks. Full documentation included.");
+        HBox actions = new HBox(8);
+        Button gen = AcademyUi.button("+ GENERATE API KEY", "#1f6feb", "#ffffff");
+        gen.setOnAction(e -> {
+            String label = ask("API SDK", "Key label", "production");
+            if (label == null || label.trim().isEmpty()) return;
+            EliteService.ApiKey ak = elite.generateApiKey(label.trim());
+            AcademyFx.toast(this, "Key created - " + ak.key, AcademyUi.BLUE);
+            showApiSdk();
+        });
+        Button wh = AcademyUi.button("+ WEBHOOK", "#8957e5", "#ffffff");
+        wh.setOnAction(e -> {
+            String url = ask("API SDK", "Webhook URL", "https://hooks.example.com/uc");
+            if (url == null || url.trim().isEmpty()) return;
+            String ev = ask("API SDK", "Event (or * for all)", "*");
+            EliteService.Webhook w = elite.registerWebhook(url.trim(), ev);
+            AcademyFx.toast(this, "Webhook registered - " + w.id, AcademyUi.PURPLE);
+            showApiSdk();
+        });
+        Button dispatch = AcademyUi.button("\uD83D\uDCE1 TEST WEBHOOK", "#F78166", "#0d1117");
+        dispatch.setOnAction(e -> {
+            int n = elite.dispatchWebhook("ACHIEVEMENT", "test-payload");
+            AcademyFx.toast(this, n + " webhook(s) fired", AcademyUi.ORANGE);
+            showApiSdk();
+        });
+        actions.getChildren().addAll(gen, wh, dispatch);
+        main.getChildren().add(actions);
+
+        VBox keyCard = AcademyUi.card();
+        keyCard.getChildren().add(AcademyUi.section("\uD83D\uDD11 API KEYS", AcademyUi.BLUE));
+        java.util.List<EliteService.ApiKey> keys = elite.apiKeys();
+        if (keys.isEmpty()) {
+            keyCard.getChildren().add(AcademyUi.caption("No API keys yet. Keys authenticate the SDK clients.", 12));
+        }
+        for (EliteService.ApiKey ak : keys) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(ak.label, 13));
+            row.getChildren().add(AcademyUi.pill(ak.key, AcademyUi.BLUE));
+            if (ak.revoked) {
+                row.getChildren().add(AcademyUi.pill("REVOKED", AcademyUi.RED));
+            } else {
+                Button revoke = AcademyUi.button("REVOKE", "#da3633", "#ffffff");
+                revoke.setOnAction(ev -> { elite.revokeApiKey(ak.id); showApiSdk(); });
+                row.getChildren().add(revoke);
+            }
+            keyCard.getChildren().add(row);
+        }
+        main.getChildren().add(keyCard);
+
+        VBox whCard = AcademyUi.card();
+        whCard.getChildren().add(AcademyUi.section("\uD83D\uDCE1 WEBHOOKS", AcademyUi.PURPLE));
+        java.util.List<EliteService.Webhook> whs = elite.webhooks();
+        if (whs.isEmpty()) {
+            whCard.getChildren().add(AcademyUi.caption("No webhooks. Register one to receive event pushes.", 12));
+        }
+        for (EliteService.Webhook w : whs) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(w.event + " \u2192 " + w.url, 12));
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> { elite.deleteWebhook(w.id); showApiSdk(); });
+            row.getChildren().add(del);
+            whCard.getChildren().add(row);
+        }
+        for (String log : elite.webhookLog()) {
+            whCard.getChildren().add(AcademyUi.caption("\uD83D\uDCCB " + log, 11));
+        }
+        main.getChildren().add(whCard);
+
+        VBox epCard = AcademyUi.card();
+        epCard.getChildren().add(AcademyUi.section("\uD83D\uDCC4 REST ENDPOINTS", AcademyUi.BLUE));
+        for (String ep : elite.apiEndpoints()) {
+            epCard.getChildren().add(AcademyUi.text(ep, 12));
+        }
+        main.getChildren().add(epCard);
+
+        VBox docCard = AcademyUi.card();
+        docCard.getChildren().add(AcademyUi.section("\uD83D\uDCDA SDK DOCUMENTATION", AcademyUi.BLUE));
+        TextArea doc = new TextArea(elite.sdkDoc());
+        doc.setEditable(false);
+        doc.setPrefRowCount(16);
+        doc.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        docCard.getChildren().add(doc);
+        main.getChildren().add(docCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 37. MARKETPLACE --------
+    private void showMarketplace() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDED2", "MARKETPLACE", AcademyUi.GOLD,
+            "Publish and purchase courses, labs, challenges, themes, plugins, certificates and premium content.");
+        HBox actions = new HBox(8);
+        Button pub = AcademyUi.button("+ PUBLISH", "#1f6feb", "#ffffff");
+        pub.setOnAction(e -> {
+            String kind = ask("Marketplace", "Kind (COURSE/LAB/CHALLENGE/THEME/PLUGIN/CERT/PREMIUM)", "COURSE");
+            String title = ask("Marketplace", "Title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String desc = ask("Marketplace", "Description", "");
+            String priceStr = ask("Marketplace", "Price (coins)", "50");
+            int price = 50;
+            try { price = Integer.parseInt(priceStr); } catch (Exception ex) { }
+            EliteService.MarketListing l = elite.publishListing(kind, title.trim(), desc, price);
+            AcademyFx.playSound("coin");
+            AcademyFx.toast(this, "Listed - " + l.id, AcademyUi.GOLD);
+            showMarketplace();
+        });
+        Button rate = AcademyUi.button("\u2B50 RATE", "#8957e5", "#ffffff");
+        rate.setOnAction(e -> {
+            String id = ask("Marketplace", "Listing id to rate", "");
+            String stars = ask("Marketplace", "Stars (1-5)", "5");
+            try {
+                EliteService.MarketListing l = elite.rateListing(id.trim(), Integer.parseInt(stars));
+                AcademyFx.toast(this, l == null ? "Listing not found" : "Rated " + l.rating, AcademyUi.GOLD);
+            } catch (Exception ex) { }
+            showMarketplace();
+        });
+        actions.getChildren().addAll(pub, rate);
+        main.getChildren().add(actions);
+        main.getChildren().add(AcademyUi.pill("COINS: " + academy.getCoins(), AcademyUi.GOLD));
+
+        java.util.List<EliteService.MarketListing> listings = elite.marketListings(null);
+        if (listings.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("Marketplace empty. Publish the first item.", 13));
+        }
+        for (EliteService.MarketListing l : listings) {
+            VBox card = AcademyUi.cardAccent(elite.hasPurchased(l.id) ? AcademyUi.GREEN : AcademyUi.GOLD);
+            card.getChildren().add(AcademyUi.section("[" + l.kind + "] " + l.title, AcademyUi.GOLD));
+            card.getChildren().add(AcademyUi.caption(l.descr, 12));
+            card.getChildren().add(AcademyUi.pill(l.price + " coins \u2022 by " + l.publisher, AcademyUi.GOLD));
+            card.getChildren().add(AcademyUi.pill(l.reviewCount == 0 ? "not rated" : l.rating + "\u2605 (" + l.reviewCount + ")", AcademyUi.GOLD));
+            card.getChildren().add(AcademyUi.caption("Purchases: " + l.purchasedCount, 11));
+            if (elite.hasPurchased(l.id)) {
+                card.getChildren().add(AcademyUi.pill("\u2705 OWNED", AcademyUi.GREEN));
+            } else {
+                Button buy = AcademyUi.button("BUY " + l.price, "#238636", "#ffffff");
+                buy.setOnAction(ev -> {
+                    if (elite.purchaseListing(l.id)) {
+                        AcademyFx.playSound("coin");
+                        AcademyFx.toast(this, "Purchased!", AcademyUi.GREEN);
+                    } else {
+                        AcademyFx.toast(this, "Not enough coins or already owned.", AcademyUi.RED);
+                    }
+                    showMarketplace();
+                });
+                card.getChildren().add(buy);
+            }
+            Button del = AcademyUi.button("DELETE", "#da3633", "#ffffff");
+            del.setOnAction(ev -> { elite.deleteListing(l.id); showMarketplace(); });
+            card.getChildren().add(del);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 38. OFFLINE MODE --------
+    private void showOfflineMode() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCBB", "OFFLINE MODE", AcademyUi.GREEN,
+            "The entire academy works without internet. Actions queue locally and sync automatically when online.");
+        HBox actions = new HBox(8);
+        Button toggle = AcademyUi.button(elite.isOfflineMode() ? "\u26AA GO ONLINE" : "\uD83D\uDE80 GO OFFLINE",
+            elite.isOfflineMode() ? "#1f6feb" : "#F78166", "#0d1117");
+        toggle.setOnAction(e -> {
+            elite.setOfflineMode(!elite.isOfflineMode());
+            AcademyFx.toast(this, elite.isOfflineMode() ? "Offline mode ON" : "Offline mode OFF + synced", AcademyUi.GREEN);
+            showOfflineMode();
+        });
+        Button sync = AcademyUi.button("\uD83D\uDD04 SYNC NOW", "#238636", "#ffffff");
+        sync.setOnAction(e -> {
+            int n = elite.syncNow();
+            AcademyFx.toast(this, n + " action(s) synced", AcademyUi.GREEN);
+            showOfflineMode();
+        });
+        Button queue = AcademyUi.button("+ QUEUE ACTION", "#8957e5", "#ffffff");
+        queue.setOnAction(e -> {
+            String a = ask("Offline", "Action to queue", "completeLesson:cryptofound:0");
+            if (a != null && !a.trim().isEmpty()) {
+                elite.enqueueOffline(a.trim());
+                AcademyFx.toast(this, "Queued", AcademyUi.PURPLE);
+                showOfflineMode();
+            }
+        });
+        actions.getChildren().addAll(toggle, sync, queue);
+        main.getChildren().add(actions);
+
+        VBox status = AcademyUi.cardAccent(AcademyUi.GREEN);
+        status.getChildren().add(AcademyUi.section("STATUS", AcademyUi.GREEN));
+        for (String line : elite.offlineStatus().split("\n")) {
+            status.getChildren().add(AcademyUi.text(line, 12));
+        }
+        main.getChildren().add(status);
+
+        VBox queueCard = AcademyUi.card();
+        queueCard.getChildren().add(AcademyUi.section("\uD83D\uDCE4 PENDING QUEUE", AcademyUi.GREEN));
+        java.util.List<String> q = elite.offlineQueue();
+        if (q.isEmpty()) {
+            queueCard.getChildren().add(AcademyUi.caption("Queue empty \u2014 all caught up.", 12));
+        }
+        for (String a : q) queueCard.getChildren().add(AcademyUi.text("\u2022 " + a, 12));
+        main.getChildren().add(queueCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 39. CLOUD SYNC --------
+    private void showCloudSync() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\u2601\uFE0F", "CLOUD SYNC", AcademyUi.BLUE,
+            "Encrypted synchronization, cross-device progress and conflict resolution.");
+        HBox actions = new HBox(8);
+        Button toggle = AcademyUi.button(elite.isCloudEnabled() ? "DISABLE CLOUD" : "ENABLE CLOUD",
+            elite.isCloudEnabled() ? "#da3633" : "#1f6feb", "#ffffff");
+        toggle.setOnAction(e -> {
+            elite.setCloudEnabled(!elite.isCloudEnabled());
+            showCloudSync();
+        });
+        Button dev = AcademyUi.button("+ DEVICE", "#8957e5", "#ffffff");
+        dev.setOnAction(e -> {
+            String name = ask("Cloud Sync", "Device name", "laptop");
+            if (name != null && !name.trim().isEmpty()) {
+                EliteService.Device d = elite.createDevice(name.trim());
+                AcademyFx.toast(this, "Device - " + d.id, AcademyUi.PURPLE);
+                showCloudSync();
+            }
+        });
+        actions.getChildren().addAll(toggle, dev);
+        main.getChildren().add(actions);
+
+        VBox status = AcademyUi.cardAccent(AcademyUi.BLUE);
+        status.getChildren().add(AcademyUi.section("STATUS", AcademyUi.BLUE));
+        for (String line : elite.cloudStatus().split("\n")) {
+            status.getChildren().add(AcademyUi.text(line, 12));
+        }
+        main.getChildren().add(status);
+
+        VBox devCard = AcademyUi.card();
+        devCard.getChildren().add(AcademyUi.section("\uD83D\uDCF1 DEVICES", AcademyUi.BLUE));
+        java.util.List<EliteService.Device> devs = elite.devices();
+        if (devs.isEmpty()) {
+            devCard.getChildren().add(AcademyUi.caption("No devices registered yet.", 12));
+        }
+        for (EliteService.Device d : devs) {
+            HBox row = new HBox(8);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(d.name + " [" + d.id + "]", 13));
+            row.getChildren().add(AcademyUi.pill(d.snapshot.isEmpty() ? "NO SNAPSHOT" : "SYNCED", AcademyUi.BLUE));
+            Button push = AcademyUi.button("PUSH", "#1f6feb", "#ffffff");
+            push.setOnAction(ev -> {
+                EliteService.Device u = elite.pushToCloud(d.id);
+                AcademyFx.toast(this, u == null ? "Cloud disabled" : "Pushed snapshot", AcademyUi.BLUE);
+                showCloudSync();
+            });
+            Button pull = AcademyUi.button("PULL", "#238636", "#ffffff");
+            pull.setOnAction(ev -> {
+                int r = elite.pullFromCloud(d.id);
+                AcademyFx.toast(this, r == 1 ? "Pulled snapshot" : r == -1 ? "Snapshot corrupt" : "Nothing to pull", AcademyUi.GREEN);
+                showCloudSync();
+            });
+            Button resolve = AcademyUi.button("RESOLVE", "#F78166", "#0d1117");
+            resolve.setOnAction(ev -> {
+                int c = elite.resolveConflict(d.id, true);
+                AcademyFx.toast(this, "Conflicts left: " + c, AcademyUi.ORANGE);
+                showCloudSync();
+            });
+            row.getChildren().addAll(push, pull, resolve);
+            devCard.getChildren().add(row);
+        }
+        main.getChildren().add(devCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 40. SECURITY OPERATIONS CENTER --------
+    private void showSoc() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDEE1\uFE0F", "SECURITY OPERATIONS CENTER", AcademyUi.RED,
+            "Live monitoring dashboard with alerts, incidents, threat feed, attack timeline and response workflow.");
+        HBox actions = new HBox(8);
+        Button alert = AcademyUi.button("+ ALERT", "#f85149", "#ffffff");
+        alert.setOnAction(e -> {
+            String sev = ask("SOC", "Severity (LOW/MEDIUM/HIGH/CRITICAL)", "HIGH");
+            String src = ask("SOC", "Source", "firewall-01");
+            String msg = ask("SOC", "Message", "suspicious traffic");
+            elite.raiseAlert(sev, src, msg);
+            AcademyFx.toast(this, "Alert raised", AcademyUi.RED);
+            showSoc();
+        });
+        Button inc = AcademyUi.button("+ INCIDENT", "#F78166", "#0d1117");
+        inc.setOnAction(e -> {
+            String title = ask("SOC", "Incident title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String sev = ask("SOC", "Severity", "HIGH");
+            String desc = ask("SOC", "Description", "");
+            EliteService.Incident in = elite.createIncident(title.trim(), sev, desc);
+            AcademyFx.toast(this, "Incident - " + in.id, AcademyUi.ORANGE);
+            showSoc();
+        });
+        actions.getChildren().addAll(alert, inc);
+        main.getChildren().add(actions);
+
+        VBox status = AcademyUi.cardAccent(AcademyUi.RED);
+        status.getChildren().add(AcademyUi.section("\uD83D\uDDD3 STATUS", AcademyUi.RED));
+        for (String line : elite.socStatus().split("\n")) {
+            status.getChildren().add(AcademyUi.text(line, 12));
+        }
+        main.getChildren().add(status);
+
+        VBox alertsCard = AcademyUi.card();
+        alertsCard.getChildren().add(AcademyUi.section("\uD83D\uDEA8 ALERTS", AcademyUi.RED));
+        java.util.List<EliteService.SocAlert> alerts = elite.alerts();
+        if (alerts.isEmpty()) {
+            alertsCard.getChildren().add(AcademyUi.caption("No alerts.", 12));
+        }
+        for (EliteService.SocAlert a : alerts) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text("[" + a.severity + "] " + a.source + ": " + a.message, 12));
+            if (a.acknowledged) {
+                row.getChildren().add(AcademyUi.pill("ACK", AcademyUi.GREEN));
+            } else {
+                Button ack = AcademyUi.button("ACK", "#238636", "#ffffff");
+                ack.setOnAction(ev -> { elite.acknowledgeAlert(a.id); showSoc(); });
+                row.getChildren().add(ack);
+            }
+            alertsCard.getChildren().add(row);
+        }
+        main.getChildren().add(alertsCard);
+
+        VBox incCard = AcademyUi.card();
+        incCard.getChildren().add(AcademyUi.section("\uD83C\uDFF3\uFE0F INCIDENTS", AcademyUi.ORANGE));
+        java.util.List<EliteService.Incident> incs = elite.incidents();
+        if (incs.isEmpty()) {
+            incCard.getChildren().add(AcademyUi.caption("No incidents.", 12));
+        }
+        for (EliteService.Incident in : incs) {
+            VBox icard = AcademyUi.cardAccent(AcademyUi.ORANGE);
+            icard.getChildren().add(AcademyUi.section(in.title + " [" + in.severity + "] " + in.status, AcademyUi.ORANGE));
+            icard.getChildren().add(AcademyUi.caption(in.descr, 12));
+            for (String r : in.responseLog) icard.getChildren().add(AcademyUi.caption("\uD83D\uDCCB " + r, 11));
+            if (!in.status.equals("RESOLVED")) {
+                Button respond = AcademyUi.button("RESPOND", "#F78166", "#0d1117");
+                respond.setOnAction(ev -> {
+                    String action = ask("SOC", "Response action", "isolate asset");
+                    if (action != null) {
+                        EliteService.Incident u = elite.respondToIncident(in.id, action);
+                        if ("RESOLVED".equals(u.status)) AcademyFx.playSound("win");
+                        showSoc();
+                    }
+                });
+                icard.getChildren().add(respond);
+            }
+            incCard.getChildren().add(icard);
+        }
+        main.getChildren().add(incCard);
+
+        VBox threatCard = AcademyUi.card();
+        threatCard.getChildren().add(AcademyUi.section("\uD83E\uDDE8 THREAT FEED", AcademyUi.RED));
+        for (String t : elite.threatFeed()) threatCard.getChildren().add(AcademyUi.text("\uD83D\uDD34 " + t, 11));
+        main.getChildren().add(threatCard);
+
+        VBox timelineCard = AcademyUi.card();
+        timelineCard.getChildren().add(AcademyUi.section("\uD83D\uDD52 ATTACK TIMELINE", AcademyUi.RED));
+        java.util.List<String> tl = elite.attackTimeline();
+        if (tl.isEmpty()) {
+            timelineCard.getChildren().add(AcademyUi.caption("No timeline events yet.", 12));
+        }
+        for (String t : tl) timelineCard.getChildren().add(AcademyUi.text("\u2022 " + t, 11));
+        main.getChildren().add(timelineCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 41. QUANTUM CRYPTOGRAPHY --------
+    private void showQuantum() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83E\uDDED", "QUANTUM CRYPTOGRAPHY", AcademyUi.PURPLE,
+            "Interactive learning: BB84, QKD, post-quantum, lattice, Kyber and Dilithium.");
+        VBox mastery = AcademyUi.cardAccent(AcademyUi.PURPLE);
+        mastery.getChildren().add(AcademyUi.section("QUANTUM MASTERY", AcademyUi.PURPLE));
+        ProgressBar mb = new ProgressBar(elite.quantumMastery() / 100.0);
+        mb.setPrefWidth(Double.MAX_VALUE);
+        mb.setStyle("-fx-accent: #8957e5; -fx-pref-height: 10;");
+        mastery.getChildren().addAll(mb, AcademyUi.caption((int) Math.round(elite.quantumMastery()) + "% of topics mastered", 12));
+        main.getChildren().add(mastery);
+
+        VBox topics = AcademyUi.card();
+        topics.getChildren().add(AcademyUi.section("\uD83D\uDCDA TOPICS", AcademyUi.PURPLE));
+        for (String[] t : elite.quantumTopics()) {
+            VBox card = AcademyUi.cardAccent(elite.isQuantumLearned(t[0]) ? AcademyUi.GREEN : AcademyUi.PURPLE);
+            card.getChildren().add(AcademyUi.section(t[0], AcademyUi.PURPLE));
+            card.getChildren().add(AcademyUi.caption(t[1], 12));
+            if (elite.isQuantumLearned(t[0])) {
+                card.getChildren().add(AcademyUi.pill("\u2705 LEARNED +30 XP", AcademyUi.GREEN));
+            } else {
+                Button learn = AcademyUi.button("LEARN +30 XP", "#8957e5", "#ffffff");
+                learn.setOnAction(ev -> {
+                    elite.learnQuantum(t[0]);
+                    AcademyFx.playSound("coin");
+                    AcademyFx.toast(this, t[0] + " learned", AcademyUi.PURPLE);
+                    showQuantum();
+                });
+                card.getChildren().add(learn);
+            }
+            topics.getChildren().add(card);
+        }
+        main.getChildren().add(topics);
+
+        runInlineQuiz(main, "QUANTUM QUIZ", AcademyUi.PURPLE, "SUBMIT QUIZ",
+            java.util.List.of("In BB84, which basis pair is NOT used for key bits?", "What does QKD detect?", "Shor's algorithm breaks which classical scheme?", "Which problem underpins CRYSTALS-Kyber?", "CRYSTALS-Dilithium is a post-quantum ____."),
+            java.util.List.of(
+                new String[]{"Rectilinear", "Diagonal", "Time", "Both A and B"},
+                new String[]{"Replay attacks", "Eavesdroppers", "Malware", "Phishing"},
+                new String[]{"AES-256", "SHA-256", "RSA", "None"},
+                new String[]{"Lattice", "Discrete log", "Graph", "Merkle"},
+                new String[]{"block cipher", "signature scheme", "hash", "stream cipher"}),
+            answers -> {
+                int pct = elite.submitQuantumQuiz(answers);
+                AcademyFx.playSound("win");
+                AcademyFx.toast(this, "Quiz score " + pct + "%" + (pct >= 60 ? " +40 XP" : ""),
+                    pct >= 60 ? AcademyUi.GREEN : AcademyUi.RED);
+                showQuantum();
+            });
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 42. BLOCKCHAIN SECURITY --------
+    private void showBlockchain() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\u26F3", "BLOCKCHAIN SECURITY", AcademyUi.GOLD,
+            "Wallets, signatures, consensus, smart contracts, hash chains and Merkle trees.");
+        HBox actions = new HBox(8);
+        Button wallet = AcademyUi.button("+ WALLET", "#1f6feb", "#ffffff");
+        wallet.setOnAction(e -> {
+            String name = ask("Blockchain", "Wallet name", "main");
+            if (name != null && !name.trim().isEmpty()) {
+                EliteService.Wallet w = elite.createWallet(name.trim());
+                AcademyFx.toast(this, "Wallet " + w.address, AcademyUi.GOLD);
+                showBlockchain();
+            }
+        });
+        Button mine = AcademyUi.button("\u26CF MINE BLOCK", "#F78166", "#0d1117");
+        mine.setOnAction(e -> {
+            String data = ask("Blockchain", "Block data", "transaction " + (elite.blockchain().size() + 1));
+            if (data != null && !data.trim().isEmpty()) {
+                EliteService.Block b = elite.addBlock(data.trim());
+                AcademyFx.toast(this, "Block #" + b.index + " mined (nonce " + b.nonce + ")", AcademyUi.GOLD);
+                showBlockchain();
+            }
+        });
+        Button merkle = AcademyUi.button("\uD83C\uDF32 MERKLE TREE", "#8957e5", "#ffffff");
+        merkle.setOnAction(e -> {
+            String items = ask("Blockchain", "Leaf values (comma-separated)", "a,b,c,d");
+            if (items == null || items.trim().isEmpty()) return;
+            java.util.List<String> leaves = new java.util.ArrayList<>();
+            for (String s : items.split(",")) if (!s.trim().isEmpty()) leaves.add(s.trim());
+            String[] root = elite.merkleTree(leaves);
+            AcademyFx.toast(this, "Merkle root " + root[0].substring(0, 12) + "... (" + root[1] + " rounds)", AcademyUi.PURPLE);
+            showBlockchain();
+        });
+        Button contract = AcademyUi.button("\uD83D\uDCC4 DEPLOY CONTRACT", "#238636", "#ffffff");
+        contract.setOnAction(e -> {
+            String name = ask("Blockchain", "Contract name", "vault");
+            String code = ask("Blockchain", "Contract code", "{\"lock\":true}");
+            EliteService.Contract c = elite.deployContract(name, code);
+            AcademyFx.toast(this, "Deployed - " + c.id, AcademyUi.GREEN);
+            showBlockchain();
+        });
+        actions.getChildren().addAll(wallet, mine, merkle, contract);
+        main.getChildren().add(actions);
+
+        VBox stats = AcademyUi.cardAccent(AcademyUi.GOLD);
+        stats.getChildren().add(AcademyUi.section("CONSENSUS", AcademyUi.GOLD));
+        for (String line : elite.consensusStats().split("\n")) {
+            stats.getChildren().add(AcademyUi.text(line, 12));
+        }
+        main.getChildren().add(stats);
+
+        VBox walCard = AcademyUi.card();
+        walCard.getChildren().add(AcademyUi.section("\uD83D\uDCB3 WALLETS", AcademyUi.GOLD));
+        java.util.List<EliteService.Wallet> wals = elite.wallets();
+        if (wals.isEmpty()) {
+            walCard.getChildren().add(AcademyUi.caption("No wallets. Create one to sign data.", 12));
+        }
+        for (EliteService.Wallet w : wals) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(w.name, 12));
+            row.getChildren().add(AcademyUi.pill(w.address, AcademyUi.GOLD));
+            row.getChildren().add(AcademyUi.pill(w.balance + " coins", AcademyUi.GOLD));
+            Button sign = AcademyUi.button("SIGN", "#8957e5", "#ffffff");
+            sign.setOnAction(ev -> {
+                String data = ask("Blockchain", "Data to sign", "evidence-1");
+                String sig = elite.signData(w.id, data);
+                boolean ok = elite.verifySignature(w.id, data, sig);
+                AcademyFx.toast(this, "Sig " + sig + " verified=" + ok, AcademyUi.PURPLE);
+                showBlockchain();
+            });
+            row.getChildren().add(sign);
+            walCard.getChildren().add(row);
+        }
+        main.getChildren().add(walCard);
+
+        VBox chainCard = AcademyUi.card();
+        chainCard.getChildren().add(AcademyUi.section("\uD83D\uDD17 HASH CHAIN (valid: " + elite.verifyChain() + ")", AcademyUi.GOLD));
+        for (EliteService.Block b : elite.blockchain()) {
+            chainCard.getChildren().add(AcademyUi.caption("#" + b.index + " " + b.data + " \u2022 " + b.hash.substring(0, 16) + "... (nonce " + b.nonce + ")", 11));
+        }
+        if (elite.blockchain().isEmpty()) chainCard.getChildren().add(AcademyUi.caption("No blocks yet. Mine the genesis block.", 12));
+        main.getChildren().add(chainCard);
+
+        VBox conCard = AcademyUi.card();
+        conCard.getChildren().add(AcademyUi.section("\uD83D\uDCC4 SMART CONTRACTS", AcademyUi.GREEN));
+        for (EliteService.Contract c : elite.contracts()) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(c.name + " (" + c.calls + " calls)", 12));
+            Button call = AcademyUi.button("CALL", "#238636", "#ffffff");
+            call.setOnAction(ev -> { elite.callContract(c.id); showBlockchain(); });
+            row.getChildren().add(call);
+            conCard.getChildren().add(row);
+        }
+        if (elite.contracts().isEmpty()) conCard.getChildren().add(AcademyUi.caption("No contracts deployed.", 12));
+        main.getChildren().add(conCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 43. MACHINE LEARNING SECURITY --------
+    private void showMlSecurity() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83E\uDD16", "ML SECURITY", AcademyUi.BLUE,
+            "Fraud, malware, phishing and anomaly detection with model-attack and adversarial-AI simulation.");
+        HBox actions = new HBox(8);
+        String[] detectors = {"FRAUD", "MALWARE", "PHISHING", "ANOMALY"};
+        for (String det : detectors) {
+            Button b = AcademyUi.button("RUN " + det, "#1f6feb", "#ffffff");
+            b.setOnAction(e -> {
+                String feats = ask("ML Security", "Feature string for " + det, "sample-" + System.nanoTime() % 1000);
+                String res = elite.mlDetect(det, feats);
+                AcademyFx.toast(this, res, AcademyUi.BLUE);
+                showMlSecurity();
+            });
+            actions.getChildren().add(b);
+        }
+        Button adv = AcademyUi.button("\u2620 ADVERSARIAL", "#F78166", "#0d1117");
+        adv.setOnAction(e -> {
+            String kind = ask("ML Security", "Detector to attack (MALWARE/PHISHING/FRAUD/ANOMALY)", "MALWARE");
+            String msg = elite.adversarialSample(kind);
+            AcademyFx.toast(this, msg, AcademyUi.ORANGE);
+            showMlSecurity();
+        });
+        actions.getChildren().add(adv);
+        main.getChildren().add(actions);
+
+        VBox report = AcademyUi.cardAccent(AcademyUi.BLUE);
+        report.getChildren().add(AcademyUi.section("REPORT", AcademyUi.BLUE));
+        for (String line : elite.mlReport().split("\n")) {
+            report.getChildren().add(AcademyUi.text(line, 12));
+        }
+        main.getChildren().add(report);
+
+        VBox log = AcademyUi.card();
+        log.getChildren().add(AcademyUi.section("\uD83D\uDCCB DETECTION LOG", AcademyUi.BLUE));
+        java.util.List<String> ml = elite.mlLog();
+        if (ml.isEmpty()) {
+            log.getChildren().add(AcademyUi.caption("No detections yet.", 12));
+        }
+        for (String s : ml) log.getChildren().add(AcademyUi.text("\u2022 " + s, 11));
+        main.getChildren().add(log);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 44. DIGITAL FORENSICS WORKBENCH --------
+    private void showForensics() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDD0D", "FORENSICS WORKBENCH", AcademyUi.GREEN,
+            "Disk, memory, timeline, registry and browser-artifact analysis with a verifiable evidence chain.");
+        Button create = AcademyUi.button("+ NEW CASE", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String title = ask("Forensics", "Case title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            EliteService.ForensicCase fc = elite.createCase(title.trim());
+            AcademyFx.toast(this, "Case - " + fc.id, AcademyUi.GREEN);
+            showForensics();
+        });
+        main.getChildren().add(create);
+        java.util.List<EliteService.ForensicCase> cases = elite.forensicCases();
+        if (cases.isEmpty()) {
+            main.getChildren().add(AcademyUi.caption("No forensic cases yet.", 13));
+        }
+        for (EliteService.ForensicCase fc : cases) {
+            VBox card = AcademyUi.cardAccent(fc.status.equals("COMPLETE") ? AcademyUi.GREEN : AcademyUi.ORANGE);
+            card.getChildren().add(AcademyUi.section(fc.title + " [" + fc.status + "]", AcademyUi.GREEN));
+            card.getChildren().add(AcademyUi.caption("Evidence artifacts: " + fc.evidence.size() / 2, 12));
+            HBox row = new HBox(8);
+            Button addEv = AcademyUi.button("+ EVIDENCE", "#8957e5", "#ffffff");
+            addEv.setOnAction(ev -> {
+                String kind = ask("Forensics", "Kind (DISK/MEMORY/TIMELINE/REGISTRY/BROWSER)", "DISK");
+                String art = ask("Forensics", "Artifact description", "");
+                elite.addEvidence(fc.id, kind, art);
+                showForensics();
+            });
+            Button analyze = AcademyUi.button("RUN ANALYSIS", "#238636", "#ffffff");
+            analyze.setOnAction(ev -> {
+                elite.runAnalysis(fc.id);
+                AcademyFx.toast(this, "Analysis complete", AcademyUi.GREEN);
+                showForensics();
+            });
+            Button report = AcademyUi.button("REPORT", "#FFD700", "#0d1117");
+            report.setOnAction(ev -> {
+                String r = elite.caseReport(fc.id);
+                TextArea ta = new TextArea(r);
+                ta.setEditable(false);
+                ta.setPrefRowCount(18);
+                VBox dlg = new VBox(10);
+                dlg.setPadding(new Insets(12));
+                dlg.getChildren().addAll(AcademyUi.section("CASE REPORT", AcademyUi.GREEN), ta);
+                javafx.scene.control.Dialog<Void> d = new javafx.scene.control.Dialog<>();
+                d.setTitle("Forensic Report");
+                d.getDialogPane().setContent(dlg);
+                d.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
+                d.showAndWait();
+            });
+            row.getChildren().addAll(addEv, analyze, report);
+            card.getChildren().add(row);
+            main.getChildren().add(card);
+        }
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 45. GLOBAL EVENTS --------
+    private void showGlobalEvents() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDFC6", "GLOBAL EVENTS", AcademyUi.GOLD,
+            "Weekly operations, season events, holiday challenges and live competitions.");
+        Button create = AcademyUi.button("+ CREATE EVENT", "#1f6feb", "#ffffff");
+        create.setOnAction(e -> {
+            String title = ask("Events", "Event title", "");
+            if (title == null || title.trim().isEmpty()) return;
+            String kind = ask("Events", "Kind (WEEKLY/SEASON/HOLIDAY/LIVE)", "WEEKLY");
+            String xp = ask("Events", "XP reward", "100");
+            int x = 100;
+            try { x = Integer.parseInt(xp); } catch (Exception ex) { }
+            EliteService.GlobalEvent ge = elite.createEvent(title.trim(), kind, x);
+            AcademyFx.toast(this, "Event - " + ge.id, AcademyUi.GOLD);
+            showGlobalEvents();
+        });
+        main.getChildren().add(create);
+
+        VBox eventCard = AcademyUi.card();
+        eventCard.getChildren().add(AcademyUi.section("\uD83D\uDCC5 EVENTS", AcademyUi.GOLD));
+        java.util.List<EliteService.GlobalEvent> events = elite.events();
+        if (events.isEmpty()) {
+            eventCard.getChildren().add(AcademyUi.caption("No global events yet.", 12));
+        }
+        for (EliteService.GlobalEvent ge : events) {
+            VBox card = AcademyUi.cardAccent(AcademyUi.GOLD);
+            card.getChildren().add(AcademyUi.section(ge.title + " [" + ge.kind + "]", AcademyUi.GOLD));
+            card.getChildren().add(AcademyUi.caption("Reward: " + ge.xpReward + " XP \u2022 Current score: " + elite.eventScore(ge.id), 12));
+            HBox row = new HBox(8);
+            if (elite.isEventJoined(ge.id)) {
+                row.getChildren().add(AcademyUi.pill("\u2705 JOINED", AcademyUi.GREEN));
+                Button submit = AcademyUi.button("SUBMIT SCORE", "#238636", "#ffffff");
+                submit.setOnAction(ev -> {
+                    String s = ask("Events", "Score (0-100)", "85");
+                    try {
+                        elite.submitEventScore(ge.id, Integer.parseInt(s));
+                        AcademyFx.playSound("win");
+                        AcademyFx.toast(this, "Score submitted", AcademyUi.GREEN);
+                    } catch (Exception ex) { }
+                    showGlobalEvents();
+                });
+                row.getChildren().add(submit);
+            } else {
+                Button join = AcademyUi.button("JOIN", "#8957e5", "#ffffff");
+                join.setOnAction(ev -> {
+                    elite.joinEvent(ge.id);
+                    AcademyFx.toast(this, "Joined!", AcademyUi.PURPLE);
+                    showGlobalEvents();
+                });
+                row.getChildren().add(join);
+            }
+            card.getChildren().add(row);
+            eventCard.getChildren().add(card);
+        }
+        main.getChildren().add(eventCard);
+
+        VBox lbCard = AcademyUi.card();
+        lbCard.getChildren().add(AcademyUi.section("\uD83C\uDFC5 LEADERBOARD", AcademyUi.GOLD));
+        java.util.List<String[]> lb = elite.eventLeaderboard();
+        if (lb.isEmpty()) {
+            lbCard.getChildren().add(AcademyUi.caption("No scores submitted yet.", 12));
+        }
+        for (String[] r : lb) {
+            lbCard.getChildren().add(AcademyUi.text("\u2022 " + r[0] + " \u2014 " + r[1], 12));
+        }
+        main.getChildren().add(lbCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 46. ENTERPRISE REPORTS --------
+    private void showEnterpriseReports() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDCCA", "ENTERPRISE REPORTS", AcademyUi.BLUE,
+            "Professional reports with charts, skill matrix, performance, completion, weak areas and recommendations.");
+        HBox actions = new HBox(8);
+        Button gen = AcademyUi.button("\u26A1 REGENERATE", "#1f6feb", "#ffffff");
+        gen.setOnAction(e -> {
+            AcademyFx.toast(this, "Report regenerated", AcademyUi.BLUE);
+            showEnterpriseReports();
+        });
+        Button pdf = AcademyUi.button("\uD83D\uDCC4 EXPORT PDF", "#F78166", "#0d1117");
+        pdf.setOnAction(e -> {
+            java.io.File f = elite.exportPdfReport();
+            AcademyFx.toast(this, f == null ? "Export failed" : "Saved " + f.getName(), AcademyUi.ORANGE);
+        });
+        actions.getChildren().addAll(gen, pdf);
+        main.getChildren().add(actions);
+
+        VBox matrix = AcademyUi.card();
+        matrix.getChildren().add(AcademyUi.section("\uD83D\uDCCB SKILL MATRIX", AcademyUi.BLUE));
+        for (String[] r : elite.skillMatrix()) {
+            HBox row = new HBox(10);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.getChildren().add(AcademyUi.text(r[0], 12));
+            ProgressBar bar = new ProgressBar(Integer.parseInt(r[1].replace("%", "")) / 100.0);
+            bar.setPrefWidth(180);
+            bar.setStyle("-fx-accent: #58a6ff; -fx-pref-height: 6;");
+            row.getChildren().add(bar);
+            row.getChildren().add(AcademyUi.text(r[1], 11));
+            matrix.getChildren().add(row);
+        }
+        main.getChildren().add(matrix);
+
+        VBox repCard = AcademyUi.card();
+        repCard.getChildren().add(AcademyUi.section("\uD83D\uDCC4 REPORT PREVIEW", AcademyUi.BLUE));
+        TextArea report = new TextArea(elite.enterpriseReport());
+        report.setEditable(false);
+        report.setPrefRowCount(24);
+        report.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        repCard.getChildren().add(report);
+        main.getChildren().add(repCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 47. FUTURE-READY ARCHITECTURE --------
+    private void showArchitecture() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83C\uDF0D", "FUTURE-READY ARCHITECTURE", AcademyUi.GREEN,
+            "Every subsystem is interface-driven and swappable \u2014 ready for cloud, mobile, web, desktop and microservices.");
+        Button add = AcademyUi.button("+ REGISTER COMPONENT", "#1f6feb", "#ffffff");
+        add.setOnAction(e -> {
+            String name = ask("Architecture", "Component name", "AuthService");
+            if (name == null || name.trim().isEmpty()) return;
+            String target = ask("Architecture", "Migration target (CLOUD/MOBILE/WEB/DESKTOP/MICROSERVICES)", "CLOUD");
+            EliteService.ArchComponent ac = elite.registerComponent(name.trim(), target);
+            AcademyFx.toast(this, "Component - " + ac.id, AcademyUi.GREEN);
+            showArchitecture();
+        });
+        main.getChildren().add(add);
+
+        VBox repCard = AcademyUi.cardAccent(AcademyUi.GREEN);
+        repCard.getChildren().add(AcademyUi.section("ARCHITECTURE REPORT", AcademyUi.GREEN));
+        TextArea report = new TextArea(elite.architectureReport());
+        report.setEditable(false);
+        report.setPrefRowCount(12);
+        report.setStyle("-fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; -fx-font-family: monospace;");
+        repCard.getChildren().add(report);
+        main.getChildren().add(repCard);
+
+        VBox compCard = AcademyUi.card();
+        compCard.getChildren().add(AcademyUi.section("\uD83E\uDDF0 COMPONENTS", AcademyUi.GREEN));
+        java.util.List<EliteService.ArchComponent> comps = elite.components();
+        if (comps.isEmpty()) {
+            compCard.getChildren().add(AcademyUi.caption("No components registered yet.", 12));
+        }
+        for (EliteService.ArchComponent ac : comps) {
+            compCard.getChildren().add(AcademyUi.text("\u2022 " + ac.name + " [" + ac.status + "] \u2192 " + ac.target +
+                (ac.interfaceBound ? " (interface-bound)" : ""), 12));
+        }
+        main.getChildren().add(compCard);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
+    // -------- 27B. ELITE HUB --------
+    private void showEliteHub() {
+        academyActive = true;
+        stopMissionClock();
+        stopChallengeClock();
+        VBox main = new VBox(16);
+        main.setPadding(new Insets(24));
+        main.setStyle(BG_DARK);
+        eliteHeader(main, "\uD83D\uDC5C", "ACADEMY ELITE", AcademyUi.GOLD,
+            "A complete Cybersecurity Operating System \u2014 from training to SOC, quantum and enterprise reporting.");
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        String[][] tiles = {
+            {"\uD83D\uDCD6", "LEARNING PATHS", "Structured certification paths", "#FFD700", "learningpaths"},
+            {"\uD83C\uDFE5", "CYBER RANGE", "Simulated incident environments", "#58a6ff", "range"},
+            {"\uD83D\uDCCC", "MISSION MODE", "Full operational missions", "#39FF14", "missions"},
+            {"\uD83D\uDCFA", "STORY MODE", "Narrative campaign episodes", "#8957e5", "story"},
+            {"\uD83E\uDD1D", "TEAM MODE", "Squads, chat, shared XP", "#F78166", "teams"},
+            {"\uD83D\uDC68\u200D\uD83C\uDFEB", "MENTOR MODE", "Courses, students, reports", "#58a6ff", "mentor"},
+            {"\uD83C\uDF93", "UNIVERSITY", "Departments, exams, rankings", "#39FF14", "university"},
+            {"\uD83C\uDFED", "COMPANY TRAINING", "Awareness, compliance, export", "#FFD700", "company"},
+            {"\uD83D\uDD52", "EXAM MODE", "Timed proctored exams", "#f85149", "exams"},
+            {"\uD83D\uDEE0\uFE0F", "LAB BUILDER", "Design custom labs (ADMIN)", "#F78166", "builder"},
+            {"\uD83C\uDFAF", "CTF BUILDER", "Author custom challenges", "#F78166", "ctfbuilder"},
+            {"\uD83E\uDD16", "AI CURRICULUM", "Adaptive training plans", "#8957e5", "curriculum"},
+            {"\uD83D\uDCDD", "NOTEBOOK", "Operative dossier", "#39FF14", "notebook"},
+            {"\uD83D\uDCAE", "PORTFOLIO", "Showcase achievements", "#FFD700", "portfolio"},
+            {"\uD83D\uDCDC", "RESUME", "One-click CV generator", "#58a6ff", "resume"},
+            {"\u2B50", "REPUTATION", "Trust & community score", "#FFD700", "reputation"},
+            {"\uD83D\uDC65", "COMMUNITY", "Boards, writeups, reviews", "#8957e5", "community"},
+            {"\uD83E\uDDE9", "PLUGIN SDK", "Third-party plugins", "#39FF14", "plugin"},
+            {"\uD83D\uDD27", "API SDK", "REST, keys, webhooks", "#58a6ff", "apisdk"},
+            {"\uD83D\uDED2", "MARKETPLACE", "Publish & buy content", "#FFD700", "marketplace"},
+            {"\uD83D\uDCBB", "OFFLINE MODE", "Works without internet", "#39FF14", "offline"},
+            {"\u2601\uFE0F", "CLOUD SYNC", "Encrypted cross-device", "#58a6ff", "cloudsync"},
+            {"\uD83D\uDEE1\uFE0F", "SOC", "Alerts, incidents, threat feed", "#f85149", "soc"},
+            {"\uD83E\uDDED", "QUANTUM CRYPTO", "BB84, Kyber, Dilithium", "#8957e5", "quantum"},
+            {"\u26F3", "BLOCKCHAIN", "Wallets, hashes, Merkle", "#FFD700", "blockchain"},
+            {"\uD83E\uDD16", "ML SECURITY", "Detection & adversarial AI", "#58a6ff", "mlsec"},
+            {"\uD83D\uDD0D", "FORENSICS", "Evidence chain workbench", "#39FF14", "forensics"},
+            {"\uD83C\uDFC6", "GLOBAL EVENTS", "Weekly ops & live comps", "#FFD700", "events"},
+            {"\uD83D\uDCCA", "ENTERPRISE REPORTS", "PDF reports & skill matrix", "#58a6ff", "reports"},
+            {"\uD83C\uDF0D", "ARCHITECTURE", "Future-ready, swappable", "#39FF14", "architecture"}
+        };
+        int col = 0, row = 0;
+        for (String[] t : tiles) {
+            VBox tile = AcademyUi.cardAccent(t[3]);
+            tile.setPrefWidth(300);
+            tile.getChildren().add(AcademyUi.section(t[0] + " " + t[1], t[3]));
+            tile.getChildren().add(AcademyUi.caption(t[2], 12));
+            Button b = AcademyUi.button("OPEN", t[3], "#0d1117");
+            String key = t[4];
+            b.setOnAction(e -> {
+                switch (key) {
+                    case "learningpaths": showLearningPaths(); break;
+                    case "range": showCyberRange(); break;
+                    case "missions": showMissions(); break;
+                    case "story": showStory(); break;
+                    case "teams": showTeams(); break;
+                    case "mentor": showMentor(); break;
+                    case "university": showUniversity(); break;
+                    case "company": showCompanyTraining(); break;
+                    case "exams": showExams(); break;
+                    case "builder": showLabBuilder(); break;
+                    case "ctfbuilder": showCtfBuilder(); break;
+                    case "curriculum": showCurriculum(); break;
+                    case "notebook": showNotebook(); break;
+                    case "portfolio": showPortfolio(); break;
+                    case "resume": showResume(); break;
+                    case "reputation": showReputation(); break;
+                    case "community": showCommunity(); break;
+                    case "plugin": showPlugin(); break;
+                    case "apisdk": showApiSdk(); break;
+                    case "marketplace": showMarketplace(); break;
+                    case "offline": showOfflineMode(); break;
+                    case "cloudsync": showCloudSync(); break;
+                    case "soc": showSoc(); break;
+                    case "quantum": showQuantum(); break;
+                    case "blockchain": showBlockchain(); break;
+                    case "mlsec": showMlSecurity(); break;
+                    case "forensics": showForensics(); break;
+                    case "events": showGlobalEvents(); break;
+                    case "reports": showEnterpriseReports(); break;
+                    default: showArchitecture(); break;
+                }
+            });
+            tile.getChildren().add(b);
+            grid.add(tile, col, row);
+            col++;
+            if (col > 2) { col = 0; row++; }
+        }
+        main.getChildren().add(grid);
+        setCenter(eliteScroll(main));
+        AcademyUi.animateIn(main);
+    }
+
     private VBox createSidebar() {
-        VBox sidebar = new VBox(10);
-        sidebar.setPadding(new Insets(20));
+        VBox sidebar = new VBox(10);        sidebar.setPadding(new Insets(20));
         sidebar.setPrefWidth(240);
         sidebar.setStyle("-fx-background-color: #010409; -fx-border-color: #30363d; -fx-border-width: 0 1 0 0;");
         
@@ -6601,9 +10221,16 @@ public class Dashboard extends BorderPane {
             new Separator(),
             createMenuBtn("\uD83D\uDC79 ATTACK SIMULATOR", e -> showAttackSimulator()),
             createMenuBtn("\uD83C\uDFC6 CAREER MODE", e -> showCareerMode()),
+            createMenuBtn("\uD83D\uDC5C ELITE HUB", e -> showEliteHub()),
             createMenuBtn("\uD83C\uDFAE MULTIPLAYER", e -> showMultiplayer()),
             createMenuBtn("\uD83C\uDFC6 TOURNAMENTS", e -> showTournaments()),
-            createMenuBtn("\uD83D\uDC64 PROFILE", e -> showProfile())
+            createMenuBtn("\uD83D\uDC64 PROFILE", e -> showProfile()),
+            new Separator(),
+            createMenuBtn("\uD83D\uDD14 NOTIFICATIONS", e -> showNotifications()),
+            createMenuBtn("\uD83D\uDD0E SEARCH", e -> showSearch()),
+            createMenuBtn("\u2699\uFE0F SETTINGS", e -> showSettings()),
+            createMenuBtn("\uD83D\uDD12 SECURITY", e -> showSecurity()),
+            createMenuBtn("\u26A1 PERFORMANCE", e -> showPerformance())
         );
 
         sidebar.getChildren().add(new Separator());

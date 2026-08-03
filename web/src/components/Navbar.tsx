@@ -36,7 +36,11 @@ export default function Navbar({
       </button>
       <div className="flex-1" />
       <div className="flex items-center gap-4">
-        <button className="relative rounded-lg p-2 text-crypto-text-muted hover:bg-crypto-surface2">
+        <button
+          onClick={() => router.push("/audit-logs")}
+          className="relative rounded-lg p-2 text-crypto-text-muted hover:bg-crypto-surface2"
+          title="View audit logs"
+        >
           <Bell size={20} />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-crypto-red" />
         </button>

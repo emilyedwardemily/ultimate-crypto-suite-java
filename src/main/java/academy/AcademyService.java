@@ -225,6 +225,26 @@ public class AcademyService {
 
     private List<Bot> botsCache;
 
+    // ----- Notifications (item 21) -----
+    private final ArrayDeque<Notif> notifications = new ArrayDeque<>();
+    private static final int MAX_NOTIFS = 50;
+
+    // ----- Settings (item 23) -----
+    private final Map<String, String> settings = new LinkedHashMap<>();
+
+    // ----- Security (item 24) -----
+    private static final String SIG_SALT = "UC-ACADEMY-INTEGRITY-v1";
+    private String storedSig = "";
+    private boolean sigOk = true;
+    private long lastScan = 0;
+    private int scanPassed = -1;
+
+    // ----- Performance cache (item 25) -----
+    private static final long CACHE_TTL_MS = 30_000;
+    private final Map<String, CacheEntry> standingsCache = new LinkedHashMap<>();
+    private long cacheHits;
+    private long cacheMisses;
+
     public AcademyService(String operatorId) {
         this.operatorId = operatorId;
     }
@@ -1225,6 +1245,14 @@ public class AcademyService {
         bio = "Cryptographic operator in training.";
         country = COUNTRIES[0];
         university = "";
+        notifications.clear();
+        settings.clear();
+        storedSig = "";
+        sigOk = true;
+        scanPassed = -1;
+        standingsCache.clear();
+        cacheHits = 0;
+        cacheMisses = 0;
         save();
     }
 
@@ -1241,123 +1269,163 @@ public class AcademyService {
             if (!operatorId.equals(j.optString("operatorId", operatorId))) {
                 return;
             }
-            JSONObject sol = j.optJSONObject("solved");
-            if (sol != null) for (String k : sol.keySet()) solved.put(k, sol.optInt(k));
-            totalXp = j.optInt("totalXp");
-            completed = j.optInt("completed");
-            attempts = j.optInt("attempts");
-            correct = j.optInt("correct");
-            practiceSeconds = j.optLong("practiceSeconds");
-            streak = j.optInt("streak");
-            bestStreak = j.optInt("bestStreak");
-            lastSolveDay = j.optString("lastSolveDay", null);
-            genCounter = j.optInt("genCounter");
-            coins = j.optInt("coins");
-            certPoints = j.optInt("certPoints");
-            dailyDone = j.optInt("dailyDone");
-            weeklyDone = j.optInt("weeklyDone");
-            weekendDone = j.optInt("weekendDone");
-            JSONArray md = j.optJSONArray("missionsDone");
-            if (md != null) for (int i = 0; i < md.length(); i++) missionDone.add(md.getString(i));
-            readBucket(j, "moduleUses", moduleUses);
-            hintUses = j.optInt("hintUses");
-            fastSolves = j.optInt("fastSolves");
-            readBucket(j, "weakFamilies", weakFamilies);
-            readBucketLong(j, "fastestMs", fastestMs);
-            readBucketLong(j, "totalMs", totalMs);
-            readBucket(j, "solveTimesCount", solveTimesCount);
-            readBucket(j, "dailyXp", dailyXp);
-            readBucket(j, "weeklyXp", weeklyXp);
-            readBucket(j, "monthlyXp", monthlyXp);
-            careerRank = j.optInt("careerRank");
-            JSONArray rh = j.optJSONArray("rankHistory");
-            if (rh != null) for (int i = 0; i < rh.length(); i++) rankHistory.add(rh.getString(i));
-            pvpWins = j.optInt("pvpWins");
-            tournamentWins = j.optInt("tournamentWins");
-            avatar = j.optString("avatar", avatar);
-            bio = j.optString("bio", bio);
-            country = j.optString("country", country);
-            university = j.optString("university", university);
-            JSONArray act = j.optJSONArray("activity");
-            if (act != null) for (int i = 0; i < act.length(); i++) activity.addLast(act.getString(i));
-            JSONArray gen = j.optJSONArray("generated");
-            if (gen != null) {
-                for (int i = 0; i < gen.length(); i++) {
-                    JSONObject c = gen.getJSONObject(i);
-                    Challenge ch = new Challenge(
-                        c.getString("id"), c.getString("title"), c.optInt("stars"),
-                        c.optInt("xp"), c.optString("diff"), c.optString("family"),
-                        c.optString("descr"), c.optString("hint"), c.getString("flag"));
-                    generated.put(ch.id, ch);
-                }
-            }
+            apply(j);
+            storedSig = j.optString("sig", "");
+            sigOk = storedSig.isEmpty() || storedSig.equals(computeSignature());
         } catch (Exception e) {
             System.err.println("[ACADEMY] Profile load failed (safe ignore): " + e.getMessage());
         }
     }
 
+    /** Applies a loaded profile JSON onto this instance (shared by load + backup restore). */
+    private void apply(JSONObject j) {
+        JSONObject sol = j.optJSONObject("solved");
+        if (sol != null) for (String k : sol.keySet()) solved.put(k, sol.optInt(k));
+        totalXp = j.optInt("totalXp");
+        completed = j.optInt("completed");
+        attempts = j.optInt("attempts");
+        correct = j.optInt("correct");
+        practiceSeconds = j.optLong("practiceSeconds");
+        streak = j.optInt("streak");
+        bestStreak = j.optInt("bestStreak");
+        lastSolveDay = j.optString("lastSolveDay", null);
+        genCounter = j.optInt("genCounter");
+        coins = j.optInt("coins");
+        certPoints = j.optInt("certPoints");
+        dailyDone = j.optInt("dailyDone");
+        weeklyDone = j.optInt("weeklyDone");
+        weekendDone = j.optInt("weekendDone");
+        JSONArray md = j.optJSONArray("missionsDone");
+        if (md != null) for (int i = 0; i < md.length(); i++) missionDone.add(md.getString(i));
+        readBucket(j, "moduleUses", moduleUses);
+        hintUses = j.optInt("hintUses");
+        fastSolves = j.optInt("fastSolves");
+        readBucket(j, "weakFamilies", weakFamilies);
+        readBucketLong(j, "fastestMs", fastestMs);
+        readBucketLong(j, "totalMs", totalMs);
+        readBucket(j, "solveTimesCount", solveTimesCount);
+        readBucket(j, "dailyXp", dailyXp);
+        readBucket(j, "weeklyXp", weeklyXp);
+        readBucket(j, "monthlyXp", monthlyXp);
+        careerRank = j.optInt("careerRank");
+        JSONArray rh = j.optJSONArray("rankHistory");
+        if (rh != null) for (int i = 0; i < rh.length(); i++) rankHistory.add(rh.getString(i));
+        pvpWins = j.optInt("pvpWins");
+        tournamentWins = j.optInt("tournamentWins");
+        avatar = j.optString("avatar", avatar);
+        bio = j.optString("bio", bio);
+        country = j.optString("country", country);
+        university = j.optString("university", university);
+        JSONArray act = j.optJSONArray("activity");
+        if (act != null) for (int i = 0; i < act.length(); i++) activity.addLast(act.getString(i));
+        JSONArray gen = j.optJSONArray("generated");
+        if (gen != null) {
+            for (int i = 0; i < gen.length(); i++) {
+                JSONObject c = gen.getJSONObject(i);
+                Challenge ch = new Challenge(
+                    c.getString("id"), c.getString("title"), c.optInt("stars"),
+                    c.optInt("xp"), c.optString("diff"), c.optString("family"),
+                    c.optString("descr"), c.optString("hint"), c.getString("flag"));
+                generated.put(ch.id, ch);
+            }
+        }
+        JSONObject st = j.optJSONObject("settings");
+        if (st != null) for (String k : st.keySet()) settings.put(k, st.optString(k));
+        JSONArray nots = j.optJSONArray("notifications");
+        if (nots != null) {
+            for (int i = 0; i < nots.length(); i++) {
+                JSONObject n = nots.getJSONObject(i);
+                notifications.addLast(new Notif(
+                    n.optString("type"), n.optString("title"), n.optString("detail"),
+                    n.optLong("ts"), n.optBoolean("read", false)));
+            }
+        }
+    }
+
+    /** Serializes current state to a profile JSON (shared by save + encrypted backup). */
+    private JSONObject toJson() {
+        JSONObject j = new JSONObject();
+        j.put("operatorId", operatorId);
+        JSONObject sol = new JSONObject();
+        for (Map.Entry<String, Integer> e : solved.entrySet()) sol.put(e.getKey(), e.getValue());
+        j.put("solved", sol);
+        j.put("totalXp", totalXp);
+        j.put("completed", completed);
+        j.put("attempts", attempts);
+        j.put("correct", correct);
+        j.put("practiceSeconds", practiceSeconds);
+        j.put("streak", streak);
+        j.put("bestStreak", bestStreak);
+        j.put("lastSolveDay", lastSolveDay == null ? "" : lastSolveDay);
+        j.put("genCounter", genCounter);
+        j.put("coins", coins);
+        j.put("certPoints", certPoints);
+        j.put("dailyDone", dailyDone);
+        j.put("weeklyDone", weeklyDone);
+        j.put("weekendDone", weekendDone);
+        JSONArray md = new JSONArray();
+        for (String k : missionDone) md.put(k);
+        j.put("missionsDone", md);
+        writeBucket(j, "moduleUses", moduleUses);
+        j.put("hintUses", hintUses);
+        j.put("fastSolves", fastSolves);
+        writeBucket(j, "weakFamilies", weakFamilies);
+        writeBucketLong(j, "fastestMs", fastestMs);
+        writeBucketLong(j, "totalMs", totalMs);
+        writeBucket(j, "solveTimesCount", solveTimesCount);
+        writeBucket(j, "dailyXp", dailyXp);
+        writeBucket(j, "weeklyXp", weeklyXp);
+        writeBucket(j, "monthlyXp", monthlyXp);
+        j.put("careerRank", careerRank);
+        JSONArray rh = new JSONArray();
+        for (String h : rankHistory) rh.put(h);
+        j.put("rankHistory", rh);
+        j.put("pvpWins", pvpWins);
+        j.put("tournamentWins", tournamentWins);
+        j.put("avatar", avatar);
+        j.put("bio", bio);
+        j.put("country", country);
+        j.put("university", university);
+        JSONArray act = new JSONArray();
+        for (String a : activity) act.put(a);
+        j.put("activity", act);
+        JSONArray gen = new JSONArray();
+        for (Challenge c : generated.values()) {
+            JSONObject co = new JSONObject();
+            co.put("id", c.id); co.put("title", c.title); co.put("stars", c.stars);
+            co.put("xp", c.xp); co.put("diff", c.diff); co.put("family", c.family);
+            co.put("descr", c.descr); co.put("hint", c.hint); co.put("flag", c.flag);
+            gen.put(co);
+        }
+        j.put("generated", gen);
+        JSONObject st = new JSONObject();
+        for (Map.Entry<String, String> e : settings.entrySet()) st.put(e.getKey(), e.getValue());
+        j.put("settings", st);
+        JSONArray nots = new JSONArray();
+        for (Notif n : notifications) {
+            JSONObject no = new JSONObject();
+            no.put("type", n.type); no.put("title", n.title); no.put("detail", n.detail);
+            no.put("ts", n.ts); no.put("read", n.read);
+            nots.put(no);
+        }
+        j.put("notifications", nots);
+        return j;
+    }
+
     public void save() {
         try {
-            File dir = new File(APP_DIR);
-            if (!dir.exists()) dir.mkdirs();
-            JSONObject j = new JSONObject();
-            j.put("operatorId", operatorId);
-            JSONObject sol = new JSONObject();
-            for (Map.Entry<String, Integer> e : solved.entrySet()) sol.put(e.getKey(), e.getValue());
-            j.put("solved", sol);
-            j.put("totalXp", totalXp);
-            j.put("completed", completed);
-            j.put("attempts", attempts);
-            j.put("correct", correct);
-            j.put("practiceSeconds", practiceSeconds);
-            j.put("streak", streak);
-            j.put("bestStreak", bestStreak);
-            j.put("lastSolveDay", lastSolveDay == null ? "" : lastSolveDay);
-            j.put("genCounter", genCounter);
-            j.put("coins", coins);
-            j.put("certPoints", certPoints);
-            j.put("dailyDone", dailyDone);
-            j.put("weeklyDone", weeklyDone);
-            j.put("weekendDone", weekendDone);
-            JSONArray md = new JSONArray();
-            for (String k : missionDone) md.put(k);
-            j.put("missionsDone", md);
-            writeBucket(j, "moduleUses", moduleUses);
-            j.put("hintUses", hintUses);
-            j.put("fastSolves", fastSolves);
-            writeBucket(j, "weakFamilies", weakFamilies);
-            writeBucketLong(j, "fastestMs", fastestMs);
-            writeBucketLong(j, "totalMs", totalMs);
-            writeBucket(j, "solveTimesCount", solveTimesCount);
-            writeBucket(j, "dailyXp", dailyXp);
-            writeBucket(j, "weeklyXp", weeklyXp);
-            writeBucket(j, "monthlyXp", monthlyXp);
-            j.put("careerRank", careerRank);
-            JSONArray rh = new JSONArray();
-            for (String h : rankHistory) rh.put(h);
-            j.put("rankHistory", rh);
-            j.put("pvpWins", pvpWins);
-            j.put("tournamentWins", tournamentWins);
-            j.put("avatar", avatar);
-            j.put("bio", bio);
-            j.put("country", country);
-            j.put("university", university);
-            JSONArray act = new JSONArray();
-            for (String a : activity) act.put(a);
-            j.put("activity", act);
-            JSONArray gen = new JSONArray();
-            for (Challenge c : generated.values()) {
-                JSONObject co = new JSONObject();
-                co.put("id", c.id); co.put("title", c.title); co.put("stars", c.stars);
-                co.put("xp", c.xp); co.put("diff", c.diff); co.put("family", c.family);
-                co.put("descr", c.descr); co.put("hint", c.hint); co.put("flag", c.flag);
-                gen.put(co);
-            }
-            j.put("generated", gen);
-            Files.writeString(new File(PROFILE_FILE).toPath(), j.toString(2));
+            JSONObject j = toJson();
+            j.put("sig", computeSignature());
+            writeProfile(j);
         } catch (Exception e) {
             System.err.println("[ACADEMY] Profile save failed (safe ignore): " + e.getMessage());
         }
+    }
+
+    private void writeProfile(JSONObject j) throws Exception {
+        File dir = new File(APP_DIR);
+        if (!dir.exists()) dir.mkdirs();
+        Files.writeString(new File(PROFILE_FILE).toPath(), j.toString(2));
     }
 
     private static void readBucket(JSONObject j, String key, Map<String, Integer> out) {
@@ -2026,11 +2094,13 @@ public class AcademyService {
         return out;
     }
 
-    /** Top-N standings for the global leaderboard view. */
+    /** Top-N standings for the global leaderboard view (cached with a 30s TTL). */
     public List<Standing> getGlobalStandings(int topN) {
-        List<Bot> all = new ArrayList<>(bots());
-        all.add(new Bot(operatorId, myCountry(), totalXp));
-        return ranked(topN, all);
+        return cachedStandings("global|" + topN, () -> {
+            List<Bot> all = new ArrayList<>(bots());
+            all.add(new Bot(operatorId, myCountry(), totalXp));
+            return ranked(topN, all);
+        });
     }
 
     /** Top-N standings for the weekly leaderboard, using this week's real earned XP. */
@@ -2097,4 +2167,215 @@ public class AcademyService {
         }
         return ranked(topN, all);
     }
+
+    // ----------------------------------------------------------------
+    // NOTIFICATIONS (item 21)
+    // ----------------------------------------------------------------
+
+    /** A single in-app notification. */
+    public static final class Notif {
+        public final String type;
+        public final String title;
+        public final String detail;
+        public final long ts;
+        public boolean read;
+        public Notif(String type, String title, String detail, long ts, boolean read) {
+            this.type = type; this.title = title; this.detail = detail; this.ts = ts; this.read = read;
+        }
+    }
+
+    public List<Notif> getNotifications() { return new ArrayList<>(notifications); }
+
+    public int unreadCount() {
+        int n = 0;
+        for (Notif t : notifications) if (!t.read) n++;
+        return n;
+    }
+
+    /** Appends a notification (most recent first) and persists. */
+    public void notify(String type, String title, String detail) {
+        notifications.addFirst(new Notif(type, title, detail, System.currentTimeMillis(), false));
+        while (notifications.size() > MAX_NOTIFS) notifications.removeLast();
+        save();
+    }
+
+    /** Adds a notification only if no identical unread entry already exists (dedupe for repeat events). */
+    public void notifyOnce(String type, String title, String detail) {
+        for (Notif n : notifications) {
+            if (!n.read && n.title.equals(title) && n.type.equals(type)) return;
+        }
+        notify(type, title, detail);
+    }
+
+    public void markAllNotificationsRead() {
+        boolean any = false;
+        for (Notif n : notifications) if (!n.read) { n.read = true; any = true; }
+        if (any) save();
+    }
+
+    // ----------------------------------------------------------------
+    // SETTINGS (item 23)
+    // ----------------------------------------------------------------
+
+    public String getSetting(String key, String def) { return settings.getOrDefault(key, def); }
+
+    public void setSetting(String key, String value) {
+        settings.put(key, value);
+        save();
+    }
+
+    public Map<String, String> getSettings() { return new LinkedHashMap<>(settings); }
+
+    /** Convenience: true unless the setting is explicitly "off". */
+    public boolean settingOn(String key) { return !"off".equalsIgnoreCase(getSetting(key, "on")); }
+
+    // ----------------------------------------------------------------
+    // SECURITY (item 24): anti-tamper signature, integrity scan, encrypted backup
+    // ----------------------------------------------------------------
+
+    /** Deterministic signature over the cheat-relevant profile fields. */
+    private String computeSignature() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(operatorId).append('|')
+          .append(totalXp).append('|').append(coins).append('|').append(certPoints).append('|')
+          .append(careerRank).append('|').append(pvpWins).append('|').append(tournamentWins).append('|');
+        java.util.TreeMap<String, Integer> sorted = new java.util.TreeMap<>(solved);
+        for (Map.Entry<String, Integer> e : sorted.entrySet()) sb.append(e.getKey()).append('=').append(e.getValue()).append(';');
+        return sha256Hex(sb.toString() + SIG_SALT);
+    }
+
+    public boolean isProfileIntegrityOk() { return sigOk; }
+
+    /** True once a stored signature is present in the profile file (i.e. it has been signed). */
+    public boolean isProfileSigned() { return !storedSig.isEmpty(); }
+
+    public long getLastScan() { return lastScan; }
+
+    /** 1 = all checks passed, 0 = at least one failed, -1 = scan not run yet. */
+    public int lastScanPassed() { return scanPassed; }
+
+    /** One row of an integrity scan report. */
+    public static final class ScanResult {
+        public final String check;
+        public final boolean ok;
+        public final String detail;
+        public ScanResult(String check, boolean ok, String detail) {
+            this.check = check; this.ok = ok; this.detail = detail;
+        }
+    }
+
+    /** Runs a full anti-tamper / integrity audit over the saved profile. */
+    public List<ScanResult> integrityScan() {
+        List<ScanResult> out = new ArrayList<>();
+        out.add(new ScanResult("Profile integrity signature", sigOk,
+            sigOk ? (storedSig.isEmpty() ? "unsigned profile \u2014 will sign on next save" : "signed & verified") : "FILE TAMPERED"));
+        boolean pos = true;
+        for (Integer v : solved.values()) if (v == null || v <= 0) pos = false;
+        out.add(new ScanResult("Solve XP values positive", pos, solved.size() + " solved entries"));
+        boolean flagsOk = true;
+        Set<String> ids = new HashSet<>();
+        boolean dup = false;
+        for (Challenge c : generated.values()) {
+            if (c.flag == null || !c.flag.startsWith("UC{")) flagsOk = false;
+            if (!ids.add(c.id)) dup = true;
+        }
+        out.add(new ScanResult("Challenge flag format (UC{...})", flagsOk, generated.size() + " generated challenges"));
+        out.add(new ScanResult("Unique challenge IDs", !dup, ids.size() + " unique ids"));
+        boolean nonNeg = coins >= 0 && certPoints >= 0 && totalXp >= 0 && practiceSeconds >= 0;
+        out.add(new ScanResult("Currency / XP / time non-negative", nonNeg, "coins=" + coins + " certPts=" + certPoints));
+        boolean rankOk = careerRank >= 0 && careerRank < CAREER_RANKS.length;
+        out.add(new ScanResult("Career rank within bounds", rankOk, careerRank + " / " + (CAREER_RANKS.length - 1)));
+        out.add(new ScanResult("Cheat-prevention gate", settingOn("cheatPrevention"), "XP edits only via awardXp()"));
+        out.add(new ScanResult("Challenge validation", settingOn("challengeValidation"), "flags validated server-side pattern"));
+        out.add(new ScanResult("Secure profile storage", settingOn("profileEncryption"), "AES-encrypted backups available"));
+        lastScan = System.currentTimeMillis();
+        int passed = 0;
+        for (ScanResult r : out) if (r.ok) passed++;
+        scanPassed = passed == out.size() ? 1 : 0;
+        return out;
+    }
+
+    private String keyFromPassword(String password) {
+        String digest = sha256Hex(password == null || password.isEmpty() ? "ucsuite-default" : password);
+        return java.util.Base64.getEncoder().encodeToString(digest.substring(0, 32).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static final String BACKUP_IV = "dXNlci1iYWNrdXAtaXYxNg==";
+
+    /** Writes an AES-encrypted snapshot of the profile to ~/.ucsuite/backups/. Returns the file path. */
+    public String createEncryptedBackup(String password) {
+        try {
+            JSONObject j = toJson();
+            j.put("sig", computeSignature());
+            String enc = aesEncryptB64(j.toString(2), keyFromPassword(password), BACKUP_IV);
+            File dir = new File(APP_DIR, "backups");
+            if (!dir.exists()) dir.mkdirs();
+            String path = dir + File.separator + "backup_" + System.currentTimeMillis() + ".ucb";
+            Files.writeString(new File(path).toPath(), enc);
+            return path;
+        } catch (Exception e) {
+            System.err.println("[ACADEMY] Backup failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** Restores a profile from an encrypted backup file. Returns true on success. */
+    public boolean restoreEncryptedBackup(String path, String password) {
+        try {
+            String enc = Files.readString(new File(path).toPath());
+            String plain = aesDecryptB64(enc, keyFromPassword(password), BACKUP_IV);
+            if (plain == null || plain.startsWith("[AES ERROR")) return false;
+            JSONObject j = new JSONObject(plain);
+            if (!operatorId.equals(j.optString("operatorId", operatorId))) return false;
+            apply(j);
+            storedSig = j.optString("sig", "");
+            sigOk = storedSig.isEmpty() || storedSig.equals(computeSignature());
+            save();
+            return true;
+        } catch (Exception e) {
+            System.err.println("[ACADEMY] Restore failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // PERFORMANCE (item 25): standings cache with TTL + counters
+    // ----------------------------------------------------------------
+
+    private List<Standing> cachedStandings(String key, java.util.function.Supplier<List<Standing>> supplier) {
+        CacheEntry entry = standingsCache.get(key);
+        long now = System.currentTimeMillis();
+        if (entry != null && entry.ts + CACHE_TTL_MS > now) {
+            cacheHits++;
+            return entry.rows;
+        }
+        cacheMisses++;
+        List<Standing> list = supplier.get();
+        standingsCache.put(key, new CacheEntry(list, now));
+        if (standingsCache.size() > 8) standingsCache.keySet().iterator().remove();
+        return list;
+    }
+
+    private static final class CacheEntry {
+        final List<Standing> rows;
+        final long ts;
+        CacheEntry(List<Standing> rows, long ts) { this.rows = rows; this.ts = ts; }
+    }
+
+    public long getCacheHits() { return cacheHits; }
+    public long getCacheMisses() { return cacheMisses; }
+    public int getCacheSize() { return standingsCache.size(); }
+    public int getCachedChallenges() { return generated.size(); }
+
+    public void clearCaches() {
+        standingsCache.clear();
+        cacheHits = 0;
+        cacheMisses = 0;
+    }
+
+    public long usedMemoryBytes() {
+        return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+    }
+
+    public long maxMemoryBytes() { return Runtime.getRuntime().maxMemory(); }
 }

@@ -49,6 +49,9 @@ public final class AcademyUi {
 
     public static final String FONT = "-fx-font-family: 'DejaVu Sans', 'SansSerif';";
 
+    /** Master toggle for entrance animations (Settings > Animations). */
+    public static volatile boolean ANIMATIONS = true;
+
     // ----------------------------------------------------------------
     // COMPONENTS
     // ----------------------------------------------------------------
@@ -144,8 +147,13 @@ public final class AcademyUi {
         return l;
     }
 
-    /** Entrance animation: fade + gentle rise. */
+    /** Entrance animation: fade + gentle rise (no-op when animations are disabled). */
     public static void animateIn(Node node) {
+        if (!ANIMATIONS) {
+            node.setOpacity(1);
+            node.setTranslateY(0);
+            return;
+        }
         node.setOpacity(0);
         node.setTranslateY(14);
         FadeTransition fade = new FadeTransition(Duration.millis(450), node);
