@@ -17,5 +17,6 @@
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/steganography/StegTool.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/storage/MongoManager.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/ui/Dashboard.java
+/home/emily/Desktop/UltimateCryptoSuite/src/main/java/ui/ForgotPasswordScreen.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/ui/LoginScreen.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/ui/RegisterScreen.java

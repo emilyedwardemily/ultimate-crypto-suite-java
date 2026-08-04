@@ -16,6 +16,7 @@ academy/EliteService$ArchComponent.class
 ui/Dashboard$9.class
 ui/Dashboard$UcItem.class
 academy/EliteService$Block.class
+ui/ForgotPasswordScreen.class
 app/MainApp.class
 academy/EliteService$Board.class
 app/Launcher.class
