@@ -5360,8 +5360,8 @@ public class Dashboard extends BorderPane {
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(PYTHON_URL + ep))
                     .header("X-API-KEY", API_SECRET_KEY).GET().build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 401) {
-                throw new ApiException("Invalid API Key", 401);
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                throw new ApiException(extractErrorDetail(response.body(), "Invalid API Key"), response.statusCode());
             }
             return response.body();
         } catch (ApiException e) {
@@ -5378,8 +5378,8 @@ public class Dashboard extends BorderPane {
                     .header("Content-Type", "application/json").header("X-API-KEY", API_SECRET_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(p.toString())).build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 401) {
-                throw new ApiException("Invalid API Key", 401);
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                throw new ApiException(extractErrorDetail(response.body(), "Invalid API Key"), response.statusCode());
             }
             return response.body();
         } catch (ApiException e) {
@@ -5387,6 +5387,22 @@ public class Dashboard extends BorderPane {
         } catch (Exception e) {
             throw new ApiException("Node request failed: " + ep, e);
         }
+    }
+
+    /** Inachimba ujumbe halisi wa server (message/detail/error) kutoka kwenye error body. */
+    private String extractErrorDetail(String body, String fallback) {
+        if (body == null || body.isBlank()) return fallback;
+        try {
+            JSONObject j = new JSONObject(body);
+            if (j.has("message")) return j.optString("message", fallback);
+            if (j.has("detail")) {
+                Object d = j.get("detail");
+                if (d instanceof JSONObject) return ((JSONObject) d).optString("msg", fallback);
+                return String.valueOf(d);
+            }
+            if (j.has("error")) return j.optString("error", fallback);
+        } catch (Exception ignored) { }
+        return fallback;
     }
 
     private void handleSecureDispatch(String title) {
@@ -5495,8 +5511,8 @@ public class Dashboard extends BorderPane {
                     .header("Content-Type", "application/json").header("X-API-KEY", API_SECRET_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(p.toString())).build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 401) {
-                throw new ApiException("Invalid API Key", 401);
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                throw new ApiException(extractErrorDetail(response.body(), "Invalid API Key"), response.statusCode());
             }
             return response.body();
         } catch (ApiException e) {
@@ -5525,6 +5541,9 @@ public class Dashboard extends BorderPane {
                 } else {
                     Platform.runLater(() -> addLog("[DENIED] OTP Verification Failed."));
                 }
+            } catch (app.ApiException e) {
+                String msg = e.getMessage() != null ? e.getMessage() : "Unknown error";
+                Platform.runLater(() -> addLog("[DENIED] Sync failed (HTTP " + e.getStatusCode() + "): " + msg));
             } catch (Exception e) { Platform.runLater(() -> addLog("[CRITICAL] Sync Fail. Check Backend.")); }
         }).start();
     }
@@ -11953,6 +11972,9 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
                 callNodeSecure("/api/auth/send-otp", payload);
                 
                 Platform.runLater(() -> addLog("[SUCCESS] OTP sent! Check your inbox/spam folder."));
+            } catch (app.ApiException ex) {
+                String msg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                Platform.runLater(() -> addLog("[ERROR] OTP dispatch rejected (HTTP " + ex.getStatusCode() + "): " + msg));
             } catch (Exception ex) {
                 Platform.runLater(() -> addLog("[ERROR] Email Dispatcher failed: " + ex.getMessage()));
             }
@@ -11987,6 +12009,19 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
                         sendAuditLog("MFA_SUCCESS", "AUTH_GATE");
                     } else {
                         addLog("[DENIED] Verification failed. Token mismatch.");
+                    }
+                });
+            } catch (app.ApiException ex) {
+                int code = ex.getStatusCode();
+                String msg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                Platform.runLater(() -> {
+                    if (code == 401 || code == 403) {
+                        mfaStatusLabel.setText("DENIED");
+                        mfaStatusLabel.setTextFill(Color.web("#f85149"));
+                        addLog("[DENIED] " + msg + " (HTTP " + code + ").");
+                        sendAuditLog("MFA_REJECTED", "AUTH_GATE");
+                    } else {
+                        addLog("[ERROR] Auth server error (HTTP " + code + "): " + msg);
                     }
                 });
             } catch (Exception ex) {
