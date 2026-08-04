@@ -1,222 +1,278 @@
-# 🛡️ UltimateCryptoSuite
+# 🛠️ Ultimate Crypto Suite (UC Suite Pro)
 
 <div align="center">
 
-### Enterprise-Grade Cryptographic & Cybersecurity Simulation Suite
+[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](.github/workflows/ci-cd.yml)
+[![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
+[![JavaFX](https://img.shields.io/badge/JavaFX-25-%2300B0FF)](https://openjfx.io)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.1xx-009688)](https://fastapi.tiangolo.com)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-%23339933)](https://nodejs.org)
+[![MongoDB Atlas](https://img.shields.io/badge/MongoDB%20Atlas-Cloud-%2347A248)](https://www.mongodb.com/atlas)
+[![Deployed on Render](https://img.shields.io/badge/Deployed%20on-Render-%2346E3B7)](https://render.com)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-%232088FF)](.github/workflows/ci-cd.yml)
+[![Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa)](https://github.com/sponsors/emilyedwardemily)
 
-> **UltimateCryptoSuite is not an app. It is an arsenal.**
->
-> A standalone, enterprise-grade cryptographic and cybersecurity simulation platform that fuses a
-> **production-grade AES-256 / RSA / ChaCha20 encryption engine**, a **visual cryptanalysis laboratory**,
-> a **full Reverse-Engineering simulator**, an **AI security mentor**, and **offensive Red Team attack labs** —
-> all in one neon-drenched, cyberpunk-grade desktop interface backed by a distributed FastAPI + MongoDB Atlas cloud stack.
+**Professional-Grade Cryptographic & Cybersecurity Simulation Platform**
 
-[![Java](https://img.shields.io/badge/Java-25-%23ED8B00?logo=java&logoColor=white)](https://openjdk.org/projects/jdk/25/)
-[![JavaFX](https://img.shields.io/badge/JavaFX-25-%2300B0FF?logo=java&logoColor=white)](https://openjfx.io)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.1xx-%23009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![MongoDB Atlas](https://img.shields.io/badge/MongoDB%20Atlas-Cloud-%2347A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
-[![Render](https://img.shields.io/badge/Render-Hosted-%2346E3B7?logo=render&logoColor=white)](https://render.com)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-%232088FF?logo=githubactions&logoColor=white)](.github/workflows/ci-cd.yml)
-[![Made by](https://img.shields.io/badge/Crafted%20by-Emily%20Edward-%23FFD700)](https://github.com/emilyedwardemily)
+> A multi-tier distributed architecture designed for secure client-side encryption, cryptographic auditing,
+> interactive learning, and red-team cybersecurity simulations — powered by **JavaFX**, **FastAPI**, **Node.js**
+> and **MongoDB Atlas**, deployed on **Render**.
 
 </div>
 
 ---
 
-## ⚡ TL;DR
+## 📌 Overview
 
-| Capability | What you get |
-| --- | --- |
-| 🔐 **Cryptography Labs** | AES-256 (GCM), RSA, ECC, DES, Blowfish, Twofish, ChaCha20, Salsa20, SHA family, HMAC, PBKDF2, Argon2, XOR & classical ciphers — with live step-by-step visualization. |
-| 🧠 **Visual Learning Engine** | Every algorithm rendered as an animated, color-coded state machine. Watch bytes flow, keys expand, and rounds transform — byte by byte. |
-| 🤖 **AI Mentor** | An always-on, in-app security tutor that diagnoses your mistakes, explains attacks in plain language, and curates your next lesson. |
-| 🔬 **Reverse Engineering Simulator** | Assembly playground, disassembler, decompiler, PE/ELF/Mach-O analyzers, Control-Flow-Graph builder, stack/heap/register visualizers, ROP & shellcode labs. |
-| 📐 **DSA in Security** | Data Structures & Algorithms taught *through* a security lens — Merkle trees, Bloom filters, segment trees, AVL/RB/B-trees — each mapped to real crypto/malware/network/blockchain applications. |
-| 🚨 **Red Team Attack Labs** | Simulated offensive scenarios: hash cracking, padding-oracle attacks, bit-flip forgery, differential & linear cryptanalysis, RSA weak-key scanning, network packet crafting and more. |
+**Ultimate Crypto Suite (Professional Edition)** is a hybrid security platform combining client-side
+zero-knowledge encryption, hardware-bound licensing, digital forensics generation, and an immersive
+cybersecurity learning environment. It ships with modern cryptography standards, interactive simulation
+modules (Cryptography, Steganography, Cryptanalysis, Binary Analysis), Data Structures & Algorithms taught
+through a security lens, an x86/x64 Reverse-Engineering simulator, and a full Red Team attack laboratory.
+
+The desktop application is backed by a distributed cloud stack: a **FastAPI** engine and a **Node.js** gateway
+persisting ciphertext-only records in **MongoDB Atlas**, with CI/CD via **GitHub Actions** and hosting on **Render**.
 
 ---
 
-## 🎯 Key Feature Breakdown
+## 🔒 Core Security Architecture
 
-### 🔐 Cryptography Labs
-- **Modern symmetric & asymmetric suites**: AES-256 (GCM/CBC/CTR), RSA, ECC, DES, Blowfish, Twofish, ChaCha20, Salsa20.
-- **Hashing & KDFs**: SHA-1/256/512, HMAC, PBKDF2, Argon2 — with rainbow-table resistance demos and entropy scoring.
-- **Classical ciphers**: Caesar, Vigenère, Playfair, Hill, Transposition, XOR — complete with cryptanalysis tools.
-- **Key management**: session keys held in RAM only; zero-knowledge ciphertext storage; certificate generation with **scannable HMAC-signed QR codes** and backend signature verification.
+The platform relies on a 3-tier defense-in-depth model:
 
-### 🧠 Visual Learning Engine
-- **Animated state machines** for AES key expansion, Feistel networks, S-box substitution, and round functions.
-- **Step / autoplay / replay** controls so you can slow an algorithm to a crawl and watch every transformation.
-- Algorithm *and* attack visualizers that show exactly where a defense breaks — and why.
+- **Client-Side Encryption (Java):** All sensitive data undergoes local encryption on the client device prior
+  to transport, eliminating Man-in-the-Middle (MITM) attack vectors.
+- **Zero-Knowledge Storage:** MongoDB Atlas holds raw ciphertext only. In the event of a database breach,
+  zero plaintext data is accessible.
+- **Hardware-ID (HWID) Binding:** Software license keys are cryptographically signed and bound to unique
+  hardware signatures to prevent piracy and unauthorized instantiation.
 
-### 🤖 AI Mentor
-- Natural-language Q&A over every topic in the suite.
-- Misstep diagnosis with **plain-English explanations** of why your solution failed.
-- **Adaptive lesson pathing** that recommends the next concept based on your weak families.
-- Quick-ask chips, streak tracking, and an integrated `teach me` deep-dive mode.
+Additional hardening:
 
-### 🔬 Reverse Engineering Simulator
-- **Assembly Playground**, disassembler, and decompiler with syntax highlighting.
-- **PE / ELF / Mach-O binary analyzers**: sections, imports/exports, magic bytes, entropy maps.
-- **Control-Flow-Graph (CFG) builder** and register/stack/heap/memory visualizers.
-- **Exploitation primitives**: ROP-chain construction, shellcode modeling, and a debugger simulator.
-- **Binary labs**: hex viewer, magic-byte detection, binary diffing, string extraction, entropy analysis.
+- **HMAC-signed verifiable certificates** — certificate QR codes embed a `HmacSHA256` signature that is
+  validated against the backend `/verify-cert` endpoint.
+- **Forensic audit trail** — every operator action generates a SHA-256 authenticity stamp stored in the cloud.
 
-### 📐 DSA in Security
-- Every data structure taught **through its security application**:
-  - Merkle trees → blockchain proofs & Git integrity
-  - Bloom filters → malware sandbox membership / SSRF allowlists
-  - Segment trees → packet-range firewalls & rate limiters
-  - AVL/RB/B-trees → database indexes and key stores
-  - Big-O analysis → spotting DoS-prone designs
-- Each concept ships with a **4-quadrant application matrix** (Cryptography / Malware / Networking / Blockchain) so theory always lands in practice.
+---
+
+## ⚡ Cryptographic Standards & Forensic Audit
+
+### Cryptography Specifications
+
+- **Primary Algorithm:** AES-256 in **GCM Mode** (Galois/Counter Mode).
+- **Security Assurance:** Authenticated encryption — guarantees both confidentiality and integrity.
+- **Key Management:** Master keys reside exclusively in volatile client RAM during active sessions and are
+  never transmitted or stored on cloud servers.
+
+### Forensics & Audit Capabilities
+
+- **Cryptographic Audit Logs:** Generates SHA-256 authenticity stamps for every system action.
+- **Non-Repudiation:** Generates tamper-evident PDF audit reports suitable for compliance and legal evidence.
+- **Automated Forensic Export:** One-click export of system security state logs to local storage for security analysts.
+
+---
+
+## 🧩 Feature Modules
+
+### 🎓 UC ACADEMY (Learning-First)
+| Module | Description |
+| --- | --- |
+| 📚 **Lessons & Learning Paths** | Structured security curriculum from classical ciphers to modern attacks. |
+| 🚩 **CTF Challenges & Quizzes** | Timed capture-the-flag arenas with XP, streaks and global leaderboards. |
+| 🤖 **AI Mentor** | Natural-language tutor with mistake diagnosis, plain-English explanations, and adaptive lesson pathing. |
+| 🏆 **Certificates & Career Mode** | Signed, QR-verifiable certificates and role-based career progression. |
+
+### 🧪 UC-LABS (Hands-On Tools)
+| Module | Description |
+| --- | --- |
+| 🔐 **Cryptography Lab** | AES, RSA, ECC, DES, Blowfish, Twofish, ChaCha20, Salsa20, SHA, HMAC, PBKDF2, Argon2 + classical ciphers. |
+| 🖼️ **Steganography** | LSB visualizer, payload extraction, image difference, audio stego, metadata viewer. |
+| 📊 **Cryptanalysis** | Frequency analysis, bit-flip simulator, padding-oracle visualizer, differential/linear, RSA weak-key scanner, entropy, avalanche. |
+| 🧬 **Binary Lab** | Hex viewer, magic-byte detection, PE/ELF header parsing, binary diffing, string extraction. |
+| ⚙️ **UC-DEVELOPER** | API key management, SDK reference, and Python/Java/cURL snippet libraries with copy-to-clipboard. |
+
+### 🔬 UC-REVERSE (Reverse Engineering)
+Assembly playground, disassembler, decompiler, PE/ELF/Mach-O analyzers, Control-Flow-Graph builder, stack/heap/
+register/memory visualizers, debugger simulator, ROP chains, shellcode modeling, binary patching, sandboxing,
+import/export analysis, and entropy mapping.
+
+### 📐 UC-DSA (Data Structures in Security)
+Every data structure taught **through its security application**: Merkle trees → blockchain proofs, Bloom filters →
+malware membership, segment trees → firewall ranges, AVL/RB/B-trees → key stores, Big-O analysis → DoS-resistant
+designs — each mapped to a 4-quadrant Cryptography / Malware / Networking / Blockchain matrix.
 
 ### 🚨 Red Team Attack Labs
-- Hash cracking, frequency analysis, padding-oracle visualization, bit-flip forgery, differential & linear cryptanalysis.
-- RSA weak-key scanner, entropy calculators, avalanche-effect meters.
-- Network attack surface: protocol parsers, packet builders, JWT forgery decoder.
-- Career Mode + CTF arenas with XP, global leaderboards, certificates and an audit trail.
+Hash cracking, frequency analysis, padding-oracle visualization, bit-flip forgery, differential & linear
+cryptanalysis, RSA weak-key scanning, entropy calculators, avalanche-effect meters, and network packet
+crafting/parsing.
+
+### 🌐 Extended Modules
+**UC-OS**, **UC-NETWORK**, **UC-CLOUD**, **UC-MOBILE**, **UC-WEB**, **UC-BLOCKCHAIN** — OS internals, network
+protocol analysis, cloud security, mobile (APK/IPA/Frida/Objection), web (OWASP: XSS, CSRF, SQLi, SSRF, SSTI,
+XXE, JWT, OAuth, CSP), and blockchain fundamentals.
 
 ---
 
 ## 🏗️ Architecture & Tech Stack
 
+| Layer | Technology | Operational Role |
+| :--- | :--- | :--- |
+| **Frontend UI** | Java 25 · JavaFX · Maven | Native graphical interface & local AES engine |
+| **Auth & Logic API** | Python 3.11 · FastAPI · Uvicorn | License verification, HWID lock, crypto/simulation backend |
+| **Cloud Gateway** | Node.js · Express · JWT · bcrypt | High-throughput API gateway & secure cloud bridge |
+| **Database** | MongoDB Atlas (Motor / PyMongo) | Global encrypted persistence layer |
+| **Deployment** | Render · GitHub Actions · Docker | CI/CD with secret scanning and auto-deploy on `main` |
+| **Cryptography** | BouncyCastle · iTextPDF · ZXing · Gson | Crypto primitives, signed audit PDFs, verifiable certificates |
+
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    ULTIMATECRYPTOSUITE                           │
-│                                                            │
-│  ┌─────────────────────────┐   ┌──────────────────────────┐  │
-│  │   JavaFX Desktop Client │   │   Next.js Web Frontend    │  │
-│  │   (Java 25 + Maven)     │   │   (web/)                  │  │
-│  └───────────┬─────────────┘   └───────────┬──────────────┘  │
-│              │ HTTPS / API Key             │ HTTPS            │
-└──────────────┼─────────────────────────────┼─────────────────┘
-               ▼                             ▼
-      ┌──────────────────┐          ┌──────────────────┐
-      │  Node.js Gateway  │◄───────►│  FastAPI Backend  │
-      │  (Express, JWT,   │          │  (Python, Uvicorn)│
-      │   Helmet, bcrypt) │          │  /encrypt /verify │
-      └────────┬─────────┘          └───────┬──────────┘
-               │                            │
-               ▼                            ▼
-      ┌───────────────────────────────────────────────┐
-      │              MongoDB Atlas (Cloud)             │
-      │   Zero-knowledge ciphertext + audit logs       │
-      └───────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                  UltimateCryptoSuite (JavaFX)                 │
+│            client-side AES-256 · visualizers · labs           │
+└──────────────┬───────────────────────────────┬───────────────┘
+               │  HTTPS + API key               │  HTTPS + API key
+               ▼                               ▼
+     ┌───────────────────┐           ┌───────────────────┐
+     │   Node.js Gateway  │◄────────►│   FastAPI Backend  │
+     │ (Express, JWT,     │           │  (Python, Uvicorn) │
+     │  bcrypt, Nodemailer)│           │ /encrypt · /verify │
+     └─────────┬─────────┘           └─────────┬─────────┘
+               │                               │
+               ▼                               ▼
+        ┌───────────────────────────────────────────────┐
+        │           MongoDB Atlas (Cloud)                 │
+        │   ciphertext-only storage + audit logs          │
+        └───────────────────────────────────────────────┘
 ```
 
-| Layer | Technology | Role |
+### Live Endpoints (Render)
+- **FastAPI backend:** `https://ultimate-crypto-python.onrender.com`
+- **Node.js gateway:** `https://ultimate-crypto-node-gateway.onrender.com`
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **JDK 25** (project targets `maven.compiler.release=25`) — see `.sdkmanrc` / SDKMAN auto-switching.
+- **Maven 3.9+**
+- **Python 3.11+**
+- **Node.js 18+** (only if running the gateway locally)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/emilyedwardemily/UltimateCryptoSuite.git
+cd UltimateCryptoSuite
+```
+
+### 2. Configure the Python backend
+
+```bash
+cd UC-BACKED
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload         # http://localhost:8000
+```
+
+### 3. (Optional) Run the Node.js gateway locally
+
+```bash
+cd src/server
+npm install
+node index.js
+```
+
+### 4. Build & run the desktop client
+
+```bash
+cd ..                            # project root
+mvn clean package                # full build
+mvn javafx:run                   # launch the JavaFX app
+```
+
+### 5. Environment variables
+
+| Variable | Where | Purpose |
 | --- | --- | --- |
-| **Desktop Client** | Java 25 · JavaFX 25 · Maven | UI, local AES-256 encryption, visualizers, attack simulators |
-| **Encryption Engine** | Python 3.11+ · FastAPI · Uvicorn | Server-side crypto endpoints, certificate verification, telemetry |
-| **Cloud API Gateway** | Node.js · Express · JWT · Helmet · bcrypt | Auth bridge, MFA/OTP, session management |
-| **Database** | MongoDB Atlas (Motor / PyMongo) | Zero-knowledge ciphertext storage, audit logs, leaderboards |
-| **Deployment** | Render (Free-tier Cloud) · GitHub Actions · Docker | CI/CD with secret scanning, auto-deploy on `main` |
-| **Crypto / PDF / QR** | BouncyCastle · iTextPDF · ZXing · Gson | Cryptographic primitives, signed audit PDFs, verifiable certificates |
+| `API_SECRET_KEY` | Backend & gateway | Shared API key gate (`x-api-key`) |
+| `MONGO_URI` | Backend & gateway | MongoDB Atlas connection string |
+| `MAIL_USERNAME` / `MAIL_PASSWORD` | Gateway | SMTP credentials for OTP email delivery |
+| `JWT_SECRET` | Gateway | Session signing |
 
-> **Live endpoints**
-> - Python backend: `https://ultimate-crypto-python.onrender.com`
-> - Node gateway: `https://ultimate-crypto-node-gateway.onrender.com`
+---
+
+## 📂 Project Structure
+
+```
+UltimateCryptoSuite/
+├── pom.xml                     # Maven build (Java 25, JavaFX 25)
+├── src/main/java/
+│   ├── app/                    # Launcher, MainApp, auth, DB manager
+│   ├── ui/                     # Dashboard, Login/Register/Forgot screens
+│   ├── academy/                # Lessons, CTF, AI Mentor, certificates
+│   ├── crypto/                 # AES, RSA, XOR utilities
+│   ├── steganography/          # LSB + audio stego tools
+│   └── storage/                # MongoDB client layer
+├── src/server/                 # Node.js Express gateway
+├── UC-BACKED/                  # Python FastAPI backend (requirements.txt)
+├── web/                        # Next.js web frontend (optional)
+├── .github/workflows/ci-cd.yml # Secret scan → build → deploy to Render
+└── Dockerfile                  # Multi-stage container build
+```
+
+---
+
+## 🧪 Testing & CI/CD
+
+- **Secret scanning:** TruffleHog on every push/PR.
+- **Python:** dependency install + AST syntax verification.
+- **Node.js:** `node --check` syntax verification + Docker build.
+- **Web:** TypeScript `tsc --noEmit` + production build.
+- **Deploy:** automatic Render deploy of Python + Node services on `main`.
 
 ---
 
 ## 📸 Screenshots
 
-> 🖼️ *Screenshots will be added here as the UI evolves. Replace the placeholders below with your captures — see the [Contributing](#-contributing) guide.*
+> 🖼️ Placeholders — add your captures under `docs/screenshots/`.
 
-| Dashboard | Cryptography Lab |
-| --- | --- |
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Crypto Lab](docs/screenshots/crypto-lab.png) |
+| Dashboard | Cryptography Lab | AI Mentor |
+| --- | --- | --- |
+| `docs/screenshots/dashboard.png` | `docs/screenshots/crypto-lab.png` | `docs/screenshots/ai-mentor.png` |
 
-| AI Mentor | Reverse Engineering |
-| --- | --- |
-| ![AI Mentor](docs/screenshots/ai-mentor.png) | ![Reverse Engineering](docs/screenshots/reverse-engineering.png) |
-
-| Red Team Lab | Certificates |
-| --- | --- |
-| ![Red Team Lab](docs/screenshots/red-team-lab.png) | ![Certificates](docs/screenshots/certificates.png) |
+| Reverse Engineering | Red Team Lab | Certificates |
+| --- | --- | --- |
+| `docs/screenshots/reverse-engineering.png` | `docs/screenshots/red-team-lab.png` | `docs/screenshots/certificates.png` |
 
 ---
 
-## 💻 Installation & Local Setup
+## 💖 Sponsorship & Support
 
-### Prerequisites
-- **JDK 25+** (project targets `maven.compiler.release=25`)
-- **Maven 3.9+**
-- **Python 3.11+**
-- **Node.js 18+** (only if running the gateway locally)
-- (Optional) **SDKMAN** — the repo ships a `.sdkmanrc` that auto-switches your Java version.
+<div align="center">
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/emilyedwardemily/ultimate-crypto-suite-java.git
-cd ultimate-crypto-suite-java
-```
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor_%40emilyedwardemily-%23EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/emilyedwardemily)
 
-### 2. Set up the Python backend
-```bash
-cd UC-BACKED
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+</div>
 
-### 3. Configure environment variables
-```bash
-cp .env.example .env            # then fill in your secrets
-```
-Key values: `API_SECRET_KEY`, MongoDB Atlas connection string, Render service IDs (only needed for cloud features).
+**UltimateCryptoSuite is an open, community-driven project** built for students, researchers, CTF players, and
+security professionals who learn better by *doing*.
 
-### 4. Run the Python backend
-```bash
-uvicorn main:app --reload --port 8000
-```
+We believe security education should be hands-on, visual, and — above all — free. Every sponsor directly funds
+new labs, better visuals, server uptime for the live backend, and scholarships for students who cannot afford
+commercial security training.
 
-### 5. Build & run the desktop client
-```bash
-cd ..                            # back to the project root
-mvn clean package
-mvn javafx:run
-```
-
-> **Linux / Debian package**: a prebuilt `ultimatecryptosuite_1.0_amd64.deb` is available for direct installation.
->
-> **Docker**: the repo includes a multi-stage `Dockerfile` — build with `docker build -t ultimate-crypto-suite .`.
-
-### 6. (Optional) Run the Node.js gateway locally
-```bash
-cd src/server
-npm ci
-node index.js
-```
-
----
-
-## 🚀 Roadmap Highlights
-
-- [x] AES-256 GCM cascading engine & classical cipher suite
-- [x] Visual learning engine with animated state machines
-- [x] AI Mentor with adaptive lesson pathing
-- [x] Red Team attack labs & CTF arenas
-- [x] HMAC-signed verifiable certificates (QR + backend verification)
-- [ ] Expanded UC-MODULES: UC-OS, UC-NETWORK, UC-CLOUD, UC-MOBILE, UC-WEB deep dives
-- [ ] WebAssembly version of the crypto engine for the browser frontend
-- [ ] Plugin marketplace for community cipher modules
-- [ ] Bug-bounty-friendly fuzzing harnesses for all attack simulators
-
----
-
-## 🤝 Sponsorship & Support
-
-**UltimateCryptoSuite is an open, community-driven project** built for students, researchers, CTF players, and security professionals who learn better by *doing*.
-
-We believe security education should be hands-on, visual, and — above all — free. Every sponsor directly funds new labs, better visuals, server uptime for the live backend, and scholarships for students who cannot afford commercial security training.
+> 🔮 **Your sponsorship accelerates what's next.** We're actively building a full **Reverse Engineering
+> simulator** (disassembler, PE/ELF/Mach-O analyzers, ROP & shellcode labs), **DSA-in-Security modules**
+> (Merkle trees, Bloom filters, AVL/RB/B-trees mapped to real crypto/malware/network/blockchain attacks), and
+> **Advanced Cryptography tooling** (side-channel demos, cryptanalysis suites, and verifiable-certificate
+> infrastructure). Every sponsor moves these from the roadmap into the app.
 
 ### How to support
 
 | Method | How |
 | --- | --- |
-| 💖 **GitHub Sponsors** | Click the **Sponsor** button at the top of this repository — one-time or monthly. |
+| 💖 **GitHub Sponsors** | Click the **Sponsor** button at the top of this repository — or [github.com/sponsors/emilyedwardemily](https://github.com/sponsors/emilyedwardemily). |
 | 🔁 **One-time donation** | Use the sponsor tiers below or reach out directly. |
 | 🧑‍💻 **Contribute code** | Open issues, pick up good-first-issues, and submit PRs (see [Contributing](#-contributing)). |
 | 🐛 **Report findings** | Security researchers are welcome — responsibly disclose via our contact below. |
@@ -228,8 +284,7 @@ We believe security education should be hands-on, visual, and — above all — 
 - **🥇 Architect Tier — $50/mo** · All of the above + your name in the About/credits panel + feature voting rights.
 - **💎 Institution Tier — $500+/mo** · Enterprise sponsorship: logo placement, training sessions, custom lab requests.
 
-> **Questions about sponsorship or commercial licensing?**
-> Reach out: **emilyedward211@gmail.com**
+> **Questions about sponsorship or commercial licensing?** Reach out: **emilyedward211@gmail.com**
 
 ---
 
@@ -252,16 +307,20 @@ We welcome contributors of every skill level — from your first PR to a senior 
 - Documentation, translation, and accessibility polish
 
 ### Code of conduct
-Be constructive. Security education is serious work — keep discussions professional, and **only ever run attacks inside this sandboxed simulator**.
+Be constructive. Security education is serious work — keep discussions professional, and **only ever run attacks
+inside this sandboxed simulator**.
 
 ### Security disclosures
-If you find a vulnerability in the simulator, backend, or build pipeline, **please do not post it publicly**. Contact us privately at **emilyedward211@gmail.com** with a PoC, and we will acknowledge you in our security hall of fame.
+If you find a vulnerability in the simulator, backend, or build pipeline, **please do not post it publicly**.
+Contact us privately at **emilyedward211@gmail.com** with a PoC, and we will acknowledge you in our security hall of fame.
 
 ---
 
 ## 📜 License
 
-This project is distributed under a **commercial license**. All source code and associated assets are the exclusive property of **Emily Edward**. Unauthorized copying, modification, distribution, or use via any medium is strictly prohibited.
+This project is distributed under a **commercial license**. All source code and associated assets are the exclusive
+property of **Emily Edward**. Unauthorized copying, modification, distribution, or use via any medium is strictly
+prohibited.
 
 For commercial licensing, redistribution, or academic use, please contact **emilyedward211@gmail.com**.
 
