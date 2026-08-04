@@ -36,6 +36,85 @@ persisting ciphertext-only records in **MongoDB Atlas**, with CI/CD via **GitHub
 
 ---
 
+## 🖥️ System Modules & Visual Demo
+
+> 🖼️ Real captures from the simulation suite, organised by module. Replace any image by dropping an
+> updated capture into `assets/images/` (keep the same filename) — the documentation updates itself.
+
+### 1. Main Dashboard
+![Main Dashboard](assets/images/dashboard.png)
+> **Technical Description:** The central command hub of Ultimate Crypto Suite, rendered in a dark cyberpunk
+> theme with neon-green accents. It aggregates live module navigation (Cryptography, Steganography, Academy,
+> Reverse Engineering), session operator identity, and quick-launch panels so an analyst can jump between
+> simulation labs from a single surface.
+
+### 2. Cryptography Lab
+![Cryptography Lab](assets/images/crypto_lab.png)
+> **Technical Description:** The hands-on cipher suite implementing AES-256, RSA, ECC, DES, Blowfish, Twofish,
+> ChaCha20, Salsa20, SHA, HMAC, PBKDF2 and Argon2 with live step-by-step visualization. Users enter plaintext
+> and keys locally on the client (zero-knowledge), then watch key schedules and round functions transform each
+> byte — reinforcing the underlying cryptographic theory.
+
+### 3. UC Academy
+![UC Academy](assets/images/academy.png)
+> **Technical Description:** The learning-first environment containing structured lessons, learning paths,
+> CTF challenges, quizzes and career mode. Progress is tracked with XP, streaks and leaderboards, and every
+> completed track can be redeemed for a cryptographically-signed certificate — keeping education measurable
+> and verifiable.
+
+### 4. Daily Challenges & Missions System
+![Daily Challenges & Missions](assets/images/missions.png)
+> **Technical Description:** A rotating mission engine that issues daily XP-earning tasks built from classical
+> ciphers (ROT13, XOR, Caesar, Vigenère) and modern primitives. Completed missions unlock certificates and
+> feed the global leaderboard, giving operators a consistent practice loop for both offensive and defensive
+> skill-building.
+
+### 5. Blockchain Security Simulation Engine
+![Blockchain Simulation](assets/images/blockchain.png)
+> **Technical Description:** A sandboxed blockchain laboratory that visualizes Proof-of-Work hashing, Merkle
+> tree construction, and smart-contract execution flows. It lets students trace how hashes bind blocks, how a
+> Merkle root commits to transaction sets, and where consensus guarantees hold — or break — under tampering.
+
+### 6. Cryptographic Audit & Forensics
+![Cryptographic Audit & Forensics](assets/images/audit.png)
+> **Technical Description:** The forensic integrity center performs local AES-256 GCM operations while stamping
+> every action with a SHA-256 authenticity hash. Generated tamper-evident PDF audit reports and exportable
+> security-state logs give analysts non-repudiation evidence suitable for compliance review.
+
+### 7. Visual Learning Engine
+![Visual Learning Engine](assets/images/visual_learning.png)
+> **Technical Description:** An animated algorithm player that renders encryption and attack pipelines as
+> color-coded state machines with step/autoplay/replay controls. By slowing AES key expansion, Feistel
+> networks and S-box substitution to a crawl, it makes the internal mechanics of modern cryptography visible.
+
+### 8. AI Mentor
+![AI Mentor](assets/images/ai_mentor.png)
+> **Technical Description:** A conversational security tutor embedded in the app that answers questions in
+> natural language, diagnoses mistakes, and explains them in plain English. It adaptively recommends the next
+> lesson based on your weak families, turning every wrong answer into a structured learning opportunity.
+
+### 9. Red Team & Attack Simulator
+![Red Team Attack Simulator](assets/images/redteam.png)
+> **Technical Description:** A sandboxed offensive-lab suite covering hash cracking, padding-oracle
+> visualization, bit-flip forgery, differential/linear cryptanalysis, RSA weak-key scanning and network packet
+> crafting. All attacks run strictly inside the simulator — safe, legal, and repeatable for classroom and CTF
+> practice.
+
+### 10. Steganography Lab
+![Steganography Lab](assets/images/stego.png)
+> **Technical Description:** The covert-channel toolkit implements LSB embedding/extraction, payload
+> extraction, image difference analysis, audio stego and metadata viewing. Operators can hide and recover
+> messages in carrier media while the tool visually highlights exactly which bytes were modified.
+
+### 11. Reverse Engineering Simulator
+![Reverse Engineering Simulator](assets/images/reverse.png)
+> **Technical Description:** A full binary-analysis workbench featuring an assembly playground, disassembler,
+> decompiler, PE/ELF/Mach-O analyzers, control-flow-graph builder and stack/heap/register visualizers.
+> ROP-chain construction, shellcode modeling and a debugger simulator complete the malware-analysis training
+> environment.
+
+---
+
 ## 🔒 Core Security Architecture
 
 The platform relies on a 3-tier defense-in-depth model:
@@ -230,20 +309,6 @@ UltimateCryptoSuite/
 - **Node.js:** `node --check` syntax verification + Docker build.
 - **Web:** TypeScript `tsc --noEmit` + production build.
 - **Deploy:** automatic Render deploy of Python + Node services on `main`.
-
----
-
-## 📸 Screenshots
-
-> 🖼️ Placeholders — add your captures under `docs/screenshots/`.
-
-| Dashboard | Cryptography Lab | AI Mentor |
-| --- | --- | --- |
-| `docs/screenshots/dashboard.png` | `docs/screenshots/crypto-lab.png` | `docs/screenshots/ai-mentor.png` |
-
-| Reverse Engineering | Red Team Lab | Certificates |
-| --- | --- | --- |
-| `docs/screenshots/reverse-engineering.png` | `docs/screenshots/red-team-lab.png` | `docs/screenshots/certificates.png` |
 
 ---
 
