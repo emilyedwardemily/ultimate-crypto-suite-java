@@ -60,12 +60,16 @@ public class LoginScreen extends VBox {
         registerLink.setStyle("-fx-text-fill: #58a6ff; -fx-font-size: 12px;");
         registerLink.setOnAction(e -> primaryStage.getScene().setRoot(new RegisterScreen(primaryStage)));
 
+        Hyperlink forgotLink = new Hyperlink("Forgot your security password? Recover here");
+        forgotLink.setStyle("-fx-text-fill: #8b949e; -fx-font-size: 12px;");
+        forgotLink.setOnAction(e -> primaryStage.getScene().setRoot(new ForgotPasswordScreen(primaryStage)));
+
         statusLabel = new Label("");
         statusLabel.setTextFill(Color.web("#ff7b72"));
         statusLabel.setWrapText(true);
         statusLabel.setAlignment(Pos.CENTER);
 
-        form.getChildren().addAll(emailField, passwordField, loginBtn, registerLink);
+        form.getChildren().addAll(emailField, passwordField, loginBtn, registerLink, forgotLink);
         getChildren().addAll(title, form, statusLabel);
     }
 

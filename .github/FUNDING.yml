@@ -1,0 +1,19 @@
+# UltimateCryptoSuite — Funding configuration
+# Enables the "Sponsor" button on the GitHub repository.
+# Replace the placeholder handles below with your real accounts.
+
+github: [emilyedwardemily]                 # GitHub Sponsors username
+patreon: []                                # e.g. [UltimateCryptoSuite]
+open_collective: []                        # e.g. [ultimatecryptosuite]
+ko_fi: []                                  # e.g. [ultimatecryptosuite]
+tidelift: []
+community_bridge: []
+liberapay: []
+issuehunt: []
+lfx_crowdfunding: []
+polar: []
+buy_me_a_coffee: []                        # e.g. [ultimatecryptosuite]
+thanks_dev: []
+custom:
+  - https://www.paypal.com/paypalme/emilyedward
+  - mailto:emilyedward211@gmail.com
