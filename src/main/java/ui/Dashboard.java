@@ -30,12 +30,18 @@ import app.ApiClient;
 import app.ApiException;
 import app.DatabaseManager;
 import app.LicenseManager;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import crypto.AESUtil;
 import crypto.RSAUtil;
 import crypto.XORUtil;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import org.slf4j.Logger;
@@ -79,6 +85,7 @@ public class Dashboard extends BorderPane {
     private static final String JSON_MODULE = "module";
     private static final String BTN_GREEN = "-fx-background-color: #238636; -fx-text-fill: white;";
     private static final String BTN_BLUE = "-fx-background-color: #58a6ff; -fx-text-fill: white;";
+    private static final String BTN_ORANGE = "-fx-background-color: #d29922; -fx-text-fill: white;";
     private static final String BTN_PURPLE = "-fx-background-color: #8957e5; -fx-text-fill: white;";
     private static final String BTN_PURPLE_BOLD = "-fx-background-color: #8957e5; -fx-text-fill: white; -fx-font-weight: bold;";
     private static final String OUTPUT_STYLE = "-fx-control-inner-background: #010409; -fx-text-fill: #39FF14; -fx-border-color: #39FF14; -fx-border-width: 0.3;";
@@ -378,11 +385,15 @@ public class Dashboard extends BorderPane {
         btnEmail.setStyle(BTN_BLUE);
         btnEmail.setOnAction(e -> handleSendEmailOTP());
 
+        Button btnSetupApp = new Button("SETUP APP");
+        btnSetupApp.setStyle(BTN_ORANGE);
+        btnSetupApp.setOnAction(e -> handleSetupAuthenticator());
+
         mfaStatusLabel = new Label("LOCKED");
         mfaStatusLabel.setTextFill(Color.web("#f85149"));
         mfaStatusLabel.setStyle("-fx-font-weight: bold;");
 
-        mfaBar.getChildren().addAll(new Label("MFA GATE:"), mfaField, btnVerify, btnEmail, mfaStatusLabel);
+        mfaBar.getChildren().addAll(new Label("MFA GATE:"), mfaField, btnVerify, btnEmail, btnSetupApp, mfaStatusLabel);
         // --------------------------------------------
 
         inputArea = new TextArea();
@@ -11991,6 +12002,79 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         }).start();
     }
 
+    // 1b. Setup authenticator (TOTP) — hutoa secret + otpauth URI kwa mteja
+    private void handleSetupAuthenticator() {
+        addLog("[WAIT] Enrolling authenticator...");
+        new Thread(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("email", currentOperatorEmail());
+
+                String responseStr = callNodeSecure("/api/auth/setup-totp", payload);
+                JSONObject resJson = new JSONObject(responseStr);
+
+                if (resJson.optBoolean("success", false)) {
+                    String secret = resJson.optString("secret", "");
+                    String otpauth = resJson.optString("otpauth", "");
+                    String finalSecret = secret;
+                    String finalUri = otpauth;
+                    Platform.runLater(() -> {
+                        addLog("[SUCCESS] Authenticator enrolled! Secret: " + finalSecret);
+                        javafx.scene.image.Image qr = renderQrCode(finalUri, 220);
+                        javafx.scene.image.ImageView qrView = new javafx.scene.image.ImageView(qr);
+                        javafx.scene.control.TextInputDialog dialog =
+                            new javafx.scene.control.TextInputDialog(finalSecret);
+                        dialog.setTitle("AUTHENTICATOR SETUP");
+                        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(10);
+                        content.setAlignment(javafx.geometry.Pos.CENTER);
+                        content.getChildren().addAll(
+                            new javafx.scene.control.Label("SCAN QR KATIKA GOOGLE AUTHENTICATOR:"),
+                            qrView,
+                            new javafx.scene.control.Label("Au andika secret hii kwa mkono (Base32):"),
+                            new javafx.scene.control.Label(finalSecret)
+                        );
+                        dialog.setContentText("");
+                        dialog.getDialogPane().setContent(content);
+                        dialog.showAndWait();
+                        addLog("[AUTH] otpauth: " + finalUri);
+                    });
+                } else {
+                    String msg = resJson.optString("message", resJson.optString("error", "Unknown error"));
+                    Platform.runLater(() -> addLog("[ERROR] Authenticator setup rejected: " + msg));
+                }
+            } catch (app.ApiException ex) {
+                String msg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                Platform.runLater(() -> addLog("[ERROR] Authenticator setup failed (HTTP " + ex.getStatusCode() + "): " + msg));
+            } catch (Exception ex) {
+                Platform.runLater(() -> addLog("[ERROR] Authenticator setup error: " + ex.getMessage()));
+            }
+        }).start();
+    }
+
+    // Generates a scannable QR image (WritableImage) from any otpauth:// URI
+    private javafx.scene.image.Image renderQrCode(String uri, int size) {
+        try {
+            QRCodeWriter qw = new QRCodeWriter();
+            java.util.Map<EncodeHintType, Object> hints = new java.util.HashMap<>();
+            hints.put(EncodeHintType.MARGIN, 2);
+            hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+            BitMatrix matrix = qw.encode(uri, BarcodeFormat.QR_CODE, size, size, hints);
+
+            WritableImage img = new WritableImage(size, size);
+            PixelWriter pw = img.getPixelWriter();
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    boolean on = matrix.get(x, y);
+                    pw.setArgb(x, y, on ? 0xFF000000 : 0xFFFFFFFF);
+                }
+            }
+            return img;
+        } catch (Exception ex) {
+            addLog("[ERROR] QR render failed: " + ex.getMessage());
+            return null;
+        }
+    }
+
     // 2. Method ya kuhakiki kama OTP iliyoingizwa ni sahihi
     private void handleOTPVerification() {
         String enteredCode = mfaField.getText().trim();
@@ -12015,7 +12099,8 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
                         mfaStatusLabel.setText("GATE UNLOCKED");
                         mfaStatusLabel.setTextFill(Color.web("#39FF14"));
                         mfaField.setStyle("-fx-background-color: #0d1117; -fx-text-fill: #39FF14; -fx-border-color: #39FF14;");
-                        addLog("[AUTH] ACCESS GRANTED. AES Engine Engaged.");
+                        String method = resJson.optString("method", "unknown");
+                        addLog("[AUTH] ACCESS GRANTED via " + method + ". AES Engine Engaged.");
                         sendAuditLog("MFA_SUCCESS", "AUTH_GATE");
                     } else {
                         addLog("[DENIED] Verification failed. Token mismatch.");
