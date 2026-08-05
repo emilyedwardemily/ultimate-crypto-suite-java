@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="UltimateCryptoSuite — Enterprise-grade standalone desktop cryptography suite with AES-256 hybrid engine, MFA/TOTP authentication, and cloud sync via MongoDB Atlas." />
+    <meta name="theme-color" content="#0b0f19" />
+    <meta property="og:title" content="UltimateCryptoSuite — Enterprise-Grade Desktop Cryptography" />
+    <meta property="og:description" content="AES-256 hybrid engine, TOTP multi-factor authentication, JavaFX desktop UI, and a FastAPI + Node.js cloud backbone." />
+    <title>UltimateCryptoSuite — Enterprise-Grade Desktop Cryptography Suite</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-[#0b0f19] text-white font-sans antialiased overflow-x-hidden">
+
+    <!-- ═══════════════════════ HEADER / NAVIGATION ═══════════════════════ -->
+    <header id="site-header" class="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#0b0f19]/80 border-b border-emerald-500/20 transition-all duration-300">
+        <nav class="max-w-7xl mx-auto flex items-center justify-between px-5 lg:px-8 h-16" aria-label="Primary navigation">
+            <a href="#home" class="flex items-center gap-3 group" aria-label="UltimateCryptoSuite home">
+                <span class="logo-mark" aria-hidden="true">&#x1F512;</span>
+                <span class="flex flex-col leading-none">
+                    <span class="font-mono font-bold text-lg tracking-tight text-white">ULTIMATE<span class="text-cyan-400">CRYPTO</span><span class="text-emerald-400">SUITE</span></span>
+                    <span class="text-[10px] font-mono text-slate-400 tracking-[0.3em] uppercase">OBSIDIAN KERNEL v20.4</span>
+                </span>
+            </a>
+
+            <ul class="hidden md:flex items-center gap-8 font-mono text-sm text-slate-300">
+                <li><a href="#features" class="nav-link hover:text-emerald-400 transition-colors">Features</a></li>
+                <li><a href="#architecture" class="nav-link hover:text-cyan-400 transition-colors">Architecture</a></li>
+                <li><a href="#installation" class="nav-link hover:text-emerald-400 transition-colors">Installation</a></li>
+                <li><a href="#api-docs" class="nav-link hover:text-cyan-400 transition-colors">API Docs</a></li>
+            </ul>
+
+            <div class="flex items-center gap-3">
+                <a href="dist/UltimateCryptoSuite.jar" id="nav-download-btn" download
+                   class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold hover:bg-emerald-500 hover:text-black transition-all hover:shadow-[0_0_24px_rgba(16,185,129,0.6)]">
+                    <span aria-hidden="true">&#8681;</span> DOWNLOAD .JAR
+                </a>
+                <button id="mobile-menu-btn" class="md:hidden p-2 text-cyan-400 hover:text-white transition-colors" aria-label="Open menu" aria-expanded="false">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="md:hidden hidden border-t border-emerald-500/20 bg-[#0b0f19]/95 backdrop-blur-xl">
+            <ul class="flex flex-col px-6 py-4 gap-4 font-mono text-sm text-slate-200">
+                <li><a href="#features" class="mobile-link block py-1 hover:text-emerald-400">Features</a></li>
+                <li><a href="#architecture" class="mobile-link block py-1 hover:text-cyan-400">Architecture</a></li>
+                <li><a href="#installation" class="mobile-link block py-1 hover:text-emerald-400">Installation</a></li>
+                <li><a href="#api-docs" class="mobile-link block py-1 hover:text-cyan-400">API Docs</a></li>
+                <li><a href="dist/UltimateCryptoSuite.jar" download class="inline-flex items-center gap-2 py-1 text-emerald-400"><span aria-hidden="true">&#8681;</span> Download .jar</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════ HERO SECTION ═══════════════════════ -->
+    <section id="home" class="relative min-h-screen flex items-center pt-28 pb-20">
+        <div class="hero-grid absolute inset-0" aria-hidden="true"></div>
+        <div class="glow-orb glow-orb-cyan absolute top-1/4 -left-32 w-96 h-96 rounded-full" aria-hidden="true"></div>
+        <div class="glow-orb glow-orb-emerald absolute bottom-1/4 -right-32 w-96 h-96 rounded-full" aria-hidden="true"></div>
+
+        <div class="max-w-7xl mx-auto px-5 lg:px-8 relative z-10 w-full">
+            <div class="max-w-3xl">
+                <p class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-400/40 bg-cyan-400/10 font-mono text-[11px] text-cyan-300 tracking-widest uppercase mb-6 animate-pulse">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    S.O.C. GRADE SECURITY TOOLKIT
+                </p>
+
+                <h1 class="font-mono font-extrabold text-4xl sm:text-5xl lg:text-6xl leading-[1.08] tracking-tight">
+                    ENTERPRISE-GRADE<br />
+                    <span class="text-emerald-400 text-glow-emerald">STANDALONE DESKTOP</span><br />
+                    <span class="text-cyan-400 text-glow-cyan">CRYPTOGRAPHY SUITE</span>
+                </h1>
+
+                <p class="mt-6 text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl">
+                    A hardened, offline-first desktop vault powered by an AES-256 cascading hybrid engine,
+                    TOTP multi-factor authentication, and a FastAPI + Node.js cloud backbone — built for
+                    operators who treat every byte as a secret.
+                </p>
+
+                <!-- Live API Status Badge -->
+                <div class="mt-8 inline-flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-[#0d1322]/80 border-slate-700 shadow-lg">
+                    <span class="status-dot status-dot-checking" id="status-dot" aria-hidden="true"></span>
+                    <span class="font-mono text-xs text-slate-300">API Status:</span>
+                    <span class="font-mono text-sm font-bold" id="status-text">CHECKING...</span>
+                    <span id="status-latency" class="hidden font-mono text-[11px] text-slate-500"></span>
+                </div>
+
+                <div class="mt-10 flex flex-col sm:flex-row gap-4">
+                    <a href="dist/UltimateCryptoSuite.jar" id="hero-download-btn" download
+                       class="btn-primary inline-flex items-center justify-center gap-3">
+                        <span class="text-lg" aria-hidden="true">&#8681;</span>
+                        <span class="flex flex-col items-start leading-tight">
+                            <span class="font-mono font-bold">DOWNLOAD APP (.JAR)</span>
+                            <span class="text-[10px] font-mono opacity-80">JavaFX Desktop &bull; 24 MB</span>
+                        </span>
+                    </a>
+                    <a href="#api-docs" class="btn-secondary inline-flex items-center justify-center gap-3">
+                        <span class="text-lg" aria-hidden="true">&#128273;</span>
+                        <span class="font-mono font-bold">VIEW API DOCUMENTATION</span>
+                    </a>
+                </div>
+
+                <div class="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 font-mono text-[11px] text-slate-500">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> AES-256 Cascading Engine</span>
+                    <span class="flex items-center gap-2"><span class="text-cyan-400">&#10003;</span> TOTP / Authenticator MFA</span>
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">&#10003;</span> Offline-First Vault</span>
+                    <span class="flex items-center gap-2"><span class="text-cyan-400">&#10003;</span> MongoDB Atlas Sync</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-slate-600 animate-bounce" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════ FEATURES SECTION ═══════════════════════ -->
+    <section id="features" class="py-24 relative">
+        <div class="max-w-7xl mx-auto px-5 lg:px-8">
+            <div class="text-center mb-16">
+                <p class="section-tag">&#x1F6E1;&#xFE0F; MODULE MATRIX</p>
+                <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">FEATURE MODULES</h2>
+                <p class="text-slate-400 mt-4 max-w-2xl mx-auto">Twenty-plus cryptanalytic modules wrapped in a single hardened JavaFX interface — from classical ciphers to authenticated forensics.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="features-grid">
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#128273;</div>
+                    <h3 class="font-mono font-bold text-lg text-emerald-400">AES-256 CASCADING ENGINE</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Hybrid XOR + AES layering with CBC chains, key-derivation strength metering, and reversible decryption for mission payloads.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#128274;</div>
+                    <h3 class="font-mono font-bold text-lg text-cyan-400">TOTP / AUTHENTICATOR MFA</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Six-digit time-based codes with RFC 6238 verification, QR enrollment, and a dual email-OTP fallback channel.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#128248;</div>
+                    <h3 class="font-mono font-bold text-lg text-emerald-400">STEGANOGRAPHY LAB</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Conceal payloads inside carrier images with extractable, verifiable watermarking for covert transfer.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#127919;</div>
+                    <h3 class="font-mono font-bold text-lg text-cyan-400">CLASSICAL CIPHER ACADEMY</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Caesar, XOR, Vigen&egrave;re, Base64, Morse, RSA keypairs, and more — with an interactive CTF training arena.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#128202;</div>
+                    <h3 class="font-mono font-bold text-lg text-emerald-400">FORENSIC AUDIT TRAIL</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Every boot, module, and MFA event streamed to the cloud as an immutable, timestamped forensic log.</p>
+                </article>
+                <article class="feature-card">
+                    <div class="feature-card-icon">&#128289;</div>
+                    <h3 class="font-mono font-bold text-lg text-cyan-400">SECURE CLOUD SYNC</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Encrypted vault synchronization through the Node.js gateway into MongoDB Atlas with hardware-bound identity.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════ ARCHITECTURE / TECH STACK ═══════════════════════ -->
+    <section id="architecture" class="py-24 relative bg-[#0a0e17]/60 border-y border-slate-800/60">
+        <div class="max-w-7xl mx-auto px-5 lg:px-8">
+            <div class="text-center mb-16">
+                <p class="section-tag text-cyan-300 border-cyan-400/40 bg-cyan-400/10">&#129302; SYSTEM MAP</p>
+                <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">ARCHITECTURE &amp; TECH STACK</h2>
+                <p class="text-slate-400 mt-4 max-w-2xl mx-auto">A layered security architecture: desktop client &rarr; API gateway &rarr; Python crypto core &rarr; MongoDB Atlas persistence.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <article class="arch-card">
+                    <span class="arch-num">01</span>
+                    <h3 class="font-mono font-bold text-lg text-white">JavaFX Desktop UI</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Cross-platform GUI for secure key management and cryptography operations. Runs on Windows, Linux, and macOS.</p>
+                    <span class="arch-tag">JAVA 25 &bull; JAVA FX</span>
+                </article>
+                <article class="arch-card">
+                    <span class="arch-num">02</span>
+                    <h3 class="font-mono font-bold text-lg text-white">FastAPI Backend Core</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">High-performance Python encryption engines hosted at <code class="text-cyan-400">api.emilyedward.me</code>.</p>
+                    <span class="arch-tag">PYTHON 3.11 &bull; FASTAPI</span>
+                </article>
+                <article class="arch-card">
+                    <span class="arch-num">03</span>
+                    <h3 class="font-mono font-bold text-lg text-white">Node.js API Gateway</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Central request routing, rate-limiting, JWT issuance, and OTP/TOTP authentication infrastructure.</p>
+                    <span class="arch-tag">NODE 18+ &bull; EXPRESS</span>
+                </article>
+                <article class="arch-card">
+                    <span class="arch-num">04</span>
+                    <h3 class="font-mono font-bold text-lg text-white">Multi-Factor Authentication</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Integrated TOTP/Authenticator support with QR enrollment and email-OTP fallback for the MFA gate.</p>
+                    <span class="arch-tag">RFC 6238 &bull; TOTP</span>
+                </article>
+                <article class="arch-card">
+                    <span class="arch-num">05</span>
+                    <h3 class="font-mono font-bold text-lg text-white">MongoDB Atlas Cloud</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">Secure cloud data synchronization layer storing encrypted vaults, OTP records, and forensic audit logs.</p>
+                    <span class="arch-tag">ATLAS &bull; TLS</span>
+                </article>
+                <article class="arch-card">
+                    <span class="arch-num">06</span>
+                    <h3 class="font-mono font-bold text-lg text-white">Hardware-Bound Identity</h3>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">LicenseManager derives a unique operator ID from local hardware fingerprints to bind cloud sessions.</p>
+                    <span class="arch-tag">HWID &bull; HMAC</span>
+                </article>
+            </div>
+
+            <div class="mt-14 p-6 rounded-xl border border-slate-700/60 bg-[#0d1322]/70 font-mono text-xs overflow-x-auto">
+                <div class="flex flex-wrap items-center gap-2 text-slate-300">
+                    <span class="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">DESKTOP CLIENT</span>
+                    <span aria-hidden="true">&#10132;</span>
+                    <span class="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">NODE GATEWAY</span>
+                    <span aria-hidden="true">&#10132;</span>
+                    <span class="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">FASTAPI CORE</span>
+                    <span aria-hidden="true">&#10132;</span>
+                    <span class="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">MONGODB ATLAS</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════ INSTALLATION / SETUP GUIDE ═══════════════════════ -->
+    <section id="installation" class="py-24 relative">
+        <div class="max-w-7xl mx-auto px-5 lg:px-8">
+            <div class="text-center mb-12">
+                <p class="section-tag">&#128295; DEPLOYMENT</p>
+                <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">INSTALLATION &amp; SETUP GUIDE</h2>
+            </div>
+
+            <div class="max-w-3xl mx-auto">
+                <!-- Prerequisites -->
+                <div class="p-5 mb-8 rounded-xl border border-amber-400/30 bg-amber-400/5">
+                    <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
+                        <span aria-hidden="true">&#9888;&#65039;</span> PREREQUISITES
+                    </h3>
+                    <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                        A <strong class="text-white">Java Runtime Environment (JRE 17 or higher)</strong> is required.
+                        Download the latest JDK/JRE from
+                        <a href="https://adoptium.net/" target="_blank" rel="noopener" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Adoptium OpenJDK</a>
+                        or <a href="https://www.oracle.com/java/technologies/downloads/" target="_blank" rel="noopener" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Oracle</a>.
+                    </p>
+                </div>
+
+                <!-- OS Tabs -->
+                <div class="rounded-xl border border-slate-700/60 overflow-hidden bg-[#0d1322]/60">
+                    <div class="flex border-b border-slate-700/60" role="tablist" aria-label="Operating system install instructions">
+                        <button class="os-tab os-tab-active flex-1 py-3.5 font-mono text-sm" role="tab" aria-selected="true" data-os="windows">WINDOWS</button>
+                        <button class="os-tab flex-1 py-3.5 font-mono text-sm" role="tab" aria-selected="false" data-os="linux">LINUX / KALI</button>
+                        <button class="os-tab flex-1 py-3.5 font-mono text-sm" role="tab" aria-selected="false" data-os="macos">MACOS</button>
+                    </div>
+
+                    <div class="p-6 sm:p-8">
+                        <!-- Windows -->
+                        <div class="os-panel" id="panel-windows">
+                            <ol class="install-list">
+                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code> via the button below.</span></li>
+                                <li><span class="step-num">2</span><span>Install <strong>JRE 17+</strong> if not already present.</span></li>
+                                <li><span class="step-num">3</span><span>Double-click the JAR, or run via CMD:</span></li>
+                            </ol>
+                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
+                        </div>
+
+                        <!-- Linux / Kali -->
+                        <div class="os-panel hidden" id="panel-linux">
+                            <ol class="install-list">
+                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code> to your working directory.</span></li>
+                                <li><span class="step-num">2</span><span>Make it executable with <code class="inline-code">chmod</code>:</span></li>
+                            </ol>
+                            <pre class="code-block"><code>chmod +x UltimateCryptoSuite.jar</code></pre>
+                            <ol class="install-list mt-5">
+                                <li><span class="step-num">3</span><span>Launch from the terminal:</span></li>
+                            </ol>
+                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
+                        </div>
+
+                        <!-- macOS -->
+                        <div class="os-panel hidden" id="panel-macos">
+                            <ol class="install-list">
+                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code>.</span></li>
+                                <li><span class="step-num">2</span><span>If Gatekeeper blocks it: <strong>System Settings &rarr; Privacy &amp; Security</strong> &rarr; allow the app.</span></li>
+                                <li><span class="step-num">3</span><span>Execute via Terminal:</span></li>
+                            </ol>
+                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
+                        </div>
+
+                        <div class="mt-8">
+                            <a href="dist/UltimateCryptoSuite.jar" id="install-download-btn" download
+                               class="btn-primary w-full sm:w-auto justify-center">
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD UltimateCryptoSuite.jar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════ API DOCS SECTION ═══════════════════════ -->
+    <section id="api-docs" class="py-24 relative bg-[#0a0e17]/60 border-y border-slate-800/60">
+        <div class="max-w-7xl mx-auto px-5 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <p class="section-tag text-cyan-300 border-cyan-400/40 bg-cyan-400/10">&#129504; LIVE INTERFACE</p>
+                    <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">API DOCUMENTATION</h2>
+                    <p class="text-slate-400 mt-4 leading-relaxed">
+                        Explore the auto-generated interactive OpenAPI documentation for the UltimateCryptoSuite
+                        backend — OTP dispatch, TOTP verification, vault sync, and forensic endpoints.
+                    </p>
+                    <div class="mt-8 flex flex-col sm:flex-row gap-4">
+                        <a href="https://api.emilyedward.me/docs" target="_blank" rel="noopener" class="btn-secondary">OPEN SWAGGER UI</a>
+                        <a href="https://api.emilyedward.me/redoc" target="_blank" rel="noopener" class="btn-secondary btn-ghost">OPEN RE-DOC</a>
+                    </div>
+                    <div class="mt-8 grid grid-cols-2 gap-4 font-mono text-xs">
+                        <div class="api-endpoint"><span class="method-get">GET</span><span class="text-slate-300">/health</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/verify-otp</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/send-secure-email</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/secure-wipe</span></div>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-700/60 bg-[#0d1322]/70 p-6 font-mono text-sm" id="api-console">
+                    <p class="text-slate-500 text-xs mb-4">// LIVE API CONSOLE &mdash; api.emilyedward.me</p>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Base URL</span>
+                            <code class="text-cyan-400">https://api.emilyedward.me</code>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Auth Header</span>
+                            <code class="text-emerald-400">x-api-key: &lt;API_KEY&gt;</code>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Status</span>
+                            <span class="inline-flex items-center gap-2"><span class="status-dot status-dot-checking" id="console-status-dot"></span><span id="console-status-text" class="text-slate-300">CHECKING...</span></span>
+                        </div>
+                    </div>
+                    <div class="mt-5 h-px bg-slate-700/60"></div>
+                    <pre class="mt-5 text-xs text-slate-400 overflow-x-auto" id="console-log">$ curl https://api.emilyedward.me/health ...</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+    <footer class="border-t border-slate-800/60 py-12">
+        <div class="max-w-7xl mx-auto px-5 lg:px-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div class="text-center md:text-left">
+                    <p class="font-mono font-bold text-white">ULTIMATE<span class="text-cyan-400">CRYPTO</span><span class="text-emerald-400">SUITE</span></p>
+                    <p class="text-xs text-slate-500 mt-2 font-mono">&copy; <span id="year">2026</span> UltimateCryptoSuite &bull; All rights reserved.</p>
+                </div>
+                <div class="flex flex-col items-center md:items-end gap-2">
+                    <a href="https://github.com/emilyedwardemily" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-2 font-mono text-sm text-slate-300 hover:text-emerald-400 transition-colors">
+                        <span aria-hidden="true">&#128279;</span> github.com/emilyedwardemily
+                    </a>
+                    <p class="font-mono text-xs text-slate-500">DOMAIN IDENTITY &rarr; <span class="text-cyan-400">emilyedward.me</span></p>
+                    <p class="font-mono text-[11px] text-slate-600">Backend &rarr; <span class="text-slate-400">api.emilyedward.me</span></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
