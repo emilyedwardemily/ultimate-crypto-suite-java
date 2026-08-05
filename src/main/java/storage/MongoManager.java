@@ -14,8 +14,8 @@ import org.json.JSONObject;
  */
 public class MongoManager {
 
-    // USALAMA: Lazima ifanane na Environment Variables uliyoweka kule Render
-    private static final String API_SECRET_KEY = "Emily_Crypto_Secure_2026_KIU";
+    // USALAMA: Inasomwa kutoka AppConfig (env UC_API_KEY / API_SECRET_KEY, au fallback ya Render)
+    private static final String API_SECRET_KEY = app.AppConfig.API_KEY;
     
     // URL MPYA: Sasa inatumia link yako ya Render badala ya localhost
     private static final String CLOUD_URL = "https://ultimate-crypto-node-gateway.onrender.com/api/vault/sync";
@@ -42,7 +42,7 @@ public class MongoManager {
                     .uri(URI.create(CLOUD_URL))
                     .timeout(Duration.ofSeconds(15))
                     .header("Content-Type", "application/json")
-                    .header("X-API-KEY", API_SECRET_KEY)
+                    .header(app.AppConfig.API_HEADER, API_SECRET_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
                     .build();
 

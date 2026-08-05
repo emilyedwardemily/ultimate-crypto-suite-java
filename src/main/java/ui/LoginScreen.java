@@ -28,6 +28,7 @@ public class LoginScreen extends VBox {
     public static String SESSION_TOKEN = "";
     public static String USER_ROLE = "FREE"; // Default ni FREE
     public static String USERNAME = "";
+    public static String SESSION_EMAIL = "";
 
     public LoginScreen(Stage stage) {
         this.primaryStage = stage;
@@ -107,7 +108,7 @@ public class LoginScreen extends VBox {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(nodeApiUrl))
                     .header("Content-Type", "application/json")
-                    .header("X-API-KEY", "Emily_Crypto_Secure_2026_KIU") 
+                    .header("X-API-KEY", app.AppConfig.API_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(loginData.toString()))
                     .build();
 
@@ -127,6 +128,7 @@ public class LoginScreen extends VBox {
                         // 2. Extract User Data
                         JSONObject userObj = resJson.getJSONObject("user");
                         USERNAME = userObj.optString("username", "Operator");
+                        SESSION_EMAIL = userObj.optString("email", email);
                         
                         // MABADILIKO MUHIMU: Inasoma Role yoyote (ADMIN/PRO/FREE) na kuigeuza kuwa herufi kubwa
                         USER_ROLE = userObj.optString("role", "FREE").toUpperCase(); 

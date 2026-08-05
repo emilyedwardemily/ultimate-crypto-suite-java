@@ -198,7 +198,8 @@ public class Dashboard extends BorderPane {
         ALL_BADGES.put("pvp_veteran",     new String[]{"\uD83C\uDF96\uFE0F", "PvP Veteran"});
     }
     
-    private static final String API_SECRET_KEY = "Emily_Crypto_Secure_2026_KIU";
+    private static final String API_SECRET_KEY = app.AppConfig.API_KEY;
+    private static final String API_HEADER = app.AppConfig.API_HEADER;
     private static final String PYTHON_URL = "https://ultimate-crypto-python.onrender.com";
     private static final String NODE_URL = "https://ultimate-crypto-node-gateway.onrender.com";
 
@@ -5358,7 +5359,7 @@ public class Dashboard extends BorderPane {
         try {
             HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(PYTHON_URL + ep))
-                    .header("X-API-KEY", API_SECRET_KEY).GET().build();
+                    .header(API_HEADER, API_SECRET_KEY).GET().build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 401 || response.statusCode() == 403) {
                 throw new ApiException(extractErrorDetail(response.body(), "Invalid API Key"), response.statusCode());
@@ -5375,7 +5376,7 @@ public class Dashboard extends BorderPane {
         try {
             HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(7)).build();
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(NODE_URL + ep))
-                    .header("Content-Type", "application/json").header("X-API-KEY", API_SECRET_KEY)
+                    .header("Content-Type", "application/json").header(API_HEADER, API_SECRET_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(p.toString())).build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 401 || response.statusCode() == 403) {
@@ -5508,7 +5509,7 @@ public class Dashboard extends BorderPane {
         try {
             HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(7)).build();
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(PYTHON_URL + ep))
-                    .header("Content-Type", "application/json").header("X-API-KEY", API_SECRET_KEY)
+                    .header("Content-Type", "application/json").header(API_HEADER, API_SECRET_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(p.toString())).build();
             HttpResponse<String> response = client.send(req, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 401 || response.statusCode() == 403) {
@@ -11952,6 +11953,7 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
             LoginScreen.SESSION_TOKEN = "";
             LoginScreen.USERNAME = "";
             LoginScreen.USER_ROLE = "FREE";
+            LoginScreen.SESSION_EMAIL = "";
             javafx.stage.Stage st = (javafx.stage.Stage) getScene().getWindow();
             st.setTitle("UC-Suite Pro | Secure Gateway");
             st.getScene().setRoot(new LoginScreen(st));
@@ -11961,13 +11963,21 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         }
     }
 
+    // Email halisi ya operator (iliyotumiwa ku-login) — sio username/operatorID
+    private String currentOperatorEmail() {
+        if (LoginScreen.SESSION_EMAIL != null && !LoginScreen.SESSION_EMAIL.isBlank()) {
+            return LoginScreen.SESSION_EMAIL;
+        }
+        return operatorID;
+    }
+
     // 1. Method ya kutuma OTP kwenye Email ya mteja
     private void handleSendEmailOTP() {
         addLog("[WAIT] Dispatching secure token to email...");
         new Thread(() -> {
             try {
                 JSONObject payload = new JSONObject();
-                payload.put("email", LoginScreen.USERNAME.isEmpty() ? operatorID : LoginScreen.USERNAME);
+                payload.put("email", currentOperatorEmail());
 
                 callNodeSecure("/api/auth/send-otp", payload);
                 
@@ -11994,7 +12004,7 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
         new Thread(() -> {
             try {
                 JSONObject payload = new JSONObject();
-                payload.put("email", LoginScreen.USERNAME.isEmpty() ? operatorID : LoginScreen.USERNAME);
+                payload.put("email", currentOperatorEmail());
                 payload.put("otp", enteredCode);
 
                 String responseStr = callNodeSecure("/api/auth/verify-otp", payload);

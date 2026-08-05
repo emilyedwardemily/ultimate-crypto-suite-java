@@ -100,7 +100,7 @@ public class RegisterScreen extends VBox {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(registerUrl))
                     .header("Content-Type", "application/json")
-                    .header("X-API-KEY", "Emily_Crypto_Secure_2026_KIU")
+                    .header("X-API-KEY", app.AppConfig.API_KEY)
                     .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
                     .build();
 

@@ -55,6 +55,7 @@ steganography/StegTool.class
 app/LicenseManager.class
 academy/AcademyService$Notif.class
 academy/EliteService$CustomCtf.class
+app/AppConfig.class
 academy/EliteService$RangeStep.class
 ui/Dashboard$4.class
 academy/AcademyService$Mission.class
