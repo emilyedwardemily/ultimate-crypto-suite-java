@@ -10,7 +10,10 @@
 # NOTE: no -target backport flag. ProGuard 7.7.0 can only backport to <= Java 11,
 # and our input classes are Java 25 (version 69); backporting is disabled so the
 # original class-file versions are preserved.
--optimizationpasses 3
+# NOTE: -dontoptimize keeps the JavaFX Task/Dashboard subclass hierarchy intact;
+#       the optimization pass can emit "unresolved references to program class
+#       members" for Task.updateMessage/updateProgress/stop call sites.
+-dontoptimize
 -allowaccessmodification
 -overloadaggressively
 -mergeinterfacesaggressively

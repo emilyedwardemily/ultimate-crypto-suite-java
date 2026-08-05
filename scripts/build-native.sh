@@ -38,8 +38,11 @@ JMODS_DIR="$PROJECT_DIR/target/jmods"
 INPUT_DIR="$PROJECT_DIR/target/jpackage-input"
 OUT_DIR="$PROJECT_DIR/dist/native"
 
-# JavaFX modules to embed in the runtime image.
-JAVAFX_MODULES="javafx.controls,javafx.fxml,javafx.graphics,javafx.media"
+# JavaFX + JDK modules to embed in the runtime image.
+# java.management is required by TamperGuard (ManagementFactory);
+# java.net.http/java.naming/java.security.jgss/jdk.crypto.ec by ApiClient/Mongo.
+APP_MODULES="java.base,java.logging,java.management,java.desktop,java.xml,java.net.http,java.naming,java.security.jgss,jdk.crypto.ec,jdk.unsupported"
+APP_MODULES="$APP_MODULES,javafx.base,javafx.controls,javafx.fxml,javafx.graphics,javafx.media"
 
 # JVM options for the packaged app.
 JVM_OPTS="--enable-native-access=javafx.graphics"
@@ -68,7 +71,18 @@ case "$OS" in
         ;;
 esac
 
-echo "==> [1/5] Building thin obfuscated jar (-Pnative -Pobfuscate)"
+echo "==> [1/5] Ensuring JavaFX jmods ($JAVAFX_VERSION, $CLASSIFIER)"
+if [[ ! -d "$JMODS_DIR/javafx-jmods-${JAVAFX_VERSION}" ]]; then
+    mkdir -p "$JMODS_DIR"
+    JMODS_ZIP="openjfx-${JAVAFX_VERSION}_${CLASSIFIER}_bin-jmods.zip"
+    JMODS_URL="https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/${JMODS_ZIP}"
+    echo "    downloading $JMODS_URL"
+    curl -fsSL --retry 3 --retry-all-errors "$JMODS_URL" -o "$JMODS_DIR/$JMODS_ZIP"
+    unzip -q -o "$JMODS_DIR/$JMODS_ZIP" -d "$JMODS_DIR"
+    rm -f "$JMODS_DIR/$JMODS_ZIP"
+fi
+
+echo "==> [2/5] Building thin obfuscated jar (-Pnative -Pobfuscate)"
 mvn -q -Pnative -Pobfuscate -DskipTests verify
 
 if [[ ! -f "$JAR" ]]; then
@@ -76,19 +90,8 @@ if [[ ! -f "$JAR" ]]; then
     exit 1
 fi
 
-echo "==> [2/5] Injecting anti-tamper hash"
+echo "==> [3/5] Injecting anti-tamper hash"
 python3 scripts/hash-and-sign.py "$JAR"
-
-echo "==> [3/5] Ensuring JavaFX jmods ($JAVAFX_VERSION, $CLASSIFIER)"
-if [[ ! -d "$JMODS_DIR" ]]; then
-    mkdir -p "$JMODS_DIR"
-    JMODS_ZIP="openjfx-${JAVAFX_VERSION}_${CLASSIFIER}_bin-jmods.zip"
-    JMODS_URL="https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/${JMODS_ZIP}"
-    echo "    downloading $JMODS_URL"
-    curl -fsSL "$JMODS_URL" -o "$JMODS_DIR/$JMODS_ZIP"
-    unzip -q -o "$JMODS_DIR/$JMODS_ZIP" -d "$JMODS_DIR"
-    rm -f "$JMODS_DIR/$JMODS_ZIP"
-fi
 
 echo "==> [4/5] Staging input dir"
 rm -rf "$INPUT_DIR"
@@ -96,6 +99,8 @@ mkdir -p "$INPUT_DIR"
 cp "$JAR" "$INPUT_DIR/UltimateCryptoSuite.jar"
 
 mkdir -p "$OUT_DIR"
+# Remove stale app-image so jpackage can rebuild it.
+rm -rf "$OUT_DIR/$APP_NAME"
 
 COMMON_OPTS=(
     --type app-image
@@ -106,7 +111,7 @@ COMMON_OPTS=(
     --main-jar UltimateCryptoSuite.jar
     --main-class "$MAIN_CLASS"
     --module-path "$JMODS_DIR/javafx-jmods-${JAVAFX_VERSION}"
-    --add-modules "$JAVAFX_MODULES"
+    --add-modules "$APP_MODULES"
     --java-options "$JVM_OPTS"
     --dest "$OUT_DIR"
 )

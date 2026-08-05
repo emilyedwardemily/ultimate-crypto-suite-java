@@ -1,0 +1,139 @@
+name: Native Release Build
+
+# Builds obfuscated, tamper-checked native installers for Windows, Linux and
+# macOS using the JDK 25 jlink/jpackage pipeline. Produces SHA-256/SHA-512
+# checksums and optional GPG signatures for every artifact.
+#
+# Trigger: push a tag like v1.0.0 (or run manually via workflow_dispatch).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '25'
+  DIST_DIR: dist/native
+
+jobs:
+  build:
+    name: Package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script_os: windows
+            artifact_ext: '*.exe *.msi'
+          - os: ubuntu-latest
+            script_os: linux
+            artifact_ext: '*.deb *.rpm *.AppImage'
+          - os: macos-latest
+            script_os: macos
+            artifact_ext: '*.dmg *.pkg'
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }} (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Install fakeroot (Linux .deb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot
+
+      - name: Install WiX (Windows .msi)
+        if: runner.os == 'Windows'
+        uses: actions/setup-dotnet@v4
+        # WiX toolset is downloaded by jpackage automatically on Windows;
+        # this step ensures the wix toolset is discoverable.
+        with:
+          dotnet-version: '8.x'
+
+      - name: Install appimagetool (Linux AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSL -o /tmp/appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          sudo ln -sf /tmp/appimagetool /usr/local/bin/appimagetool
+
+      - name: Build native package (${{ matrix.script_os }})
+        shell: bash
+        run: |
+          ./scripts/build-native.sh ${{ matrix.script_os }}
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir -p release
+          shopt -s nullglob
+          for f in ${{ env.DIST_DIR }}/${{ matrix.artifact_ext }}; do
+            cp "$f" release/ || true
+          done
+          # Also ship the obfuscated jar + mapping (jar form for manual install)
+          cp target/UltimateCryptoSuite-1.0-SNAPSHOT-obfuscated.jar release/ || true
+
+      - name: Compute checksums
+        shell: bash
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          sha512sum * > SHA512SUMS
+
+      - name: GPG sign artifacts
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        shell: bash
+        env:
+          SIGNING_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_B64: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          export GPG_TTY=$(tty)
+          echo "$GPG_KEY_B64" | base64 --decode | gpg --batch --yes --import
+          for f in *; do
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$SIGNING_PASSPHRASE" \
+                --default-key "$SIGNING_KEY_ID" --detach-sign --armor "$f"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ucs-native-${{ matrix.os }}
+          path: release/
+
+  publish:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Ultimate Crypto Suite ${{ github.ref_name }}
+          body: |
+            ## Ultimate Crypto Suite ${{ github.ref_name }}
+
+            Obfuscated with ProGuard, embedded JDK 25 runtime (jlink), and
+            runtime anti-tamper + anti-debug integrity checks.
+
+            **Checksums**: see `SHA256SUMS` / `SHA512SUMS` (GPG-signed if key configured).
+          files: |
+            release/**

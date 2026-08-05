@@ -1,3 +1,10 @@
 .env
 .env.local
 node_modules
+
+# Native packaging artifacts
+dist/native/
+dist/checksums/
+target/
+obfuscation-map.txt
+proguard_seed.txt
