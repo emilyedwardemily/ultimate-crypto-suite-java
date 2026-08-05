@@ -6,6 +6,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -87,8 +88,9 @@ public final class TamperGuard {
      */
     private static boolean tamperCheck() {
         Path jarPath = ownArchivePath();
-        if (jarPath == null) {
-            // Running from a class directory (e.g. mvn javafx:run). Nothing to verify.
+        if (jarPath == null || !Files.isRegularFile(jarPath)) {
+            // Running from a class directory (e.g. mvn javafx:run) or an IDE.
+            // Nothing to verify until we are launched from a packaged archive.
             return true;
         }
 

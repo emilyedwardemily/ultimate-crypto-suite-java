@@ -1221,16 +1221,16 @@ app.MainApp -> app.MainApp:
 app.TamperGuard -> app.TamperGuard:
 # {"fileName":"TamperGuard.java","id":"sourceFile"}
     java.lang.String TAMPER_RESOURCE -> TAMPER_RESOURCE
-    37:38:void <init>() -> <init>
-    42:44:boolean verify() -> verify
-    52:79:boolean debuggerDetected() -> debuggerDetected
-    89:124:boolean tamperCheck() -> tamperCheck
-    130:136:java.nio.file.Path ownArchivePath() -> ownArchivePath
-    141:155:java.lang.String sha256OfArchive(java.nio.file.Path) -> sha256OfArchive
-    159:166:boolean isExcludedEntry(java.lang.String) -> isExcludedEntry
-    170:176:byte[] readAll(java.io.InputStream) -> readAll
-    180:185:java.lang.String toHex(byte[]) -> toHex
-    144:144:void lambda$0(java.util.List,java.util.jar.JarEntry) -> lambda$0
+    38:39:void <init>() -> <init>
+    43:45:boolean verify() -> verify
+    53:80:boolean debuggerDetected() -> debuggerDetected
+    90:126:boolean tamperCheck() -> tamperCheck
+    132:138:java.nio.file.Path ownArchivePath() -> ownArchivePath
+    143:157:java.lang.String sha256OfArchive(java.nio.file.Path) -> sha256OfArchive
+    161:168:boolean isExcludedEntry(java.lang.String) -> isExcludedEntry
+    172:178:byte[] readAll(java.io.InputStream) -> readAll
+    182:187:java.lang.String toHex(byte[]) -> toHex
+    146:146:void lambda$0(java.util.List,java.util.jar.JarEntry) -> lambda$0
 com.google.gson.ExclusionStrategy -> com.google.gson.ExclusionStrategy:
 # {"fileName":"ExclusionStrategy.java","id":"sourceFile"}
     boolean shouldSkipField(com.google.gson.FieldAttributes) -> shouldSkipField
