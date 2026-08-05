@@ -12011,7 +12011,13 @@ if (LoginScreen.USER_ROLE.equalsIgnoreCase("ADMIN")) {
                 payload.put("email", currentOperatorEmail());
 
                 String responseStr = callNodeSecure("/api/auth/setup-totp", payload);
-                JSONObject resJson = new JSONObject(responseStr);
+                JSONObject resJson;
+                try {
+                    resJson = new JSONObject(responseStr);
+                } catch (Exception jsonEx) {
+                    Platform.runLater(() -> addLog("[ERROR] Server returned non-JSON response. Is the gateway updated?" ));
+                    return;
+                }
 
                 if (resJson.optBoolean("success", false)) {
                     String secret = resJson.optString("secret", "");
