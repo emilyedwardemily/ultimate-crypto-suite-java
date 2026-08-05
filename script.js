@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    ULTIMATECRYPTOSUITE — LANDING PAGE INTERACTIONS
-   - Live API health check (api.emilyedward.me with Render fallback)
+   - Live API health check (Render gateway + python core)
    - OS install tab switching
    - Mobile navigation
    - Scroll effects + reveal animations
@@ -11,13 +11,12 @@
 
     /* ─────────────────────────────────────────────
        1. API HEALTH CHECK
-       Primary:  https://api.emilyedward.me/health
-       Fallback: live Render backends so the badge
-       stays truthful until the custom domain points
-       at the gateway.
+       Probes the live Render backends directly:
+       the Node gateway (auth/TOTP/vault) first, then
+       the Python core (crypto/forensics). api.emilyedward.me
+       is not yet pointed, so it is intentionally absent.
        ───────────────────────────────────────────── */
     const HEALTH_PROBES = [
-        { url: "https://api.emilyedward.me/health", label: "api.emilyedward.me" },
         { url: "https://ultimate-crypto-node-gateway.onrender.com/status", label: "node-gateway" },
         { url: "https://ultimate-crypto-python.onrender.com/health", label: "python-core" }
     ];

@@ -37,9 +37,9 @@
             </ul>
 
             <div class="flex items-center gap-3">
-                <a href="dist/UltimateCryptoSuite.jar" id="nav-download-btn" download
+                <a href="#installation" id="nav-download-btn"
                    class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 font-mono text-xs font-bold hover:bg-emerald-500 hover:text-black transition-all hover:shadow-[0_0_24px_rgba(16,185,129,0.6)]">
-                    <span aria-hidden="true">&#8681;</span> DOWNLOAD .JAR
+                    <span aria-hidden="true">&#8681;</span> GET THE APP
                 </a>
                 <button id="mobile-menu-btn" class="md:hidden p-2 text-cyan-400 hover:text-white transition-colors" aria-label="Open menu" aria-expanded="false">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -54,7 +54,7 @@
                 <li><a href="#architecture" class="mobile-link block py-1 hover:text-cyan-400">Architecture</a></li>
                 <li><a href="#installation" class="mobile-link block py-1 hover:text-emerald-400">Installation</a></li>
                 <li><a href="#api-docs" class="mobile-link block py-1 hover:text-cyan-400">API Docs</a></li>
-                <li><a href="dist/UltimateCryptoSuite.jar" download class="inline-flex items-center gap-2 py-1 text-emerald-400"><span aria-hidden="true">&#8681;</span> Download .jar</a></li>
+                <li><a href="#installation" class="mobile-link block py-1 text-emerald-400"><span aria-hidden="true">&#8681;</span> Get the App</a></li>
             </ul>
         </div>
     </header>
@@ -93,12 +93,12 @@
                 </div>
 
                 <div class="mt-10 flex flex-col sm:flex-row gap-4">
-                    <a href="dist/UltimateCryptoSuite.jar" id="hero-download-btn" download
+                    <a href="#installation" id="hero-download-btn"
                        class="btn-primary inline-flex items-center justify-center gap-3">
                         <span class="text-lg" aria-hidden="true">&#8681;</span>
                         <span class="flex flex-col items-start leading-tight">
-                            <span class="font-mono font-bold">DOWNLOAD APP (.JAR)</span>
-                            <span class="text-[10px] font-mono opacity-80">JavaFX Desktop &bull; 24 MB</span>
+                            <span class="font-mono font-bold">GET THE APP</span>
+                            <span class="text-[10px] font-mono opacity-80">One-click install &bull; Java bundled</span>
                         </span>
                     </a>
                     <a href="#api-docs" class="btn-secondary inline-flex items-center justify-center gap-3">
@@ -184,7 +184,7 @@
                 <article class="arch-card">
                     <span class="arch-num">02</span>
                     <h3 class="font-mono font-bold text-lg text-white">FastAPI Backend Core</h3>
-                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">High-performance Python encryption engines hosted at <code class="text-cyan-400">api.emilyedward.me</code>.</p>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">High-performance Python encryption engines live at <code class="text-cyan-400">ultimate-crypto-python.onrender.com</code>.</p>
                     <span class="arch-tag">PYTHON 3.11 &bull; FASTAPI</span>
                 </article>
                 <article class="arch-card">
@@ -231,25 +231,15 @@
     <section id="installation" class="py-24 relative">
         <div class="max-w-7xl mx-auto px-5 lg:px-8">
             <div class="text-center mb-12">
-                <p class="section-tag">&#128295; DEPLOYMENT</p>
-                <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">INSTALLATION &amp; SETUP GUIDE</h2>
+                <p class="section-tag">&#9889; ONE-CLICK INSTALL</p>
+                <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">INSTALLATION</h2>
+                <p class="text-slate-400 mt-3 max-w-2xl mx-auto leading-relaxed">
+                    Native installers with the <strong class="text-white">Java 25 runtime bundled</strong> &mdash;
+                    no Java, no terminal, no code. Download, double-click, done.
+                </p>
             </div>
 
             <div class="max-w-3xl mx-auto">
-                <!-- Prerequisites -->
-                <div class="p-5 mb-8 rounded-xl border border-amber-400/30 bg-amber-400/5">
-                    <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
-                        <span aria-hidden="true">&#9888;&#65039;</span> PREREQUISITES
-                    </h3>
-                    <p class="text-sm text-slate-300 mt-2 leading-relaxed">
-                        A <strong class="text-white">Java Runtime Environment (JRE 17 or higher)</strong> is required.
-                        Download the latest JDK/JRE from
-                        <a href="https://adoptium.net/" target="_blank" rel="noopener" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Adoptium OpenJDK</a>
-                        or <a href="https://www.oracle.com/java/technologies/downloads/" target="_blank" rel="noopener" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">Oracle</a>.
-                    </p>
-                </div>
-
-                <!-- OS Tabs -->
                 <div class="rounded-xl border border-slate-700/60 overflow-hidden bg-[#0d1322]/60">
                     <div class="flex border-b border-slate-700/60" role="tablist" aria-label="Operating system install instructions">
                         <button class="os-tab os-tab-active flex-1 py-3.5 font-mono text-sm" role="tab" aria-selected="true" data-os="windows">WINDOWS</button>
@@ -260,41 +250,64 @@
                     <div class="p-6 sm:p-8">
                         <!-- Windows -->
                         <div class="os-panel" id="panel-windows">
-                            <ol class="install-list">
-                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code> via the button below.</span></li>
-                                <li><span class="step-num">2</span><span>Install <strong>JRE 17+</strong> if not already present.</span></li>
-                                <li><span class="step-num">3</span><span>Double-click the JAR, or run via CMD:</span></li>
+                            <div class="text-center mb-6">
+                                <p class="font-mono text-xs text-slate-500 mb-1">WINDOWS INSTALLER &mdash; .EXE</p>
+                                <h3 class="font-mono font-bold text-lg text-white">UltimateCryptoSuite-Setup</h3>
+                                <p class="text-sm text-slate-400 mt-1">Bundled Java 25 runtime &bull; silent install &bull; desktop shortcuts.</p>
+                            </div>
+                            <a href="https://github.com/emilyedwardemily/ultimate-crypto-suite-java/releases/latest" target="_blank" rel="noopener" id="windows-download-btn" class="btn-primary w-full sm:w-auto justify-center">
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD FOR WINDOWS
+                            </a>
+                            <ol class="install-list mt-6">
+                                <li><span class="step-num">1</span><span>Click the button and download the installer.</span></li>
+                                <li><span class="step-num">2</span><span>Double-click the <code class="inline-code">.exe</code> and follow the wizard.</span></li>
+                                <li><span class="step-num">3</span><span>Launch <strong class="text-white">Ultimate Crypto Suite</strong> from the Start menu.</span></li>
                             </ol>
-                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
+                            <p class="text-[11px] text-slate-500 mt-4 font-mono">MSI also available &bull; portable .jar below</p>
                         </div>
 
                         <!-- Linux / Kali -->
                         <div class="os-panel hidden" id="panel-linux">
-                            <ol class="install-list">
-                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code> to your working directory.</span></li>
-                                <li><span class="step-num">2</span><span>Make it executable with <code class="inline-code">chmod</code>:</span></li>
+                            <div class="text-center mb-6">
+                                <p class="font-mono text-xs text-slate-500 mb-1">DEBIAN PACKAGE &mdash; .DEB</p>
+                                <h3 class="font-mono font-bold text-lg text-white">Ultimate Crypto Suite 1.0.0</h3>
+                                <p class="text-sm text-slate-400 mt-1">Bundled Java 25 runtime &bull; Debian, Ubuntu &amp; Kali.</p>
+                            </div>
+                            <a href="dist/native/ultimatecryptosuite_1.0.0_amd64.deb" id="linux-download-btn" download
+                               class="btn-primary w-full sm:w-auto justify-center">
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD FOR LINUX (.DEB)
+                            </a>
+                            <ol class="install-list mt-6">
+                                <li><span class="step-num">1</span><span>Download the <code class="inline-code">.deb</code>.</span></li>
+                                <li><span class="step-num">2</span><span>Double-click it (opens Software / GDebi), or run
+                                    <code class="inline-code">sudo apt install ./ultimatecryptosuite_1.0.0_amd64.deb</code>.</span></li>
+                                <li><span class="step-num">3</span><span>Launch <strong class="text-white">Ultimate Crypto Suite</strong> from the applications menu.</span></li>
                             </ol>
-                            <pre class="code-block"><code>chmod +x UltimateCryptoSuite.jar</code></pre>
-                            <ol class="install-list mt-5">
-                                <li><span class="step-num">3</span><span>Launch from the terminal:</span></li>
-                            </ol>
-                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
+                            <p class="text-[11px] text-slate-500 mt-4 font-mono">AppImage &amp; RPM also available via releases</p>
                         </div>
 
                         <!-- macOS -->
                         <div class="os-panel hidden" id="panel-macos">
-                            <ol class="install-list">
-                                <li><span class="step-num">1</span><span>Download <code class="inline-code">UltimateCryptoSuite.jar</code>.</span></li>
-                                <li><span class="step-num">2</span><span>If Gatekeeper blocks it: <strong>System Settings &rarr; Privacy &amp; Security</strong> &rarr; allow the app.</span></li>
-                                <li><span class="step-num">3</span><span>Execute via Terminal:</span></li>
+                            <div class="text-center mb-6">
+                                <p class="font-mono text-xs text-slate-500 mb-1">MACOS DISK IMAGE &mdash; .DMG</p>
+                                <h3 class="font-mono font-bold text-lg text-white">Ultimate Crypto Suite</h3>
+                                <p class="text-sm text-slate-400 mt-1">Bundled Java 25 runtime &bull; universal installer.</p>
+                            </div>
+                            <a href="https://github.com/emilyedwardemily/ultimate-crypto-suite-java/releases/latest" target="_blank" rel="noopener" id="macos-download-btn" class="btn-primary w-full sm:w-auto justify-center">
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD FOR MACOS
+                            </a>
+                            <ol class="install-list mt-6">
+                                <li><span class="step-num">1</span><span>Download the <code class="inline-code">.dmg</code> and open it.</span></li>
+                                <li><span class="step-num">2</span><span>Drag <strong class="text-white">Ultimate Crypto Suite</strong> into Applications.</span></li>
+                                <li><span class="step-num">3</span><span>If Gatekeeper blocks it: right-click the app &rarr; <strong class="text-white">Open</strong>.</span></li>
                             </ol>
-                            <pre class="code-block"><code>java -jar UltimateCryptoSuite.jar</code></pre>
                         </div>
 
-                        <div class="mt-8">
+                        <div class="mt-8 pt-6 border-t border-slate-700/60 text-center">
+                            <p class="font-mono text-xs text-slate-500 mb-3">PREFER NO INSTALLER?</p>
                             <a href="dist/UltimateCryptoSuite.jar" id="install-download-btn" download
-                               class="btn-primary w-full sm:w-auto justify-center">
-                                <span aria-hidden="true">&#8681;</span> DOWNLOAD UltimateCryptoSuite.jar
+                               class="btn-secondary w-full sm:w-auto justify-center">
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD PORTABLE .JAR &nbsp;<span class="opacity-70">(requires Java 17+)</span>
                             </a>
                         </div>
                     </div>
@@ -311,27 +324,28 @@
                     <p class="section-tag text-cyan-300 border-cyan-400/40 bg-cyan-400/10">&#129504; LIVE INTERFACE</p>
                     <h2 class="font-mono font-extrabold text-3xl sm:text-4xl mt-3">API DOCUMENTATION</h2>
                     <p class="text-slate-400 mt-4 leading-relaxed">
-                        Explore the auto-generated interactive OpenAPI documentation for the UltimateCryptoSuite
-                        backend — OTP dispatch, TOTP verification, vault sync, and forensic endpoints.
+                        Interactive OpenAPI docs for the live UltimateCryptoSuite backend &mdash; TOTP multi-factor
+                        auth, OTP dispatch, vault sync, and cryptographic forensics across the Node gateway and
+                        Python core.
                     </p>
                     <div class="mt-8 flex flex-col sm:flex-row gap-4">
-                        <a href="https://api.emilyedward.me/docs" target="_blank" rel="noopener" class="btn-secondary">OPEN SWAGGER UI</a>
-                        <a href="https://api.emilyedward.me/redoc" target="_blank" rel="noopener" class="btn-secondary btn-ghost">OPEN RE-DOC</a>
+                        <a href="https://ultimate-crypto-python.onrender.com/docs" target="_blank" rel="noopener" class="btn-secondary">OPEN SWAGGER UI</a>
+                        <a href="https://ultimate-crypto-python.onrender.com/redoc" target="_blank" rel="noopener" class="btn-secondary btn-ghost">OPEN RE-DOC</a>
                     </div>
                     <div class="mt-8 grid grid-cols-2 gap-4 font-mono text-xs">
-                        <div class="api-endpoint"><span class="method-get">GET</span><span class="text-slate-300">/health</span></div>
-                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/verify-otp</span></div>
-                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/send-secure-email</span></div>
-                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/secure-wipe</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/api/auth/setup-totp</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/api/auth/verify-otp</span></div>
+                        <div class="api-endpoint"><span class="method-get">GET</span><span class="text-slate-300">/status</span></div>
+                        <div class="api-endpoint"><span class="method-post">POST</span><span class="text-slate-300">/api/vault/sync</span></div>
                     </div>
                 </div>
 
                 <div class="rounded-xl border border-slate-700/60 bg-[#0d1322]/70 p-6 font-mono text-sm" id="api-console">
-                    <p class="text-slate-500 text-xs mb-4">// LIVE API CONSOLE &mdash; api.emilyedward.me</p>
+                    <p class="text-slate-500 text-xs mb-4">// LIVE API CONSOLE &mdash; ultimate-crypto-node-gateway.onrender.com</p>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-slate-400">Base URL</span>
-                            <code class="text-cyan-400">https://api.emilyedward.me</code>
+                            <code class="text-cyan-400">https://ultimate-crypto-node-gateway.onrender.com</code>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-slate-400">Auth Header</span>
@@ -343,7 +357,7 @@
                         </div>
                     </div>
                     <div class="mt-5 h-px bg-slate-700/60"></div>
-                    <pre class="mt-5 text-xs text-slate-400 overflow-x-auto" id="console-log">$ curl https://api.emilyedward.me/health ...</pre>
+                    <pre class="mt-5 text-xs text-slate-400 overflow-x-auto" id="console-log">$ curl -X POST .../api/auth/verify-otp -H "x-api-key: &lt;API_KEY&gt;" -d '{"email":"you@me.com","otp":"123456"}'</pre>
                 </div>
             </div>
         </div>
@@ -363,7 +377,7 @@
                         <span aria-hidden="true">&#128279;</span> github.com/emilyedwardemily
                     </a>
                     <p class="font-mono text-xs text-slate-500">DOMAIN IDENTITY &rarr; <span class="text-cyan-400">emilyedward.me</span></p>
-                    <p class="font-mono text-[11px] text-slate-600">Backend &rarr; <span class="text-slate-400">api.emilyedward.me</span></p>
+                    <p class="font-mono text-[11px] text-slate-600">Gateway &rarr; <span class="text-slate-400">ultimate-crypto-node-gateway.onrender.com</span></p>
                 </div>
             </div>
         </div>
