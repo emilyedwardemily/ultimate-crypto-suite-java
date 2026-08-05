@@ -284,6 +284,41 @@
                             </execution>
                         </executions>
                     </plugin>
+                    <!-- Thin jar has no JavaFX classes, so ProGuard needs the JavaFX
+                         jmods on its library path to resolve inherited members
+                         (e.g. Application.launch referenced by app.MainApp).
+                         NOTE: profile config REPLACES the base <options> list, so
+                         the full list (JDK jmods + JavaFX jmods) is repeated here. -->
+                    <plugin>
+                        <groupId>com.github.wvengen</groupId>
+                        <artifactId>proguard-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>obfuscate</id>
+                                <configuration>
+                                    <options>
+                                        <option>-libraryjars ${java.home}/jmods/java.base.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.desktop.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.xml.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.management.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.logging.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.net.http.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.naming.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/jdk.crypto.ec.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${java.home}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.base.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.controls.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.fxml.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.graphics.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.media.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-keepattributes *Annotation*,Signature,Exceptions,InnerClasses,EnclosingMethod</option>
+                                        <option>-dontwarn</option>
+                                        <option>@${project.basedir}/proguard.pro</option>
+                                    </options>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>

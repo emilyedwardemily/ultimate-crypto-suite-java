@@ -39,6 +39,7 @@ ui/Dashboard$UcSection.class
 storage/MongoManager.class
 academy/EliteService$CustomLab.class
 academy/EliteService$Team.class
+app/TamperGuard.class
 academy/AcademyService$Bot.class
 app/ApiException.class
 academy/EliteService$Department.class

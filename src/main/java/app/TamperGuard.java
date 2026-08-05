@@ -55,6 +55,7 @@ public final class TamperGuard {
                 String lower = a.toLowerCase();
                 if (lower.contains("jdwp") || lower.contains("-xdebug")
                         || lower.contains("-xrunjdwp") || lower.contains("debug")) {
+                    System.err.println("[SECURITY] debug flag detected: " + a);
                     return true;
                 }
             }
@@ -62,13 +63,19 @@ public final class TamperGuard {
             String tool = System.getenv("JAVA_TOOL_OPTIONS");
             if (tool != null && (tool.toLowerCase().contains("jdwp")
                     || tool.toLowerCase().contains("-agentlib"))) {
+                System.err.println("[SECURITY] JAVA_TOOL_OPTIONS debug agent: " + tool);
                 return true;
             }
             String jdkOpt = System.getenv("JDK_JAVA_OPTIONS");
-            return jdkOpt != null && (jdkOpt.toLowerCase().contains("jdwp")
-                    || jdkOpt.toLowerCase().contains("-agentlib"));
+            if (jdkOpt != null && (jdkOpt.toLowerCase().contains("jdwp")
+                    || jdkOpt.toLowerCase().contains("-agentlib"))) {
+                System.err.println("[SECURITY] JDK_JAVA_OPTIONS debug agent: " + jdkOpt);
+                return true;
+            }
+            return false;
         } catch (Throwable t) {
             // If we cannot even inspect the runtime, fail closed.
+            System.err.println("[SECURITY] runtime inspection failed: " + t);
             return true;
         }
     }
