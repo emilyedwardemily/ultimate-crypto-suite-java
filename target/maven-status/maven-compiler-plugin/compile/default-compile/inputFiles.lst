@@ -12,6 +12,7 @@
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/app/LicenseManager.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/app/LoginController.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/app/MainApp.java
+/home/emily/Desktop/UltimateCryptoSuite/src/main/java/app/TamperGuard.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/crypto/AESUtil.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/crypto/RSAUtil.java
 /home/emily/Desktop/UltimateCryptoSuite/src/main/java/crypto/XORUtil.java

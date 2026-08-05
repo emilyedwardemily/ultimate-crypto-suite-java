@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Ultimate Crypto Suite
+GenericName=Crypto Suite
+Comment=Professional cryptography and crypto-management suite
+Exec="/opt/UltimateCryptoSuite/bin/UltimateCryptoSuite"
+Icon=/opt/UltimateCryptoSuite/lib/UltimateCryptoSuite.png
+Terminal=false
+Categories=Office;Security;Utility;
+Keywords=crypto;encryption;cipher;bitcoin;
+StartupNotify=true
+StartupWMClass=UltimateCryptoSuite
