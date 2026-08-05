@@ -17,6 +17,17 @@ public class Launcher {
         System.out.println("   GATEWAY: https://ultimate-crypto-node-gateway.onrender.com");
         System.out.println("=====================================================");
 
+        // Runtime anti-debug + anti-tamper integrity check before any UI is shown.
+        if (!TamperGuard.verify()) {
+            System.err.println("=====================================================");
+            System.err.println("   [SECURITY] INTEGRITY VERIFICATION FAILED.");
+            System.err.println("   This application has been tampered with or is");
+            System.err.println("   running under a debugger. Startup aborted.");
+            System.err.println("=====================================================");
+            System.exit(1);
+        }
+        System.out.println("✅ Integrity verified.");
+
         // 1. Hatua ya kuanzisha JavaFX
         // Launcher sasa hivi haihitaji ku-verify chochote, 
         // kazi ya kuhakiki mtumiaji itafanywa na LoginScreen baada ya UI kufunguka.

@@ -1,0 +1,39 @@
+ULTIMATE CRYPTO SUITE - END USER LICENSE AGREEMENT (EULA)
+
+By installing, copying, or otherwise using Ultimate Crypto Suite
+("the Software"), you agree to be bound by the terms of this agreement.
+
+1. GRANT OF LICENSE
+   emilyedward grants you a non-exclusive, non-transferable license to
+   install and use the Software on a single machine for personal or
+   commercial evaluation purposes.
+
+2. RESTRICTIONS
+   You may not reverse engineer, decompile, disassemble, or otherwise
+   attempt to derive the source code of the Software, except to the
+   extent expressly permitted by applicable law. The Software includes
+   integrity verification; modified binaries will not run.
+
+3. ACCOUNT SERVICES
+   The Software connects to cloud services for authentication and
+   operator management. You are responsible for safeguarding your
+   credentials and any second-factor (OTP) secrets.
+
+4. CRYPTOGRAPHIC DISCLAIMER
+   The Software is provided "AS IS" without warranty of any kind,
+   express or implied, including but not limited to the implied
+   warranties of merchantability and fitness for a particular purpose.
+   emilyedward shall not be liable for any loss of data, loss of
+   profits, or other consequential damages arising from use of the
+   Software. Cryptographic keys and secrets are stored locally at your
+   own risk.
+
+5. TERMINATION
+   This license terminates automatically if you breach any of its terms.
+   Upon termination you must destroy all copies of the Software.
+
+6. GOVERNING LAW
+   This agreement is governed by the laws of the jurisdiction in which
+   the Software publisher is established.
+
+By clicking "I Agree" you accept these terms.
