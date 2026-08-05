@@ -20,10 +20,6 @@ public class ApiClient {
     // URL MPYA: Sasa inatumia link yako ya Render (Python Backend)
     private static final String BASE_URL = "https://ultimate-crypto-python.onrender.com";
 
-    // SIRI: Inasomwa kutoka AppConfig (env UC_API_KEY / API_SECRET_KEY, au fallback).
-    // Header name + value viko KATIKA SEHEMU MOJA — AppConfig.API_HEADER / AppConfig.API_KEY.
-    private static final String API_SECRET = AppConfig.API_KEY;
-
     /**
      * Generic request builder: auto-injects the x-api-key header on EVERY method
      * (GET/POST/OPTIONS...) so no caller can forget authentication.
