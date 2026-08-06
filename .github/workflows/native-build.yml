@@ -28,7 +28,7 @@ jobs:
             artifact_ext: '*.exe *.msi'
           - os: ubuntu-latest
             script_os: linux
-            artifact_ext: '*.deb *.rpm *.AppImage'
+            artifact_ext: '*.deb *.rpm *.AppImage *.run'
           - os: macos-latest
             script_os: macos
             artifact_ext: '*.dmg *.pkg'
@@ -71,6 +71,12 @@ jobs:
         shell: bash
         run: |
           ./scripts/build-native.sh ${{ matrix.script_os }}
+
+      - name: Build GUI wizard installer (.run) [Linux]
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ./scripts/build-run.sh
 
       - name: Collect installers
         shell: bash

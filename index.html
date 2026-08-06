@@ -269,21 +269,25 @@
                         <!-- Linux / Kali -->
                         <div class="os-panel hidden" id="panel-linux">
                             <div class="text-center mb-6">
-                                <p class="font-mono text-xs text-slate-500 mb-1">DEBIAN PACKAGE &mdash; .DEB</p>
-                                <h3 class="font-mono font-bold text-lg text-white">Ultimate Crypto Suite 1.0.0</h3>
-                                <p class="text-sm text-slate-400 mt-1">Bundled Java 25 runtime &bull; Debian, Ubuntu &amp; Kali.</p>
+                                <p class="font-mono text-xs text-slate-500 mb-1">GRAPHICAL WIZARD &mdash; .RUN</p>
+                                <h3 class="font-mono font-bold text-lg text-white">Ultimate Crypto Suite Installer</h3>
+                                <p class="text-sm text-slate-400 mt-1">Bundled Java 25 runtime &bull; click-through wizard that ends with a <strong class="text-emerald-400">Finish</strong> button.</p>
                             </div>
-                            <a href="dist/native/ultimatecryptosuite_1.0.0_amd64.deb" id="linux-download-btn" download
+                            <a href="dist/native/UltimateCryptoSuite-1.0.0-linux.run" id="linux-download-btn" download
                                class="btn-primary w-full sm:w-auto justify-center">
-                                <span aria-hidden="true">&#8681;</span> DOWNLOAD FOR LINUX (.DEB)
+                                <span aria-hidden="true">&#8681;</span> DOWNLOAD INSTALLER (.RUN)
                             </a>
                             <ol class="install-list mt-6">
-                                <li><span class="step-num">1</span><span>Download the <code class="inline-code">.deb</code>.</span></li>
-                                <li><span class="step-num">2</span><span>Double-click it (opens Software / GDebi), or run
-                                    <code class="inline-code">sudo apt install ./ultimatecryptosuite_1.0.0_amd64.deb</code>.</span></li>
-                                <li><span class="step-num">3</span><span>Launch <strong class="text-white">Ultimate Crypto Suite</strong> from the applications menu.</span></li>
+                                <li><span class="step-num">1</span><span>Download &amp; run the installer.</span></li>
+                                <li><span class="step-num">2</span><span>Click <strong class="text-white">Next</strong> &rarr; <strong class="text-white">Install</strong> and wait for it to finish.</span></li>
+                                <li><span class="step-num">3</span><span>Press <strong class="text-white">Finish</strong> &mdash; launch from the applications menu.</span></li>
                             </ol>
-                            <p class="text-[11px] text-slate-500 mt-4 font-mono">AppImage &amp; RPM also available via releases</p>
+                            <div class="mt-6 pt-5 border-t border-slate-700/60 text-center">
+                                <a href="dist/native/ultimatecryptosuite_1.0.0_amd64.deb" download
+                                   class="text-xs font-mono text-slate-400 hover:text-cyan-400 underline underline-offset-2">
+                                    &bull; Alternative: system package (.deb) for Debian/Ubuntu/Kali &bull;
+                                </a>
+                            </div>
                         </div>
 
                         <!-- macOS -->
