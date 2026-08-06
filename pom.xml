@@ -162,6 +162,8 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/maven/**/pom.xml</exclude>
+                                        <exclude>META-INF/maven/**/pom.properties</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -277,6 +279,8 @@
                                                 <exclude>META-INF/*.SF</exclude>
                                                 <exclude>META-INF/*.DSA</exclude>
                                                 <exclude>META-INF/*.RSA</exclude>
+                                                <exclude>META-INF/maven/**/pom.xml</exclude>
+                                                <exclude>META-INF/maven/**/pom.properties</exclude>
                                             </excludes>
                                         </filter>
                                     </filters>
