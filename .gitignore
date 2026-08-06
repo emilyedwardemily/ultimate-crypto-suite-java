@@ -2,6 +2,9 @@
 .env.local
 node_modules
 
+# GitHub Pages deploy working copy
+.pages-deploy/
+
 # Native packaging artifacts
 dist/native/
 dist/checksums/
