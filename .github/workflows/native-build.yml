@@ -97,15 +97,15 @@ jobs:
           sha512sum * > SHA512SUMS
 
       - name: GPG sign artifacts
-        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        if: ${{ env.GPG_B64 != '' }}
         shell: bash
         env:
+          GPG_B64: ${{ secrets.GPG_PRIVATE_KEY }}
           SIGNING_KEY_ID: ${{ secrets.GPG_KEY_ID }}
           SIGNING_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_B64: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           export GPG_TTY=$(tty)
-          echo "$GPG_KEY_B64" | base64 --decode | gpg --batch --yes --import
+          echo "$GPG_B64" | base64 --decode | gpg --batch --yes --import
           for f in *; do
             gpg --batch --yes --pinentry-mode loopback --passphrase "$SIGNING_PASSPHRASE" \
                 --default-key "$SIGNING_KEY_ID" --detach-sign --armor "$f"
