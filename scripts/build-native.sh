@@ -57,12 +57,17 @@ case "$OS" in
         ;;
     windows)
         PLATFORM="windows"
-        CLASSIFIER="win-x64"
+        CLASSIFIER="windows-x64"
         ICON="packaging/icons/windows/ucs.ico"
         ;;
     macos)
         PLATFORM="macos"
-        CLASSIFIER="mac-x64"
+        # osx-x64 for Intel, osx-aarch64 for Apple Silicon. Detect arch.
+        if [ "$(uname -m)" = "arm64" ]; then
+            CLASSIFIER="osx-aarch64"
+        else
+            CLASSIFIER="osx-x64"
+        fi
         ICON="packaging/icons/macos/ucs.icns"
         ;;
     *)
