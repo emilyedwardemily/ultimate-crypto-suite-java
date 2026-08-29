@@ -25,13 +25,13 @@ jobs:
         include:
           - os: windows-latest
             script_os: windows
-            artifact_ext: '*.exe *.msi'
+            artifact_ext: 'dist/native/*.exe dist/native/*.msi'
           - os: ubuntu-latest
             script_os: linux
-            artifact_ext: '*.deb *.rpm *.AppImage *.run'
+            artifact_ext: 'dist/native/*.deb dist/native/*.rpm dist/native/*.AppImage dist/native/*.run'
           - os: macos-latest
             script_os: macos
-            artifact_ext: '*.dmg *.pkg'
+            artifact_ext: 'dist/native/*.dmg dist/native/*.pkg'
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -83,11 +83,11 @@ jobs:
         run: |
           mkdir -p release
           shopt -s nullglob
-          cd "${{ env.DIST_DIR }}"
+          # artifact_ext carries per-pattern dist/native/ prefixes, so every
+          # glob here resolves to the correct output directory.
           for f in ${{ matrix.artifact_ext }}; do
-            cp "$f" ../release/ || true
+            cp "$f" release/ || true
           done
-          cd ..
           # Also ship the obfuscated jar (jar form for manual install)
           cp target/UltimateCryptoSuite-1.0-SNAPSHOT-obfuscated.jar release/ || true
 
