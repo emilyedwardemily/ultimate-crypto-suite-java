@@ -120,8 +120,6 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
-                    <fork>true</fork>
-                    <executable>/usr/lib/jvm/java-25-openjdk-amd64/bin/javac</executable>
                 </configuration>
             </plugin>
 
