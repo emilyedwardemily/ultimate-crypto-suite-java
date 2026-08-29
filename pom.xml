@@ -221,15 +221,15 @@
                                     <attach>true</attach>
                                     <attachArtifactClassifier>obfuscated</attachArtifactClassifier>
                                     <options>
-                                        <option>-libraryjars ${java.home}/jmods/java.base.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.desktop.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.xml.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.management.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.logging.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.net.http.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.naming.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/jdk.crypto.ec.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.base.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.desktop.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.xml.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.management.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.logging.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.net.http.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.naming.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/jdk.crypto.ec.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
                                         <option>-keepattributes *Annotation*,Signature,Exceptions,InnerClasses,EnclosingMethod</option>
                                         <option>-dontwarn</option>
                                         <option>@${project.basedir}/proguard-rules.pro</option>
@@ -299,15 +299,15 @@
                                 <id>obfuscate</id>
                                 <configuration>
                                     <options>
-                                        <option>-libraryjars ${java.home}/jmods/java.base.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.desktop.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.xml.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.management.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.logging.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.net.http.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.naming.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/jdk.crypto.ec.jmod(!**.jar;!module-info.class)</option>
-                                        <option>-libraryjars ${java.home}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.base.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.desktop.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.xml.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.management.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.logging.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.net.http.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.naming.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/jdk.crypto.ec.jmod(!**.jar;!module-info.class)</option>
+                                        <option>-libraryjars ${env.JAVA_HOME}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
                                         <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.base.jmod(!**.jar;!module-info.class)</option>
                                         <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.controls.jmod(!**.jar;!module-info.class)</option>
                                         <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.fxml.jmod(!**.jar;!module-info.class)</option>
