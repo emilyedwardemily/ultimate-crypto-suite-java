@@ -2,6 +2,14 @@
 .env.local
 node_modules
 
+# Separate product/web app kept out of the public distributed repo
+web/
+dist/
+.next
+
+# Nested backend repo (node gateway) kept out of the distributed repo
+src/server/
+
 # GitHub Pages deploy working copy
 .pages-deploy/
 
