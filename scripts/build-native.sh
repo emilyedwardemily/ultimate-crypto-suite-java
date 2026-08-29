@@ -51,17 +51,25 @@ ensure_jdk_with_jmods() {
     local stage="$PROJECT_DIR/target/jdk/${os}-${arch}"
     mkdir -p "$stage"
     curl -fsSL --retry 3 --retry-all-errors "${base}/jdk/hotspot/normal/eclipse?project=jdk" -o "$dl"
-    if python3 -c "import zipfile,sys; sys.exit(0 if zipfile.is_zipfile('$dl') else 1)"; then
-        python3 - "$dl" "$stage" <<'PY'
-import sys, zipfile
-with zipfile.ZipFile(sys.argv[1]) as z:
-    z.extractall(sys.argv[2])
+    python3 - "$dl" "$stage" <<'PY'
+import sys
+p, out = sys.argv[1], sys.argv[2]
+with open(p, 'rb') as f:
+    head = f.read(4)
+if head[:2] == b'PK':
+    import zipfile
+    with zipfile.ZipFile(p) as z:
+        z.extractall(out)
+else:
+    import tarfile
+    with tarfile.open(p, 'r:gz') as t:
+        t.extractall(out)
 PY
-        JAVA_HOME="$(find "$stage" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
-        JAVA_HOME="${JAVA_HOME:-$stage}"
-    else
-        tar -xzf "$dl" -C "$stage" --strip-components=1
-        JAVA_HOME="$stage"
+    JAVA_HOME="$(find "$stage" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
+    JAVA_HOME="${JAVA_HOME:-$stage}"
+    # macOS JDK layout nests the actual home under Contents/Home.
+    if [[ -d "$JAVA_HOME/Contents/Home/bin" && -d "$JAVA_HOME/Contents/Home/jmods" ]]; then
+        JAVA_HOME="$JAVA_HOME/Contents/Home"
     fi
     rm -f "$dl"
     echo "    using $JAVA_HOME"
@@ -70,8 +78,22 @@ PY
         echo "    fetching jmods asset from Adoptium"
         local jmodsz="$PROJECT_DIR/target/jdk/${os}-${arch}-jmods.tar.gz"
         curl -fsSL --retry 3 --retry-all-errors "${base}/jmods/hotspot/normal/eclipse?project=jdk" -o "$jmodsz"
-        mkdir -p "$JAVA_HOME/jmods"
-        tar -xzf "$jmodsz" -C "$JAVA_HOME/jmods" --strip-components=1
+        python3 - "$jmodsz" "$JAVA_HOME/jmods" <<'PY'
+import sys
+p, out = sys.argv[1], sys.argv[2]
+import os
+os.makedirs(out, exist_ok=True)
+import tarfile
+with tarfile.open(p, 'r:gz') as t:
+    for m in t.getmembers():
+        parts = m.name.split('/')
+        # strip the leading 'jdk-XX-jmods' directory component
+        if '/' in m.name:
+            m.name = m.name.split('/', 1)[1]
+        else:
+            continue
+        t.extract(m, out)
+PY
         rm -f "$jmodsz"
     fi
     echo "    java.base.jmod present: $(test -f "$JAVA_HOME/jmods/java.base.jmod" && echo yes || echo no)"
@@ -190,15 +212,23 @@ case "$OS" in
         echo "    deb -> $OUT_DIR"
         # Post-process the deb so the app menu shows the icon reliably:
         # installs the icon into the hicolor theme + a proper .desktop entry.
-        DEB_FILE="$(ls "$OUT_DIR"/ultimatecryptosuite_*_"$PLATFORM"*.deb "$OUT_DIR"/ultimatecryptosuite_*.deb 2>/dev/null | head -1)"
+        DEB_FILE=""
+        shopt -s nullglob
+        DEB_CANDIDATES=( "$OUT_DIR"/ultimatecryptosuite_*_"$PLATFORM"*.deb "$OUT_DIR"/ultimatecryptosuite_*.deb )
+        shopt -u nullglob
+        [ -n "${DEB_CANDIDATES[0]:-}" ] && DEB_FILE="${DEB_CANDIDATES[0]}"
         if [ -n "${DEB_FILE:-}" ]; then
             "$PROJECT_DIR/scripts/fix-deb-desktop.sh" "$DEB_FILE" "$ICON"
         fi
-        # AppImage (optional; requires appimagetool on PATH)
+        # AppImage (optional; requires appimagetool on PATH). Never fatal.
         if command -v appimagetool >/dev/null 2>&1; then
-            "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null
-            ARCH=x86_64 appimagetool "$OUT_DIR/$APP_NAME" "$OUT_DIR/${APP_NAME}-${APP_VERSION}-x86_64.AppImage" >/dev/null
-            echo "    appimage -> $OUT_DIR"
+            if "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null 2>&1 && \
+               ARCH=x86_64 appimagetool --appimage-extract-and-run \
+                   "$OUT_DIR/$APP_NAME" "$OUT_DIR/${APP_NAME}-${APP_VERSION}-x86_64.AppImage" >/dev/null 2>&1; then
+                echo "    appimage -> $OUT_DIR"
+            else
+                echo "    [skip] AppImage build failed (non-fatal); deb is the primary artifact"
+            fi
         else
             echo "    [skip] appimagetool not found; app-image still produced at $OUT_DIR/$APP_NAME"
         fi
