@@ -83,10 +83,12 @@ jobs:
         run: |
           mkdir -p release
           shopt -s nullglob
-          for f in ${{ env.DIST_DIR }}/${{ matrix.artifact_ext }}; do
-            cp "$f" release/ || true
+          cd "${{ env.DIST_DIR }}"
+          for f in ${{ matrix.artifact_ext }}; do
+            cp "$f" ../release/ || true
           done
-          # Also ship the obfuscated jar + mapping (jar form for manual install)
+          cd ..
+          # Also ship the obfuscated jar (jar form for manual install)
           cp target/UltimateCryptoSuite-1.0-SNAPSHOT-obfuscated.jar release/ || true
 
       - name: Compute checksums
