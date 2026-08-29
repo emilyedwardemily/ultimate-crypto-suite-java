@@ -25,6 +25,59 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-25-openjdk-amd64}"
+
+# Some CI runners ship a JDK image without jmods (e.g. GitHub Actions Temurin
+# for JDK 25), which breaks ProGuard (-libraryjars $JAVA_HOME/jmods/*.jmod) and
+# jlink. If jmods are missing, provision a full JDK 25 (with runtime for
+# jpackage) from the Adoptium API, then fetch the matching jmods asset and place
+# it under $JAVA_HOME/jmods.
+ensure_jdk_with_jmods() {
+    if [[ -f "$JAVA_HOME/jmods/java.base.jmod" ]]; then
+        return 0
+    fi
+    echo "==> JDK at $JAVA_HOME lacks jmods; provisioning full JDK 25 from Adoptium"
+    local os arch
+    case "${OS}" in
+        windows) os="windows" ;;
+        macos)   os="mac" ;;
+        *)       os="linux" ;;
+    esac
+    case "$(uname -m)" in
+        aarch64|arm64) arch="aarch64" ;;
+        *)             arch="x64" ;;
+    esac
+    local base="https://api.adoptium.net/v3/binary/latest/25/ga/${os}/${arch}"
+    local dl="$PROJECT_DIR/target/jdk/${os}-${arch}-jdk.bin"
+    local stage="$PROJECT_DIR/target/jdk/${os}-${arch}"
+    mkdir -p "$stage"
+    curl -fsSL --retry 3 --retry-all-errors "${base}/jdk/hotspot/normal/eclipse?project=jdk" -o "$dl"
+    if python3 -c "import zipfile,sys; sys.exit(0 if zipfile.is_zipfile('$dl') else 1)"; then
+        python3 - "$dl" "$stage" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    z.extractall(sys.argv[2])
+PY
+        JAVA_HOME="$(find "$stage" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
+        JAVA_HOME="${JAVA_HOME:-$stage}"
+    else
+        tar -xzf "$dl" -C "$stage" --strip-components=1
+        JAVA_HOME="$stage"
+    fi
+    rm -f "$dl"
+    echo "    using $JAVA_HOME"
+
+    if [[ ! -f "$JAVA_HOME/jmods/java.base.jmod" ]]; then
+        echo "    fetching jmods asset from Adoptium"
+        local jmodsz="$PROJECT_DIR/target/jdk/${os}-${arch}-jmods.tar.gz"
+        curl -fsSL --retry 3 --retry-all-errors "${base}/jmods/hotspot/normal/eclipse?project=jdk" -o "$jmodsz"
+        mkdir -p "$JAVA_HOME/jmods"
+        tar -xzf "$jmodsz" -C "$JAVA_HOME/jmods" --strip-components=1
+        rm -f "$jmodsz"
+    fi
+    echo "    java.base.jmod present: $(test -f "$JAVA_HOME/jmods/java.base.jmod" && echo yes || echo no)"
+}
+ensure_jdk_with_jmods
+
 export JAVA_HOME
 JPACKAGE="$JAVA_HOME/bin/jpackage"
 
