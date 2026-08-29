@@ -68,7 +68,7 @@ PY
     JAVA_HOME="$(find "$stage" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
     JAVA_HOME="${JAVA_HOME:-$stage}"
     # macOS JDK layout nests the actual home under Contents/Home.
-    if [[ -d "$JAVA_HOME/Contents/Home/bin" && -d "$JAVA_HOME/Contents/Home/jmods" ]]; then
+    if [[ -d "$JAVA_HOME/Contents/Home/bin" ]]; then
         JAVA_HOME="$JAVA_HOME/Contents/Home"
     fi
     rm -f "$dl"
@@ -79,20 +79,36 @@ PY
         local jmodsz="$PROJECT_DIR/target/jdk/${os}-${arch}-jmods.tar.gz"
         curl -fsSL --retry 3 --retry-all-errors "${base}/jmods/hotspot/normal/eclipse?project=jdk" -o "$jmodsz"
         python3 - "$jmodsz" "$JAVA_HOME/jmods" <<'PY'
-import sys
+import sys, os
 p, out = sys.argv[1], sys.argv[2]
-import os
 os.makedirs(out, exist_ok=True)
-import tarfile
-with tarfile.open(p, 'r:gz') as t:
-    for m in t.getmembers():
-        parts = m.name.split('/')
-        # strip the leading 'jdk-XX-jmods' directory component
-        if '/' in m.name:
+with open(p, 'rb') as f:
+    head = f.read(2)
+if head == b'PK':
+    import zipfile
+    with zipfile.ZipFile(p) as z:
+        for m in z.infolist():
+            name = m.filename
+            if name.endswith('/'):
+                continue
+            parts = name.split('/')
+            if len(parts) < 2:
+                continue
+            rel = '/'.join(parts[1:])
+            dst = os.path.join(out, rel)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with z.open(m) as src, open(dst, 'wb') as d:
+                d.write(src.read())
+else:
+    import tarfile
+    with tarfile.open(p, 'r:gz') as t:
+        for m in t.getmembers():
+            if '/' not in m.name:
+                continue
             m.name = m.name.split('/', 1)[1]
-        else:
-            continue
-        t.extract(m, out)
+            if m.name.endswith('/'):
+                continue
+            t.extract(m, out)
 PY
         rm -f "$jmodsz"
     fi
