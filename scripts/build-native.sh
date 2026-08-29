@@ -250,14 +250,18 @@ case "$OS" in
         fi
         ;;
     windows)
-        # exe (with Inno Setup wizard if ISCC present) or fallback msi via jpackage
+        # Primary artifact: MSI via jpackage (WiX toolset auto-downloaded by
+        # JDK 25), so the Windows installer is always produced.
+        "$JPACKAGE" "${COMMON_OPTS[@]}" --type msi >/dev/null
+        echo "    msi -> $OUT_DIR"
+        # Optional: Inno Setup wizard .exe (GitHub windows runners preinstall
+        # ISCC). Use MSYS_NO_PATHCONV so Git Bash passes //F... literally.
         if command -v ISCC >/dev/null 2>&1; then
-            "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null
-            ISCC //F"$OUT_DIR/${APP_NAME}-Setup" packaging/innosetup/ucs.iss >/dev/null
-            echo "    exe -> $OUT_DIR/${APP_NAME}-Setup.exe"
-        else
-            "$JPACKAGE" "${COMMON_OPTS[@]}" --type msi >/dev/null
-            echo "    msi -> $OUT_DIR"
+            if MSYS_NO_PATHCONV=1 ISCC "//F$OUT_DIR/${APP_NAME}-Setup" "packaging/innosetup/ucs.iss" >/dev/null 2>&1; then
+                echo "    exe -> $OUT_DIR/${APP_NAME}-Setup.exe"
+            else
+                echo "    [skip] Inno Setup exe failed (non-fatal); msi is the primary artifact"
+            fi
         fi
         ;;
     macos)
