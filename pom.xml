@@ -234,7 +234,7 @@
                                         <option>-libraryjars ${java.home}/jmods/java.security.jgss.jmod(!**.jar;!module-info.class)</option>
                                         <option>-keepattributes *Annotation*,Signature,Exceptions,InnerClasses,EnclosingMethod</option>
                                         <option>-dontwarn</option>
-                                        <option>@${project.basedir}/proguard.pro</option>
+                                        <option>@${project.basedir}/proguard-rules.pro</option>
                                     </options>
                                 </configuration>
                             </execution>
@@ -317,7 +317,7 @@
                                         <option>-libraryjars ${project.build.directory}/jmods/javafx-jmods-${javafx.version}/javafx.media.jmod(!**.jar;!module-info.class)</option>
                                         <option>-keepattributes *Annotation*,Signature,Exceptions,InnerClasses,EnclosingMethod</option>
                                         <option>-dontwarn</option>
-                                        <option>@${project.basedir}/proguard.pro</option>
+                                        <option>@${project.basedir}/proguard-rules.pro</option>
                                     </options>
                                 </configuration>
                             </execution>
