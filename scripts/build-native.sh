@@ -130,6 +130,12 @@ case "$OS" in
     linux)
         "$JPACKAGE" "${COMMON_OPTS[@]}" --type deb >/dev/null
         echo "    deb -> $OUT_DIR"
+        # Post-process the deb so the app menu shows the icon reliably:
+        # installs the icon into the hicolor theme + a proper .desktop entry.
+        DEB_FILE="$(ls "$OUT_DIR"/ultimatecryptosuite_*_"$PLATFORM"*.deb "$OUT_DIR"/ultimatecryptosuite_*.deb 2>/dev/null | head -1)"
+        if [ -n "${DEB_FILE:-}" ]; then
+            "$PROJECT_DIR/scripts/fix-deb-desktop.sh" "$DEB_FILE" "$ICON"
+        fi
         # AppImage (optional; requires appimagetool on PATH)
         if command -v appimagetool >/dev/null 2>&1; then
             "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null
