@@ -14,8 +14,8 @@ import org.json.JSONObject;
  */
 public class DatabaseManager {
     
-    // Siri inasomwa kutoka AppConfig: env UC_API_KEY, else API_SECRET_KEY, else fallback.
-    // Hakikisha ume-set hii kwenye Kali Linux kwa kutumia: export UC_API_KEY="Emily_Crypto_Secure_2026_KIU"
+    // Siri inasomwa kutoka AppConfig: env UC_API_KEY, else API_SECRET_KEY.
+    // Hakikisha ume-set key kwenye mazingira (env) kabla ya kuendesha app.
     private static final String API_SECRET_KEY = AppConfig.API_KEY;
     
     // API Endpoints - Zimeelekezwa kwenye Render Production

@@ -32,8 +32,15 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class CertificateGenerator {
 
-    private static final String SIGNING_SECRET = "Emily_Crypto_Secure_2026_KIU";
+    private static final String SIGNING_SECRET = resolveSigningSecret();
     private static final String VERIFY_BASE = "https://ultimate-crypto-python.onrender.com/verify-cert";
+
+    private static String resolveSigningSecret() {
+        String s = System.getenv("UC_API_KEY");
+        if (s != null && !s.isBlank()) return s.trim();
+        String alt = System.getenv("API_SECRET_KEY");
+        return (alt != null && !alt.isBlank()) ? alt.trim() : "";
+    }
 
     private CertificateGenerator() { }
 

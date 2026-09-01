@@ -13,17 +13,16 @@ import java.net.http.HttpRequest;
  * Priority for the key value:
  *   1. System env var UC_API_KEY   (set via: export UC_API_KEY="...")
  *   2. System env var API_SECRET_KEY
- *   3. Hardcoded fallback (matches Render env + backend default)
+ *
+ * The key is read ONLY from the environment. No secret is embedded in source.
  */
 public final class AppConfig {
 
     /** Header name expected by the Node gateway / Python backend (case-insensitive). */
     public static final String API_HEADER = "x-api-key";
 
-    /** API key resolved from environment (or fallback constant). */
+    /** API key resolved from the environment. Empty if neither env var is set. */
     public static final String API_KEY = resolveApiKey();
-
-    private static final String FALLBACK_API_KEY = "Emily_Crypto_Secure_2026_KIU";
 
     private AppConfig() { }
 
@@ -32,7 +31,7 @@ public final class AppConfig {
         if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.trim();
         String fromAlt = System.getenv("API_SECRET_KEY");
         if (fromAlt != null && !fromAlt.isBlank()) return fromAlt.trim();
-        return FALLBACK_API_KEY;
+        return "";
     }
 
     /** Appends the authentication header to any HttpRequest.Builder (GET/POST/OPTIONS/...). */
