@@ -1,0 +1,21 @@
+{
+  "name": "UltimateCryptoSuite",
+  "short_name": "UCSuite",
+  "description": "Enterprise-grade desktop cryptography suite with AES-256, TOTP MFA, and Fortress Academy.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": [
+    {
+      "src": "assets/branding/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/branding/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

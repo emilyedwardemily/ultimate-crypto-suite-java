@@ -62,7 +62,9 @@ else
 fi
 
 echo "==> Syncing landing page + installers"
-cp index.html script.js style.css "$PAGES_DIR/"
+cp index.html script.js style.css favicon.ico site.webmanifest "$PAGES_DIR/"
+mkdir -p "$PAGES_DIR/assets/branding"
+cp -r assets/branding/. "$PAGES_DIR/assets/branding/"
 mkdir -p "$PAGES_DIR/dist/native"
 cp dist/UltimateCryptoSuite.jar "$PAGES_DIR/dist/"
 cp dist/native/ultimatecryptosuite_1.0.0_amd64.deb "$PAGES_DIR/dist/native/"
@@ -79,7 +81,7 @@ fi
 git add -A
 git commit --quiet -m "Deploy UltimateCryptoSuite landing page + installers
 
-- Landing page (index/script/style)
+- Landing page (index/script/style) + favicon/manifest/branding
 - Portable .jar (credential-free)
 - Native .deb + .run wizard installer (bundled Java 25)"
 echo "==> Pushing to GitHub Pages repo ($SITE_BRANCH)"

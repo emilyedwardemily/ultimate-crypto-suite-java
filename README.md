@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="assets/branding/logo.png" width="180" alt="UltimateCryptoSuite logo" />
+
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](.github/workflows/ci-cd.yml)
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
 [![JavaFX](https://img.shields.io/badge/JavaFX-25-%2300B0FF)](https://openjfx.io)

@@ -3,6 +3,7 @@ package ui;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
@@ -36,6 +37,16 @@ public class ForgotPasswordScreen extends VBox {
         setAlignment(Pos.CENTER);
 
         setStyle("-fx-background-color: #050505; -fx-border-color: #39FF14; -fx-border-width: 1.5; -fx-border-radius: 10; -fx-background-radius: 10;");
+
+        // Logo rasmi juu ya password recovery
+        ImageView logoView = new ImageView();
+        try {
+            logoView.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream("/logo.png")));
+            logoView.setFitHeight(90);
+            logoView.setPreserveRatio(true);
+        } catch (Exception e) {
+            logoView.setFitHeight(0);
+        }
 
         Label title = new Label("RECOVER SECURE IDENTITY");
         title.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Courier New';");
@@ -80,7 +91,7 @@ public class ForgotPasswordScreen extends VBox {
         statusLabel.setWrapText(true);
         statusLabel.setAlignment(Pos.CENTER);
 
-        getChildren().addAll(title, hint, emailField, sendOtpBtn, otpField, newPasswordField, resetBtn, backBtn, statusLabel);
+        getChildren().addAll(logoView, title, hint, emailField, sendOtpBtn, otpField, newPasswordField, resetBtn, backBtn, statusLabel);
     }
 
     private TextField createStyledField(String prompt) {
