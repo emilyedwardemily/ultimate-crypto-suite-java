@@ -339,8 +339,16 @@ public final class AcademyFx {
         ProgressBar bar = new ProgressBar(0);
         bar.setPrefWidth(300);
         bar.setStyle("-fx-accent: " + AcademyUi.GREEN + ";");
-        VBox box = new VBox(14, brand, tagline, bar);
+        VBox box = new VBox(14);
         box.setAlignment(Pos.CENTER);
+        try {
+            javafx.scene.image.ImageView logoView = new javafx.scene.image.ImageView(
+                new javafx.scene.image.Image(AcademyFx.class.getResourceAsStream("/logo.png")));
+            logoView.setFitHeight(96);
+            logoView.setPreserveRatio(true);
+            box.getChildren().add(logoView);
+        } catch (Exception ignored) { }
+        box.getChildren().addAll(brand, tagline, bar);
         wrap.getChildren().add(box);
 
         Timeline prog = new Timeline(

@@ -8,6 +8,7 @@ import java.util.Base64;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import ui.Dashboard;
 import ui.LoginScreen;
@@ -26,6 +27,11 @@ public class MainApp extends Application {
         primaryStage = stage;
         
         System.out.println("🛡️ UC-Suite Kernel: Initializing Secure Gateway...");
+
+        // Branding: app icon / OS window icon inatumia logo rasmi
+        try {
+            stage.getIcons().add(new Image(getClass().getResourceAsStream("/logo.png")));
+        } catch (Exception ignored) {}
 
         // Hatua ya 1: Angalia kama mtumiaji tayari ana session ya zamani
         if (checkPersistentLogin()) {

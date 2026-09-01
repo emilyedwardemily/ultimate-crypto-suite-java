@@ -3,6 +3,7 @@ package ui;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
@@ -39,6 +40,16 @@ public class LoginScreen extends VBox {
         // Cyber-style background (Kali Linux aesthetic)
         setStyle("-fx-background-color: #050505; -fx-border-color: #39FF14; -fx-border-width: 1.5; -fx-border-radius: 10; -fx-background-radius: 10;");
 
+        // Logo rasmi juu ya login
+        ImageView logoView = new ImageView();
+        try {
+            logoView.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream("/logo.png")));
+            logoView.setFitHeight(110);
+            logoView.setPreserveRatio(true);
+        } catch (Exception e) {
+            logoView.setFitHeight(0);
+        }
+
         Label title = new Label("ULTIMATE CRYPTO GATEWAY");
         title.setStyle("-fx-text-fill: #39FF14; -fx-font-size: 24px; -fx-font-weight: bold; -fx-font-family: 'Courier New';");
 
@@ -71,7 +82,7 @@ public class LoginScreen extends VBox {
         statusLabel.setAlignment(Pos.CENTER);
 
         form.getChildren().addAll(emailField, passwordField, loginBtn, registerLink, forgotLink);
-        getChildren().addAll(title, form, statusLabel);
+        getChildren().addAll(logoView, title, form, statusLabel);
     }
 
     private TextField createStyledField(String prompt) {
