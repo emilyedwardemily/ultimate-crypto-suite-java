@@ -324,5 +324,93 @@
                 </plugins>
             </build>
         </profile>
+
+        <!--
+            Activation: -Pwindows-installer
+            Builds a SELF-CONTAINED Windows installer (.msi) with jpackage.
+
+            jpackage runs jlink to embed a trimmed Java runtime (JRE) plus the
+            JavaFX modules into the installer, so the application runs on a
+            fresh Windows machine with NO Java installed.
+
+            Desktop + Start Menu shortcuts and a directory chooser are enabled
+            (win-shortcut / win-menu / win-dir-chooser jpackage options).
+
+            Prerequisites (see scripts/build-windows.ps1):
+              * the thin obfuscated, tamper-signed jar staged at
+                target/jpackage-input/UltimateCryptoSuite.jar
+              * JavaFX jmods at target/jmods/javafx-jmods-${javafx.version}
+              * WiX Toolset v3 (candle.exe + light.exe) on PATH
+
+            Typical command:
+              mvn -Pnative,obfuscate -DskipTests verify      # build thin jar
+              python scripts/hash-and-sign.py target/UltimateCryptoSuite-1.0-SNAPSHOT-obfuscated.jar
+              mvn -Pwindows-installer jpackage:jpackage
+            or simply:
+              powershell -File scripts/build-windows.ps1        -->
+        <profile>
+            <id>windows-installer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.panteleyev</groupId>
+                        <artifactId>jpackage-maven-plugin</artifactId>
+                        <version>1.6.6</version>
+                        <configuration>
+                            <name>${app.name}</name>
+                            <appVersion>${app.version}</appVersion>
+                            <vendor>${app.vendor}</vendor>
+                            <description>Ultimate Crypto Suite - secure cryptography workstation</description>
+                            <!-- Staged, tamper-signed thin jar lives here. -->
+                            <input>${project.build.directory}/jpackage-input</input>
+                            <mainJar>UltimateCryptoSuite.jar</mainJar>
+                            <mainClass>${app.mainclass}</mainClass>
+
+                            <!-- JavaFX comes from the jmods so it is linked into
+                                 the bundled runtime as real modules. -->
+                            <modulePaths>
+                                <path>${project.build.directory}/jmods/javafx-jmods-${javafx.version}</path>
+                            </modulePaths>
+                            <addModules>
+                                <module>java.base</module>
+                                <module>java.logging</module>
+                                <module>java.management</module>
+                                <module>java.desktop</module>
+                                <module>java.xml</module>
+                                <module>java.net.http</module>
+                                <module>java.naming</module>
+                                <module>java.security.jgss</module>
+                                <module>jdk.crypto.ec</module>
+                                <module>jdk.unsupported</module>
+                                <module>javafx.base</module>
+                                <module>javafx.controls</module>
+                                <module>javafx.fxml</module>
+                                <module>javafx.graphics</module>
+                                <module>javafx.media</module>
+                            </addModules>
+                            <javaOptions>
+                                <option>--enable-native-access=javafx.graphics</option>
+                                <option>--add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED</option>
+                                <option>-Xms128m</option>
+                                <option>-Xmx1g</option>
+                            </javaOptions>
+
+                            <icon>${project.basedir}/packaging/icons/windows/ucs.ico</icon>
+                            <licenseFile>${project.basedir}/TERMS.txt</licenseFile>
+                            <!-- Keep generated installers inside target/. -->
+                            <destination>${project.build.directory}</destination>
+
+                            <!-- Windows .msi + shell integration. -->
+                            <type>MSI</type>
+                            <winShortcut>true</winShortcut>
+                            <winMenu>true</winMenu>
+                            <winMenuGroup>${app.name}</winMenuGroup>
+                            <winDirChooser>true</winDirChooser>
+                            <winUpgradeUuid>8A2F7C1B-5E64-4A3E-9C0D-7B1E2C3D4A5F</winUpgradeUuid>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>
