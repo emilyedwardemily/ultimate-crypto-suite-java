@@ -19,3 +19,9 @@ dist/checksums/
 target/
 obfuscation-map.txt
 proguard_seed.txt
+
+# Local runtime credentials and generated reports (NEVER commit)
+.sys_auth.bin
+license.dat
+Forensic_Report_*.txt
+

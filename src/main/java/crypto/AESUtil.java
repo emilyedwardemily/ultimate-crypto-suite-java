@@ -22,8 +22,19 @@ public class AESUtil {
     private static final int ITERATIONS = 65536; 
     private static final int KEY_LENGTH = 256;
     
-    // Salt ya mfumo: Hakikisha hii haibadiliki ili uweze kufungua data zako baadae
-    private static final byte[] SALT = "UC_SYSTEM_FIXED_SALT_2026_KIU".getBytes(StandardCharsets.UTF_8);
+    // Salt ya mfumo: inasomwa kutoka env var UC_AES_SALT ili hakuna thamani
+    // iliyoandikwa moja kwa moja kwenye source. Kama env haijawekwa, tunatumia
+    // default ya zamani ili data zilizoandikwa na matoleo ya awali ziendelee
+    // kufunguka (backward-compatible).
+    private static final String SALT_ENV = "UC_AES_SALT";
+    private static final String SALT_DEFAULT = "UC_SYSTEM_FIXED_SALT_2026_KIU";
+    private static final byte[] SALT = resolveSalt();
+
+    private static byte[] resolveSalt() {
+        String configured = System.getenv(SALT_ENV);
+        String value = (configured != null && !configured.isBlank()) ? configured.trim() : SALT_DEFAULT;
+        return value.getBytes(StandardCharsets.UTF_8);
+    }
 
     /**
      * PBKDF2: Inabadilisha password kuwa ufunguo imara wa AES-256.

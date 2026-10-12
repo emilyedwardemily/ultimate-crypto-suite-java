@@ -543,7 +543,7 @@ public class Dashboard extends BorderPane {
         if (m.contains("caesar") || m.contains("rot13")) { endpoint = "/caesar"; op = "caesar"; }
         return "curl -sS -X POST https://ultimate-crypto-python.onrender.com" + endpoint + " \\\n"
             + "  -H \"Content-Type: application/json\" \\\n"
-            + "  -H \"X-API-KEY: " + (LoginScreen.SESSION_TOKEN.isEmpty() ? "YOUR_API_KEY" : LoginScreen.SESSION_TOKEN) + "\" \\\n"
+            + "  -H \"X-API-KEY: " + (LoginScreen.SESSION_TOKEN.isEmpty() ? "${UC_API_KEY}" : LoginScreen.SESSION_TOKEN) + "\" \\\n"
             + "  -d '{\"text\": " + org.json.JSONObject.quote(input.isEmpty() ? "HELLO WORLD" : input)
             + ", \"operation\": \"" + op + "\", \"key\": \"\"}'";
     }
@@ -5071,7 +5071,7 @@ public class Dashboard extends BorderPane {
 
     private void simulateAes(String input, String param, VBox box, Label out, boolean encrypt) {
         String keyB64 = java.util.Base64.getEncoder().encodeToString(pad16(param).getBytes(StandardCharsets.UTF_8));
-        String ivB64 = java.util.Base64.getEncoder().encodeToString("1234567890123456".getBytes(StandardCharsets.UTF_8));
+        String ivB64 = java.util.Base64.getEncoder().encodeToString("UC-SUITE-DEMOIV1".getBytes(StandardCharsets.UTF_8));
         addStep(box, "# AES-128-CBC " + (encrypt ? "ENCRYPT" : "DECRYPT"), "#58a6ff");
         addStep(box, "  Key (b64): " + keyB64, "#c9d1d9");
         addStep(box, "  IV  (b64): " + ivB64, "#c9d1d9");
@@ -11387,7 +11387,7 @@ public class Dashboard extends BorderPane {
 
     private static String toolSample1(String toolId) {
         return switch (toolId) {
-            case "hexview", "strings" -> "Hello UC-Suite 12345!";
+            case "hexview", "strings" -> "Hello UC-Suite!";
             case "magicbytes" -> "FFD8FFE000104A46494600010101006000600000";
             case "entropy" -> "aaaaaaaaaaaaaaaa";
             case "bindiff" -> "Hello World";
@@ -11645,7 +11645,7 @@ public class Dashboard extends BorderPane {
 
     private static final String[][] PY_SNIPPETS = {
         {"Encrypt with the gateway (requests)",
-            "import requests\n\nAPI = \"https://ultimate-crypto-python.onrender.com/encrypt\"\nKEY = \"YOUR_X_API_KEY\"\n\nr = requests.post(\n    API,\n    headers={\"X-API-KEY\": KEY, \"Content-Type\": \"application/json\"},\n    json={\"data\": \"Hello UC-Suite\", \"operation\": \"encrypt\", \"key\": \"secret\"},\n)\nprint(r.json())\n# {\"status\": \"success\", \"result\": \"...\"}"},
+            "import requests\n\nAPI = \"https://ultimate-crypto-python.onrender.com/encrypt\"\nKEY = \"${UC_API_KEY}\"\n\nr = requests.post(\n    API,\n    headers={\"X-API-KEY\": KEY, \"Content-Type\": \"application/json\"},\n    json={\"data\": \"Hello UC-Suite\", \"operation\": \"encrypt\", \"key\": \"secret\"},\n)\nprint(r.json())\n# {\"status\": \"success\", \"result\": \"...\"}"},
         {"Hash with hashlib",
             "import hashlib\n\nfor alg in (\"md5\", \"sha1\", \"sha256\"):\n    h = hashlib.new(alg, b\"password\".hexdigest()\n    print(alg, h)"},
         {"HMAC message authentication",
@@ -11662,18 +11662,18 @@ public class Dashboard extends BorderPane {
         {"AES-128-CBC",
             "import javax.crypto.Cipher;\nimport javax.crypto.spec.SecretKeySpec;\nimport javax.crypto.spec.IvParameterSpec;\n\nbyte[] key = new byte[16]; // 16 bytes\nCipher c = Cipher.getInstance(\"AES/CBC/PKCS5Padding\");\nc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, \"AES\"),\n        new IvParameterSpec(new byte[16]));\nbyte[] ct = c.doFinal(\"hello\".getBytes());"},
         {"Call the gateway",
-            "import java.net.URI;\nimport java.net.http.*;\n\nHttpClient client = HttpClient.newHttpClient();\nHttpRequest req = HttpRequest.newBuilder(URI.create(\n    \"https://ultimate-crypto-python.onrender.com/encrypt\"))\n    .header(\"X-API-KEY\", \"YOUR_X_API_KEY\")\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\n        \"{\\\"data\\\":\\\"hi\\\",\\\"operation\\\":\\\"encrypt\\\",\\\"key\\\":\\\"secret\\\"}\"))\n    .build();\nSystem.out.println(client.send(req, HttpResponse.BodyHandlers.ofString()).body());"}
+            "import java.net.URI;\nimport java.net.http.*;\n\nHttpClient client = HttpClient.newHttpClient();\nHttpRequest req = HttpRequest.newBuilder(URI.create(\n    \"https://ultimate-crypto-python.onrender.com/encrypt\"))\n    .header(\"X-API-KEY\", \"${UC_API_KEY}\")\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\n        \"{\\\"data\\\":\\\"hi\\\",\\\"operation\\\":\\\"encrypt\\\",\\\"key\\\":\\\"secret\\\"}\"))\n    .build();\nSystem.out.println(client.send(req, HttpResponse.BodyHandlers.ofString()).body());"}
     };
 
     private static final String[][] CURL_SNIPPETS = {
         {"Encrypt",
-            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/encrypt \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: YOUR_X_API_KEY\" \\\n  -d '{\"data\":\"Hello\",\"operation\":\"encrypt\",\"key\":\"secret\"}'"},
+            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/encrypt \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: ${UC_API_KEY}\" \\\n  -d '{\"data\":\"Hello\",\"operation\":\"encrypt\",\"key\":\"secret\"}'"},
         {"Health check",
             "curl -sS https://ultimate-crypto-python.onrender.com/health"},
         {"Verify a certificate QR",
             "curl -sS \"https://ultimate-crypto-python.onrender.com/verify-cert?vid=YOUR_VID&sig=YOUR_SIG\""},
         {"Legacy Caesar",
-            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/legacy-cipher \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: YOUR_X_API_KEY\" \\\n  -d '{\"data\":\"HELLO\",\"shift\":3}'"}
+            "curl -sS -X POST https://ultimate-crypto-python.onrender.com/legacy-cipher \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-API-KEY: ${UC_API_KEY}\" \\\n  -d '{\"data\":\"HELLO\",\"shift\":3}'"}
     };
 
     // --- concept content: how it works ---
