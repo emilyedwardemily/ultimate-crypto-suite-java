@@ -1,9 +1,11 @@
 ; UltimateCryptoSuite - Windows installer (Inno Setup 6)
-; Wraps the jpackage app-image built by scripts/build-native.sh.
+; Wraps the self-contained jpackage app-image (bundled JRE) produced by
+; scripts/build-windows.ps1.
 ;
 ; Build with:  ISCC packaging/innosetup/ucs.iss
-; The script expects the jpackage app-image in dist/native/UltimateCryptoSuite
-; and produces dist/native/UltimateCryptoSuite-Setup.exe
+; Expects the app-image in target/UltimateCryptoSuite and writes
+; target/UltimateCryptoSuite-Setup.exe. Both locations can be overridden, e.g.
+;   ISCC /DAppImageDir=C:\app\UltimateCryptoSuite /DOutDir=C:\out ucs.iss
 ;
 ; Features:
 ;   - Terms & Conditions wizard page (LicenseFile)
@@ -17,8 +19,12 @@
 #define MyAppPublisher "emilyedward"
 #define MyAppExeName "UltimateCryptoSuite.exe"
 #define MyAppAssocName "Ultimate Crypto Suite"
-#define AppImageDir "..\..\dist\native\UltimateCryptoSuite"
-#define OutDir "..\..\dist\native"
+#ifndef AppImageDir
+  #define AppImageDir "..\..\target\UltimateCryptoSuite"
+#endif
+#ifndef OutDir
+  #define OutDir "..\..\target"
+#endif
 
 [Setup]
 AppId={{8A2F7C1B-5E64-4A3E-9C0D-ULTIMATECRYPTOSUITE}
@@ -60,18 +66,3 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletevalue
 
-[Code]
-// Refuse to run when the anti-tamper hash is missing from the app image
-// (defense in depth: the Java guard still enforces this at runtime).
-function InitializeSetup(): Boolean;
-begin
-  if not FileExists(ExpandConstant('{app}\UltimateCryptoSuite.jar')) and
-     not FileExists(ExpandConstant('{src}\UltimateCryptoSuite.jar')) then
-  begin
-    MsgBox('Application files missing. Please re-download the installer.',
-      mbError, MB_OK);
-    Result := False;
-    Exit;
-  end;
-  Result := True;
-end;

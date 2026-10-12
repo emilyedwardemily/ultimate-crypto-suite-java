@@ -135,10 +135,19 @@ OUT_DIR="$PROJECT_DIR/dist/native"
 APP_MODULES="java.base,java.logging,java.management,java.desktop,java.xml,java.net.http,java.naming,java.security.jgss,jdk.crypto.ec,jdk.unsupported"
 APP_MODULES="$APP_MODULES,javafx.base,javafx.controls,javafx.fxml,javafx.graphics,javafx.media"
 
-# JVM options for the packaged app.
-JVM_OPTS="--enable-native-access=javafx.graphics"
-JVM_OPTS="$JVM_OPTS --add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED"
-JVM_OPTS="$JVM_OPTS -Xms128m -Xmx1g"
+# JVM options for the packaged app. Each option is passed to jpackage
+# separately (--java-options can be repeated) so the generated launcher
+# always receives one well-formed argument per option.
+JVM_OPTS=(
+    --enable-native-access=javafx.graphics
+    --add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED
+    -Xms128m
+    -Xmx1g
+)
+JAVA_OPT_ARGS=()
+for _opt in "${JVM_OPTS[@]}"; do
+    JAVA_OPT_ARGS+=(--java-options "$_opt")
+done
 
 case "$OS" in
     linux)
@@ -198,8 +207,10 @@ mkdir -p "$OUT_DIR"
 # Remove stale app-image so jpackage can rebuild it.
 rm -rf "$OUT_DIR/$APP_NAME"
 
+# NOTE: the package --type is selected per platform below (passing more than
+# one --type is error-prone: only the last wins). The bundled Java runtime is
+# produced automatically by jpackage/jlink from --module-path + --add-modules.
 COMMON_OPTS=(
-    --type app-image
     --name "$APP_NAME"
     --app-version "$APP_VERSION"
     --vendor "$APP_VENDOR"
@@ -208,16 +219,16 @@ COMMON_OPTS=(
     --main-class "$MAIN_CLASS"
     --module-path "$JMODS_DIR/javafx-jmods-${JAVAFX_VERSION}"
     --add-modules "$APP_MODULES"
-    --java-options "$JVM_OPTS"
     --dest "$OUT_DIR"
 )
+COMMON_OPTS+=( "${JAVA_OPT_ARGS[@]}" )
 if [[ -f "$ICON" ]]; then
     COMMON_OPTS+=(--icon "$ICON")
 fi
 
 echo "==> [5/5] Running jpackage for $OS"
 if [[ "$ONLY_IMAGE" == "--app-image-only" ]]; then
-    "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null
+    "$JPACKAGE" "${COMMON_OPTS[@]}" --type app-image >/dev/null
     echo "    app-image -> $OUT_DIR/$APP_NAME"
     exit 0
 fi
@@ -238,7 +249,7 @@ case "$OS" in
         fi
         # AppImage (optional; requires appimagetool on PATH). Never fatal.
         if command -v appimagetool >/dev/null 2>&1; then
-            if "$JPACKAGE" "${COMMON_OPTS[@]}" >/dev/null 2>&1 && \
+            if "$JPACKAGE" "${COMMON_OPTS[@]}" --type app-image >/dev/null 2>&1 && \
                ARCH=x86_64 appimagetool --appimage-extract-and-run \
                    "$OUT_DIR/$APP_NAME" "$OUT_DIR/${APP_NAME}-${APP_VERSION}-x86_64.AppImage" >/dev/null 2>&1; then
                 echo "    appimage -> $OUT_DIR"
@@ -250,15 +261,30 @@ case "$OS" in
         fi
         ;;
     windows)
-        # Primary artifact: MSI via jpackage (WiX toolset auto-downloaded by
-        # JDK 25), so the Windows installer is always produced.
-        "$JPACKAGE" "${COMMON_OPTS[@]}" --type msi >/dev/null
+        # Primary artifact: MSI via jpackage. jpackage bundles a trimmed Java
+        # runtime (jlink) into the installer, so the app runs on a fresh
+        # Windows box with no Java installed. Requires WiX Toolset v3
+        # (candle.exe + light.exe) on PATH.
+        WIN_OPTS=(
+            --type msi
+            --win-shortcut            # Desktop shortcut
+            --win-menu                # Start Menu shortcut
+            --win-menu-group "$APP_NAME"
+            --win-dir-chooser
+            --win-upgrade-uuid "8A2F7C1B-5E64-4A3E-9C0D-7B1E2C3D4A5F"
+        )
+        "$JPACKAGE" "${COMMON_OPTS[@]}" "${WIN_OPTS[@]}" >/dev/null
         echo "    msi -> $OUT_DIR"
+        # Also drop a copy in Maven's target/ so `mvn clean package` +
+        # jpackage keeps installers alongside the build output.
+        mkdir -p "$PROJECT_DIR/target"
+        cp "$OUT_DIR"/*.msi "$PROJECT_DIR/target/" 2>/dev/null || true
         # Optional: Inno Setup wizard .exe (GitHub windows runners preinstall
         # ISCC). Use MSYS_NO_PATHCONV so Git Bash passes //F... literally.
         if command -v ISCC >/dev/null 2>&1; then
             if MSYS_NO_PATHCONV=1 ISCC "//F$OUT_DIR/${APP_NAME}-Setup" "packaging/innosetup/ucs.iss" >/dev/null 2>&1; then
                 echo "    exe -> $OUT_DIR/${APP_NAME}-Setup.exe"
+                cp "$OUT_DIR"/*.exe "$PROJECT_DIR/target/" 2>/dev/null || true
             else
                 echo "    [skip] Inno Setup exe failed (non-fatal); msi is the primary artifact"
             fi

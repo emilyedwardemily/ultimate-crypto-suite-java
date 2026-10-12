@@ -51,13 +51,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fakeroot
 
-      - name: Install WiX (Windows .msi)
+      - name: Install WiX Toolset v3 (Windows .msi)
         if: runner.os == 'Windows'
-        uses: actions/setup-dotnet@v4
-        # WiX toolset is downloaded by jpackage automatically on Windows;
-        # this step ensures the wix toolset is discoverable.
-        with:
-          dotnet-version: '8.x'
+        shell: pwsh
+        # jpackage shells out to WiX v3 (candle.exe + light.exe) to build .msi
+        # installers; without it the Windows installer step fails and no
+        # self-contained MSI is produced. .NET alone is NOT sufficient.
+        run: |
+          choco install wixtoolset --version=3.14.1 -y --no-progress
+          "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Install appimagetool (Linux AppImage)
         if: runner.os == 'Linux'
